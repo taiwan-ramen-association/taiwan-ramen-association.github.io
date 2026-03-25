@@ -1,57 +1,54 @@
-name: Sync Google Sheets Data
+name: Sync Google Sheets ↔ data.json
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # 每6小時自動執行一次
-  workflow_dispatch:          # 也可以手動觸發
+    - cron: '0 */6 * * *'   # 每6小時自動同步一次
+  push:
+    paths:
+      - 'data.json'          # 當 data.json 被手動推上來時，反向更新 Google Sheets
+  workflow_dispatch:          # 可手動觸發
 
 jobs:
-  sync:
+
+  # ── JOB 1：Google Sheets → data.json ──────────────────────────────────────
+  sheets_to_json:
+    name: Sheets → JSON
     runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Fetch Google Sheets data
-        run: |
-          curl -L "https://docs.google.com/spreadsheets/d/1kS00wVDgdg11ejcC85Y4_utJ4jaywgUpb-KrhFIp8Mo/gviz/tq?tqx=out:json&sheet=%E7%B8%BD%E8%A1%A8csv" \
-            -o raw.json
+      - name: Install gspread
+        run: pip install gspread google-auth
 
-      - name: Convert gviz JSON to clean JSON
+      - name: Fetch sheet and save data.json
+        env:
+          SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
         run: |
           python3 << 'EOF'
-          import json, re
+          import json, os, gspread
+          from google.oauth2.service_account import Credentials
 
-          with open('raw.json', 'r', encoding='utf-8') as f:
-              text = f.read()
+          key = json.loads(os.environ['SERVICE_ACCOUNT_KEY'])
+          creds = Credentials.from_service_account_info(key, scopes=[
+              'https://www.googleapis.com/auth/spreadsheets.readonly'
+          ])
+          gc = gspread.authorize(creds)
 
-          # Strip gviz wrapper
-          text = re.sub(r'^[^{]*', '', text)
-          text = re.sub(r'\);?\s*$', '', text)
-          data = json.loads(text)
+          SPREADSHEET_ID = '1kS00wVDgdg11ejcC85Y4_utJ4jaywgUpb-KrhFIp8Mo'
+          sh = gc.open_by_key(SPREADSHEET_ID)
+          ws = sh.worksheet('總表csv')
 
-          table  = data['table']
-          headers = [c.get('label') or c.get('id','') for c in table['cols']]
-          headers = [h.strip() for h in headers]
-
-          rows = []
-          for row in table.get('rows', []):
-              if not row.get('c'):
-                  continue
-              obj = {}
-              for i, cell in enumerate(row['c']):
-                  h = headers[i] if i < len(headers) else ''
-                  obj[h] = str(cell['v']).strip() if cell and cell.get('v') is not None else ''
-              if obj.get('店名','').strip():
-                  rows.append(obj)
+          rows = ws.get_all_records(default_blank='')
+          rows = [r for r in rows if str(r.get('店名','')).strip()]
 
           with open('data.json', 'w', encoding='utf-8') as f:
               json.dump(rows, f, ensure_ascii=False, indent=2)
 
-          print(f"Done: {len(rows)} shops saved to data.json")
+          print(f'Done: {len(rows)} rows saved to data.json')
           EOF
 
       - name: Commit and push data.json
@@ -59,5 +56,53 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data.json
-          git diff --cached --quiet || git commit -m "Auto-sync: $(date '+%Y-%m-%d %H:%M') UTC"
+          git diff --cached --quiet && echo "No changes" || git commit -m "Auto-sync from Google Sheets $(date '+%Y-%m-%d %H:%M') UTC"
           git push
+
+  # ── JOB 2：data.json → Google Sheets ──────────────────────────────────────
+  json_to_sheets:
+    name: JSON → Sheets
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gspread
+        run: pip install gspread google-auth
+
+      - name: Push data.json back to Google Sheets
+        env:
+          SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        run: |
+          python3 << 'EOF'
+          import json, os, gspread
+          from google.oauth2.service_account import Credentials
+
+          key = json.loads(os.environ['SERVICE_ACCOUNT_KEY'])
+          creds = Credentials.from_service_account_info(key, scopes=[
+              'https://www.googleapis.com/auth/spreadsheets'
+          ])
+          gc = gspread.authorize(creds)
+
+          SPREADSHEET_ID = '1kS00wVDgdg11ejcC85Y4_utJ4jaywgUpb-KrhFIp8Mo'
+          sh = gc.open_by_key(SPREADSHEET_ID)
+          ws = sh.worksheet('總表csv')
+
+          with open('data.json', 'r', encoding='utf-8') as f:
+              rows = json.load(f)
+
+          if not rows:
+              print('data.json is empty, skipping')
+              exit(0)
+
+          headers = list(rows[0].keys())
+          values  = [headers] + [[str(r.get(h, '')) for h in headers] for r in rows]
+
+          ws.clear()
+          ws.update('A1', values)
+
+          print(f'Done: {len(rows)} rows written back to Google Sheets')
+          EOF
