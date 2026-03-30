@@ -892,7 +892,7 @@
     function openFinder() {
       const overlay = document.getElementById('finder-overlay');
       const frame = document.getElementById('finder-frame');
-      if (!frame.src) frame.src = 'finder.html';
+      if (!frame.getAttribute('src')) frame.setAttribute('src', 'finder.html');
       overlay.classList.add('open');
       document.body.style.overflow = 'hidden';
     }
