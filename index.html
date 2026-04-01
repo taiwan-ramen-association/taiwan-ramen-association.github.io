@@ -305,6 +305,33 @@
       border-color: var(--red);
     }
 
+    /* ── APRIL FOOLS ── */
+    .btn-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      letter-spacing: 2px;
+      color: var(--white);
+      border: 1px solid rgba(255,255,255,0.3);
+      padding: 14px 36px;
+      text-decoration: none;
+      transition: all 0.2s;
+      margin-left: 16px;
+    }
+    .btn-live:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.6); }
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #ff4444;
+      flex-shrink: 0;
+      animation: livepulse 1.2s ease-in-out infinite;
+    }
+    @keyframes livepulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255,68,68,0.6); }
+      50% { opacity: 0.7; box-shadow: 0 0 0 5px rgba(255,68,68,0); }
+    }
+
     /* ── MEMBERSHIP (首頁簡短版) ── */
     .join-desc { font-size: 14px; line-height: 2.2; color: var(--muted); max-width: 560px; margin-bottom: 32px; }
     .join-types { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -624,7 +651,12 @@
     <p class="section-label" data-i18n="finder_label">RAMEN FINDER</p>
     <h2 class="section-title" data-i18n="finder_title">拉麵搜尋器</h2>
     <p class="finder-desc" data-i18n="finder_desc">全台 300+ 間拉麵店家，依縣市、營業時間、特色篩選，即時查看是否營業中。</p>
-    <a href="#" onclick="openFinder();return false;" class="btn-finder" data-i18n="finder_cta">前往搜尋器 →</a>
+    <div style="display:flex;flex-wrap:wrap;gap:0;align-items:center;">
+      <a href="#" onclick="openFinder();return false;" class="btn-finder" data-i18n="finder_cta">前往搜尋器 →</a>
+      <a id="april-fools-btn" href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noopener" class="btn-live">
+        <span class="live-dot"></span>即時排隊情報
+      </a>
+    </div>
   </section>
 
   <!-- MEMBERSHIP -->
@@ -731,6 +763,19 @@
   </div>
 
   <script>
+    // ── APRIL FOOLS: 4/2 00:00 UTC+8 自動關閉 ──
+    (function() {
+      const deadline = new Date('2026-04-02T00:00:00+08:00');
+      const btn = document.getElementById('april-fools-btn');
+      if (!btn) return;
+      if (Date.now() >= deadline.getTime()) {
+        btn.remove();
+      } else {
+        const ms = deadline.getTime() - Date.now();
+        setTimeout(() => btn.remove(), ms);
+      }
+    })();
+
     // ── FINDER OVERLAY ──
     function openFinder() {
       const overlay = document.getElementById('finder-overlay');
