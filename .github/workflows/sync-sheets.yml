@@ -2,20 +2,29 @@ name: Sync Google Sheets ↔ data.json
 
 on:
   schedule:
-    # - cron: '0 */6 * * *'   # 每6小時自動同步一次
+    - cron: '0 */6 * * *'   # 每6小時自動同步一次
     - cron: '0 2 1 * *'     # 每月1日 02:00 更新行政區劃清單
   push:
     paths:
       - 'data.json'          # 當 data.json 被手動推上來時，反向更新 Google Sheets
-  workflow_dispatch:          # 可手動觸發
-
+  workflow_dispatch:
+    inputs:
+      direction:
+        description: '同步方向'
+        required: true
+        default: 'json_to_sheets'
+        type: choice
+        options:
+          - json_to_sheets
+          - sheets_to_json
+  
 jobs:
 
   # ── JOB 1：Google Sheets → data.json ──────────────────────────────────────
   sheets_to_json:
     name: Sheets → JSON
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.direction == 'sheets_to_json')
     permissions:
       contents: write
 
@@ -269,7 +278,7 @@ jobs:
   update_districts:
     name: 更新行政區劃清單
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' && github.event.schedule == '0 2 1 * *'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.direction == 'json_to_sheets')
     permissions:
       contents: write
 
