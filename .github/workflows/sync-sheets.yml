@@ -258,15 +258,9 @@ jobs:
               print('data.json is empty, skipping')
               exit(0)
 
-          # 固定欄位順序（lat/lng 放最後，供地圖功能使用）
-          HEADERS = [
-              '店名','地址','Map','類型','派系','醬底',
-              '營業日','營業時段','店休日','排隊方式','點餐方式','支付方式',
-              '吧台數','桌位數','洗手間','營業備註','其他',
-              '開幕日','歇業日','營業狀態',
-              'Facebook','Instagram','縣市','鄉鎮市區','開幕月份',
-              'lat','lng'
-          ]
+
+          # 動態從 data.json 第一筆取得所有欄位，保持原始順序
+            HEADERS = list(rows[0].keys())
 
           values = [HEADERS]
           for row in rows:
