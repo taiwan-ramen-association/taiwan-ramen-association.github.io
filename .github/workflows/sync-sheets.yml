@@ -178,7 +178,8 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data.json
-          git diff --cached --quiet && echo "No changes" || git commit -m "Auto-sync from Google Sheets $(date '+%Y-%m-%d %H:%M') UTC"
+          git diff --cached --quiet && echo "No changes" || git commit -m "Auto-sync from Google Sheets $(date '+%Y-%m-%d %H:%M') UTC [skip-sheets]"
+
           git push
 
       - name: Backup data.json to backups branch
@@ -219,7 +220,10 @@ jobs:
   json_to_sheets:
     name: JSON → Sheets
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.direction == 'json_to_sheets')
+    if: |
+      github.event_name == 'push' && 
+      !contains(github.event.head_commit.message, '[skip-sheets]') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.direction == 'json_to_sheets')
     permissions:
       contents: read
 
