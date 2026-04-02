@@ -1473,7 +1473,7 @@
     "Facebook": "",
     "Instagram": "",
     "縣市": "臺北市",
-    "鄉鎮市區": "大安區",
+    "鄉鎮市區": "大安區市",
     "開幕月份": 1,
     "lat": 25.0446153,
     "lng": 121.5446043
@@ -1502,7 +1502,7 @@
     "Facebook": "https://www.facebook.com/share/16cGwQZKrQ",
     "Instagram": "https://www.instagram.com/honmarutei_taiwan",
     "縣市": "臺北市",
-    "鄉鎮市區": "大安區",
+    "鄉鎮市區": "大安區市",
     "開幕月份": 11,
     "lat": 25.0443321,
     "lng": 121.5415253
@@ -1531,7 +1531,7 @@
     "Facebook": "https://www.facebook.com/share/1CNuCxhkVJ",
     "Instagram": "https://www.instagram.com/yanhu302?",
     "縣市": "臺北市",
-    "鄉鎮市區": "大安區",
+    "鄉鎮市區": "大安區市",
     "開幕月份": 5,
     "lat": 25.044533,
     "lng": 121.5431592
@@ -12754,7 +12754,7 @@
     "Facebook": "",
     "Instagram": "",
     "縣市": "桃園市",
-    "鄉鎮市區": "平鎮",
+    "鄉鎮市區": "平鎮區",
     "開幕月份": "",
     "lat": 24.8996887,
     "lng": 121.2107102

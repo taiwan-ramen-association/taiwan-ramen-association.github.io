@@ -62,7 +62,7 @@ jobs:
 
           # 自動從地址解析縣市與鄉鎮市區
           def parse_city_district(addr):
-              m = re.match(r'^(.{2,3}[市縣])(.{1,4}?[區市鎮鄉])', addr)
+              m = re.match(r'^(.{2,3}[市縣])(.{1,4}?[區市鎮鄉])(?![區市鎮鄉])', addr)
               if m:
                   return m.group(1), m.group(2)
               return '', ''
