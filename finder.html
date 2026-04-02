@@ -728,7 +728,7 @@ function renderMap() {
     const dayStr = formatDayStr(shop);
     const openTimes = [...new Set(ALL_DAYS.map(d => shop['週'+d]).filter(Boolean))];
     const hours = openTimes.length === 1 ? openTimes[0].replace(/\n/g, '　')
-      : openTimes.length > 1 ? '依日而異'
+      : openTimes.length > 1 ? (selectedDay ? (shop['週'+selectedDay] || '依日而異') : '依日而異')
       : (shop['營業時段'] || '').replace(/\n/g, '　');
     const mapUrl = isValidUrl(shop['Map']) ? shop['Map']
       : `https://www.google.com/maps/search/${encodeURIComponent(shop['地址'] || shop['店名'])}`;
@@ -770,7 +770,7 @@ function renderCard(shop) {
   const dayStr  = formatDayStr(shop);
   const openTimes = [...new Set(ALL_DAYS.map(d => shop['週'+d]).filter(Boolean))];
   const hours = openTimes.length === 1 ? openTimes[0].replace(/\n/g, '　')
-    : openTimes.length > 1 ? '依日而異'
+    : openTimes.length > 1 ? (selectedDay ? (shop['週'+selectedDay] || '依日而異') : '依日而異')
     : (shop['營業時段'] || '').replace(/\n/g, '　');
   const hasWeekData = ALL_DAYS.some(d => shop['週'+d]);
   const offDay = hasWeekData
