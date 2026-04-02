@@ -219,7 +219,7 @@ jobs:
   json_to_sheets:
     name: JSON → Sheets
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.direction == 'json_to_sheets')
     permissions:
       contents: read
 
@@ -278,7 +278,7 @@ jobs:
   update_districts:
     name: 更新行政區劃清單
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.direction == 'json_to_sheets')
+    if: github.event_name == 'schedule' && github.event.schedule == '0 2 1 * *'
     permissions:
       contents: write
 
