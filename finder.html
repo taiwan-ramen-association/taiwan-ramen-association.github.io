@@ -512,7 +512,12 @@ function parseHours(raw) {
 function isOpenAt(timeStr, targetMins) {
   const slots = parseHours(timeStr);
   if (!slots.length) return false;
-  return slots.some(s => targetMins >= s.start && targetMins < s.end);
+  return slots.some(s => {
+    if (targetMins >= s.start && targetMins < s.end) return true;
+    // 跨午夜補償：00:00–06:00 等深夜時段需加 24h 再比對
+    if (s.end > 24 * 60 && (targetMins + 24 * 60) >= s.start && (targetMins + 24 * 60) < s.end) return true;
+    return false;
+  });
 }
 
 // ── Filter ─────────────────────────────────────────────────────────────────
