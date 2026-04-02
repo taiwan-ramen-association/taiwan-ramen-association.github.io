@@ -221,8 +221,7 @@ jobs:
     name: JSON → Sheets
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'push' && 
-      !contains(github.event.head_commit.message, '[skip-sheets]') ||
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip-sheets]')) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.direction == 'json_to_sheets')
     permissions:
       contents: read
@@ -260,7 +259,7 @@ jobs:
 
 
           # 動態從 data.json 第一筆取得所有欄位，保持原始順序
-            HEADERS = list(rows[0].keys())
+          HEADERS = list(rows[0].keys())
 
           values = [HEADERS]
           for row in rows:
