@@ -195,6 +195,36 @@ if failed_geo:
     print(f'⚠ 找不到座標：{", ".join(failed_geo)}')
 
 # ════════════════════════════════════════════════════════════════════════════
+# STEP 4：正規化營業時段格式
+# ════════════════════════════════════════════════════════════════════════════
+print('=' * 60)
+print('STEP 4／4　正規化營業時段格式')
+print('=' * 60)
+
+HOURS_FIELDS = ['週一', '週二', '週三', '週四', '週五', '週六', '週日']
+
+def normalize_hours(value):
+    if not isinstance(value, str) or not value.strip():
+        return value
+    v = value.strip()
+    # 統一破折號為全形 en dash (–)
+    v = re.sub(r'(?<=\d)[—\-~～](?=\d)', '–', v)
+    # 找出所有時段，以頓號重新組合
+    segments = re.findall(r'\d{1,2}:\d{2}–\d{1,2}:\d{2}', v)
+    return '、'.join(segments) if segments else value
+
+updated_fmt = 0
+for row in rows:
+    for field in HOURS_FIELDS:
+        original = row.get(field, '')
+        normalized = normalize_hours(original)
+        if normalized != original:
+            row[field] = normalized
+            updated_fmt += 1
+
+print(f'✅ 格式正規化完成：更新 {updated_fmt} 個欄位\n')
+
+# ════════════════════════════════════════════════════════════════════════════
 # 寫回 data.json
 # ════════════════════════════════════════════════════════════════════════════
 with open(json_path, 'w', encoding='utf-8') as f:

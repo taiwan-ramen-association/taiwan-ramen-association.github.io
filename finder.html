@@ -274,6 +274,12 @@
   .link-ig  { background: #fcedf5; color: #c2366a; }
   .link-fb  { background: #edf0fa; color: #2d4b9b; }
 
+  .new-open-badge {
+    flex-shrink: 0; font-size: 10px; font-weight: 700;
+    padding: 3px 7px; border-radius: 10px; letter-spacing: 0.8px; margin-top: 2px;
+    background: var(--red); color: var(--white);
+  }
+
   .empty-state { text-align: center; padding: 60px 20px; color: var(--stone); }
   .empty-state .big { font-size: 38px; margin-bottom: 10px; }
   .empty-state p { font-size: 14px; }
@@ -349,7 +355,7 @@
 <div id="mainContent">
   <div class="filter-bar">
     <div class="search-box">
-      <input type="text" id="searchInput" placeholder="搜尋店名、地址、派系…" autocomplete="off">
+      <input type="text" id="searchInput" placeholder="搜尋店名、地址、派系、新開幕…" autocomplete="off">
     </div>
     <div class="filter-row">
       <div class="filter-group">
@@ -401,6 +407,7 @@ const DATA_URL = './data.json';
 
 // ── State ──────────────────────────────────────────────────────────────────
 let ALL_DATA   = [];
+let serverDate   = new Date(); // 由 fetch Date header 更新，不受裝置時鐘影響
 let selectedDay  = '';
 let expandedCard = null;
 let currentView  = 'list';
@@ -436,6 +443,8 @@ async function loadData() {
   try {
     const res  = await fetch(DATA_URL + '?t=' + Date.now()); // 避免快取
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const dateHeader = res.headers.get('Date');
+    if (dateHeader) serverDate = new Date(dateHeader);
     const rows = await res.json();
 
     ALL_DATA = rows.filter(r => r['店名'] && r['店名'].trim() && r['營業狀態'] === '營業中');
@@ -474,6 +483,22 @@ async function loadData() {
   } finally {
     document.getElementById('refreshBtn').classList.remove('spinning');
   }
+}
+
+// ── New-open helpers ───────────────────────────────────────────────────────
+function parseOpenDate(str) {
+  if (!str) return null;
+  const m = str.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if (!m) return null;
+  return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
+}
+
+function isNewOpen(shop) {
+  const d = parseOpenDate(shop['開幕日']);
+  if (!d) return false;
+  const cutoff = new Date(serverDate);
+  cutoff.setMonth(cutoff.getMonth() - 6);
+  return d >= cutoff && d <= serverDate;
 }
 
 // ── Time helpers ───────────────────────────────────────────────────────────
@@ -567,8 +592,13 @@ function getFiltered() {
     }
 
     if (query) {
-      const hay = [shop['店名'],shop['地址'],shop['派系'],shop['類型'],shop['醬底']].join(' ').toLowerCase();
-      if (!hay.includes(query)) return false;
+      const newOpenQuery = query === 'new open' || query === '新開幕';
+      if (newOpenQuery) {
+        if (!isNewOpen(shop)) return false;
+      } else {
+        const hay = [shop['店名'],shop['地址'],shop['派系'],shop['類型'],shop['醬底']].join(' ').toLowerCase();
+        if (!hay.includes(query)) return false;
+      }
     }
     return true;
   });
@@ -815,6 +845,7 @@ function renderCard(shop) {
       <div class="card-name">${shop['店名']}</div>
       <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
         ${dist !== null ? `<span class="dist-badge">${formatDist(dist)}</span>` : ''}
+        ${isNewOpen(shop) ? '<span class="new-open-badge">NEW OPEN</span>' : ''}
         ${statusBadge(shop['營業狀態'])}
       </div>
     </div>
