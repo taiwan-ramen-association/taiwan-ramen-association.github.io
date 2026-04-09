@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="icon/03.png">
+  <title>會務專區 | 台灣拉麵協會</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .zone-hero {
+      padding: 80px 10vw 48px;
+      border-bottom: 1px solid var(--line);
+    }
+    .zone-eyebrow {
+      font-size: 11px;
+      letter-spacing: 4px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .zone-title {
+      font-family: 'Noto Serif TC', serif;
+      font-size: 32px;
+      font-weight: 900;
+      letter-spacing: 6px;
+      color: var(--ink);
+      margin-bottom: 12px;
+    }
+    .zone-desc {
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      line-height: 2;
+    }
+
+    .zone-grid {
+      padding: 64px 10vw 100px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    .zone-card {
+      display: block;
+      text-decoration: none;
+      border: 1.5px solid var(--line);
+      border-radius: 4px;
+      padding: 32px 28px 48px;
+      background: var(--white);
+      transition: border-color .2s, box-shadow .2s, transform .2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .zone-card:hover {
+      border-color: var(--ink);
+      box-shadow: 0 4px 20px rgba(0,0,0,.08);
+      transform: translateY(-2px);
+    }
+    .zone-card-accent {
+      position: absolute;
+      top: 0; left: 0;
+      width: 3px; height: 100%;
+      background: var(--red);
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .zone-card:hover .zone-card-accent { opacity: 1; }
+
+    .zone-card-tag {
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .zone-card-title {
+      font-family: 'Noto Serif TC', serif;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: var(--ink);
+      margin-bottom: 10px;
+    }
+    .zone-card-desc {
+      font-size: 13px;
+      line-height: 2;
+      letter-spacing: 1px;
+      color: var(--muted);
+    }
+    .zone-card-arrow {
+      position: absolute;
+      bottom: 28px;
+      right: 28px;
+      font-size: 16px;
+      color: var(--line);
+      transition: color .2s, transform .2s;
+    }
+    .zone-card:hover .zone-card-arrow {
+      color: var(--red);
+      transform: translate(2px, -2px);
+    }
+
+    @media (max-width: 600px) {
+      .zone-hero { padding: 72px 24px 40px; }
+      .zone-grid { padding: 40px 24px 80px; }
+      .zone-title { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">台灣<span>拉麵</span>協會</a>
+  <a class="nav-back" href="index.html">← 返回首頁</a>
+</nav>
+
+<div class="zone-hero">
+  <div class="zone-eyebrow">MEMBERS ZONE</div>
+  <div class="zone-title">會務專區</div>
+  <p class="zone-desc">協會內部文件、會議紀錄與章程，<br>僅供會員與理監事參閱。</p>
+</div>
+
+<div class="zone-grid">
+
+  <a class="zone-card" href="meetings.html">
+    <div class="zone-card-accent"></div>
+    <div class="zone-card-tag">MINUTES · 內部文件</div>
+    <div class="zone-card-title">會議紀錄</div>
+    <div class="zone-card-desc">
+      理監事會議、會員大會<br>等各類會議之紀錄彙整。
+    </div>
+    <div class="zone-card-arrow">→</div>
+  </a>
+
+  <a class="zone-card" href="charter.html">
+    <div class="zone-card-accent"></div>
+    <div class="zone-card-tag">CHARTER · 法規文件</div>
+    <div class="zone-card-title">協會章程</div>
+    <div class="zone-card-desc">
+      台灣拉麵協會組織章程<br>及相關規範條文。
+    </div>
+    <div class="zone-card-arrow">→</div>
+  </a>
+
+</div>
+
+</body>
+</html>

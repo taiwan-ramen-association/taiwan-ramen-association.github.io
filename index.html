@@ -772,7 +772,6 @@
       <li><a href="news.html" data-i18n="nav_news">最新消息</a></li>
       <li><a href="#" onclick="openFinder();return false;" data-i18n="nav_finder">拉麵搜尋</a></li>
       <li><a href="membership.html" data-i18n="nav_join">加入會員</a></li>
-      <li><a href="meetings.html" data-i18n="nav_minutes">會議紀錄</a></li>
       <li><a href="#contact" data-i18n="nav_contact">聯絡我們</a></li>
     </ul>
     <div class="nav-right">
@@ -782,7 +781,12 @@
         <option value="en">EN</option>
       </select>
       <a href="membership.html" class="nav-cta" data-i18n="nav_cta">加入會員</a>
-      <button class="hamburger" onclick="toggleMenu()" id="hamburger">☰</button>
+      <button type="button" class="hamburger" id="hamburger" aria-expanded="false" onclick="toggleMenu()">
+        <div class="line top"></div>
+        <div class="line middle"></div>
+        <div class="line bottom"></div>
+        <span>menu</span>
+      </button>
     </div>
   </nav>
 
@@ -792,7 +796,6 @@
     <a href="news.html" data-i18n="nav_news">最新消息</a>
     <a href="#"        onclick="openFinder();closeMenu();return false;" data-i18n="nav_finder">拉麵搜尋</a>
     <a href="membership.html" data-i18n="nav_join">加入會員</a>
-    <a href="meetings.html" data-i18n="nav_minutes">會議紀錄</a>
     <a href="#contact" onclick="closeMenu()" data-i18n="nav_contact">聯絡我們</a>
   </div>
 
@@ -949,6 +952,12 @@
           <li><a href="#" data-i18n="footer_contact">聯絡我們</a></li>
           <li><a href="#" data-i18n="footer_shop">店家申請</a></li>
           <li><a href="#" data-i18n="footer_ad">廣告合作</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="footer-col-title">MEMBERS</div>
+        <ul class="footer-links">
+          <li><a href="members-zone.html">會務專區</a></li>
         </ul>
       </div>
       <div>
@@ -1185,11 +1194,20 @@
 
     // ── HAMBURGER ──
     function toggleMenu() {
+      const btn  = document.getElementById('hamburger');
       const menu = document.getElementById('mobile-menu');
-      menu.classList.toggle('open');
+      const isOpen = menu.classList.toggle('open');
+      btn.classList.toggle('opened', isOpen);
+      btn.setAttribute('aria-expanded', isOpen);
+      btn.querySelector('span').textContent = isOpen ? 'close' : 'menu';
     }
     function closeMenu() {
-      document.getElementById('mobile-menu').classList.remove('open');
+      const btn  = document.getElementById('hamburger');
+      const menu = document.getElementById('mobile-menu');
+      menu.classList.remove('open');
+      btn.classList.remove('opened');
+      btn.setAttribute('aria-expanded', 'false');
+      btn.querySelector('span').textContent = 'menu';
     }
 
     // ── LANGUAGE SWITCHER ──
