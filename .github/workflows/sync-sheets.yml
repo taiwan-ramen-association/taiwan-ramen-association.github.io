@@ -55,14 +55,38 @@ jobs:
           rows = ws.get_all_records(default_blank='')
           rows = [r for r in rows if str(r.get('店名','')).strip()]
 
-          # 處理 Date(yyyy,m,d) 格式 → yyyy年m+1月d日
+          # 各種日期格式 → YYYY-MM-DD
+          from datetime import datetime
           def fix_date(val):
               if not isinstance(val, str):
                   return val
-              m = re.match(r'Date\((\d+),(\d+),(\d+)\)', val.strip())
+              v = val.strip()
+              if not v:
+                  return val
+              # 已是標準格式
+              if re.match(r'^\d{4}-\d{2}-\d{2}$', v):
+                  return v
+              # Date(yyyy,m,d)（gspread 舊格式）
+              m = re.match(r'Date\((\d+),(\d+),(\d+)\)', v)
               if m:
                   y, mo, d = int(m.group(1)), int(m.group(2))+1, int(m.group(3))
-                  return f'{y}年{mo}月{d}日'
+                  return f'{y}-{mo:02d}-{d:02d}'
+              # JS Date.toString()：Mon Oct 28 2024 08:00:00 GMT+0800 (...)
+              m = re.match(r'\w{3} (\w{3} \d{1,2} \d{4})', v)
+              if m:
+                  try:
+                      dt = datetime.strptime(m.group(1), '%b %d %Y')
+                      return f'{dt.year}-{dt.month:02d}-{dt.day:02d}'
+                  except ValueError:
+                      pass
+              # YYYY年M月D日
+              m = re.match(r'(\d{4})年(\d{1,2})月(\d{1,2})日', v)
+              if m:
+                  return f'{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}'
+              # YYYY/M/D
+              m = re.match(r'(\d{4})/(\d{1,2})/(\d{1,2})$', v)
+              if m:
+                  return f'{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}'
               return val
 
           for row in rows:
@@ -218,7 +242,7 @@ jobs:
               values.append([str(row.get(h, '')) for h in HEADERS])
 
           ws.clear()
-          ws.update('A1', values)
+          ws.update('A1', values, value_input_option='RAW')
           print(f'Done: {len(rows)} rows written back to Google Sheets')
           EOF
 
@@ -306,7 +330,7 @@ jobs:
               values.append([str(row.get(h, '')) for h in HEADERS])
 
           ws.clear()
-          ws.update('A1', values)
+          ws.update('A1', values, value_input_option='RAW')
 
           print(f'Done: {len(rows)} rows written back to Google Sheets')
           EOF
