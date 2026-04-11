@@ -148,6 +148,21 @@ nav {
   transition: color 0.2s;
 }
 .mobile-menu a:hover { color: var(--red); }
+.mobile-menu button {
+  display: block;
+  width: 100%;
+  padding: 16px 24px;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.mobile-menu button:hover { color: var(--red); }
 .nav-cta {
   font-size: 11px;
   letter-spacing: 2px;

@@ -545,14 +545,9 @@
       border-radius: 10px;
       box-shadow: 2px 3px 10px rgba(0,0,0,0.07);
       transition: transform 0.25s, box-shadow 0.25s;
-      transform: rotate(3deg);
     }
-    .partner-slot:nth-child(2n) { transform: rotate(-4deg); }
-    .partner-slot:nth-child(3n) { transform: rotate(4deg); }
-    .partner-slot:nth-child(4n) { transform: rotate(-3deg); }
-    .partner-slot:nth-child(5n) { transform: rotate(3.5deg); }
     .partner-slot:hover {
-      transform: rotate(0deg) scale(1.05);
+      transform: scale(1.05);
       box-shadow: 4px 6px 18px rgba(0,0,0,0.13);
       z-index: 1;
     }
@@ -850,6 +845,7 @@
     <a href="finder.html" target="_blank" rel="noopener" onclick="closeMenu()" data-i18n="nav_finder">拉麵搜尋</a>
     <a href="membership.html" data-i18n="nav_join">加入會員</a>
     <a href="#contact" onclick="closeMenu()" data-i18n="nav_contact">聯絡我們</a>
+    <button onclick="openAnnounce()">📢 顯示公告</button>
   </div>
 
   <!-- HERO -->
@@ -1046,19 +1042,22 @@
     }
 
     // ── DAILY ANNOUNCE ──
-    (function() {
-      const key = 'tra_announce_date';
-      const today = new Date().toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' });
-      const seen  = localStorage.getItem(key);
-      if (seen === today) return; // 今天已看過，不顯示
+    let _announceLoaded = false;
+    let _announceServerMins = null;
 
-      // 顯示 overlay
-      document.getElementById('announce-overlay').classList.add('open');
-      lockScroll();
-
-      // 載入 news.json 填入最新消息
+    function loadAnnounceNews() {
+      if (_announceLoaded) return;
+      _announceLoaded = true;
       fetch('news.json?t=' + Date.now())
-        .then(r => r.json())
+        .then(r => {
+          const serverDate = r.headers.get('Date');
+          if (serverDate) {
+            const d = new Date(serverDate);
+            const parts = d.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour: 'numeric', minute: 'numeric', hour12: false }).split(':');
+            _announceServerMins = (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+          }
+          return r.json();
+        })
         .then(data => {
           const list = document.getElementById('announce-news-list');
           list.innerHTML = '';
@@ -1081,7 +1080,6 @@
             list.appendChild(aprilItem);
           }
 
-          // 最新 3 筆 news
           data.slice(0, 3).forEach(item => {
             const li = document.createElement('li');
             if (item.url) {
@@ -1100,9 +1098,16 @@
             list.appendChild(li);
           });
 
-          // 問候語（早/午/晚）
-          const hr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour: 'numeric', hour12: false }) | 0;
-          const greet = hr < 12 ? '早安！' : hr < 18 ? '午安！' : '晚安！';
+          let mins = _announceServerMins;
+          if (mins === null) {
+            const now = new Date();
+            const parts = now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour: 'numeric', minute: 'numeric', hour12: false }).split(':');
+            mins = (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+          }
+          const greet = mins >= 300 && mins < 630 ? '早安！'
+            : mins >= 630 && mins < 990 ? '午安！'
+            : mins >= 990 ? '晚上好！'
+            : '要吃宵夜嗎？';
           document.getElementById('announce-greeting').textContent =
             greet + '歡迎來到台灣拉麵協會官方網站。以下是最新公告，請確認後繼續瀏覽。';
         })
@@ -1110,7 +1115,22 @@
           document.getElementById('announce-news-list').innerHTML =
             '<li style="font-size:12px;color:var(--muted);padding:12px 0;">暫無公告。</li>';
         });
+    }
+
+    (function() {
+      const today = new Date().toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' });
+      if (localStorage.getItem('tra_announce_date') === today) return;
+      document.getElementById('announce-overlay').classList.add('open');
+      lockScroll();
+      loadAnnounceNews();
     })();
+
+    function openAnnounce() {
+      closeMenu();
+      document.getElementById('announce-overlay').classList.add('open');
+      lockScroll();
+      loadAnnounceNews();
+    }
 
     function closeAnnounce() {
       const today = new Date().toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' });
