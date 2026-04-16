@@ -17,9 +17,6 @@ tools/diff_report.csv
 tools/item_detail.csv
 tools/test_one_shop.json
 
-# 本機操作手冊（不納入版控）
-MANUAL.md
-
 # Python
 __pycache__/
 *.pyc

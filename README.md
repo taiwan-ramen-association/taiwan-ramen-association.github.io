@@ -35,7 +35,7 @@ tools/           本機維護用 Python 工具
 ## 店家資料更新
 
 店家資料維護於 Google Sheets，系統自動同步，一般不需手動操作。
-若需本機編輯，請參考 `MANUAL.md`（本地檔案，不含於版控）。
+若需本機編輯，請參考 [MANUAL.md](MANUAL.md)。
 
 ---
 
