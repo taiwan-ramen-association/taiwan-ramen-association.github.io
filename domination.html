@@ -244,8 +244,7 @@ async function loadAll(uid) {
       let score = 0;
 
       for (const id of ids) {
-        const v = visits[id];
-        const s = v?.status;
+        const s = visits[id];
         if (s != null && s > 0) {
           // ⚠️ 從業（20）不計入完成度
           if (s === 20) continue;
@@ -264,8 +263,7 @@ async function loadAll(uid) {
     // ===== 全域統計 =====
     let totalScore = 0, stampedShops = 0;
 
-    for (const v of Object.values(visits)) {
-      const s = v?.status;
+    for (const s of Object.values(visits)) {
       totalScore += scoreFromStatus(s);
       if (s > 0) stampedShops++;
     }

@@ -88,6 +88,20 @@
     border-radius: 8px; padding: 10px 22px;
     font-size: 14px; font-family: 'Noto Sans TC', sans-serif; cursor: pointer;
   }
+  #betaGate {
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 70vh; gap: 14px; text-align: center; padding: 30px 20px;
+  }
+  #betaGate p { color: var(--stone); font-size: 14px; line-height: 1.7; }
+  .btn-google {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--white); border: 1px solid var(--line);
+    padding: 10px 20px; border-radius: 8px;
+    font-size: 14px; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    font-family: 'Noto Sans TC', sans-serif;
+  }
+  .btn-google:hover { background: #f5f5f5; }
 
   /* ── FILTER BAR ── */
   .filter-bar {
@@ -310,11 +324,16 @@
 
   /* ── PROFILE DROPDOWN ── */
   .profile-dropdown {
-    position: fixed; top: 52px; right: 52px; z-index: 99;
+    position: fixed; top: 52px; right: 52px; z-index: 1100;
     background: var(--white); border-radius: 14px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.18); width: 260px;
     overflow: hidden;
   }
+  .pd-actions {
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+  }
+  .pd-actions .pd-action:first-child { border-top: none; }
   .pd-header {
     display: flex; align-items: center; gap: 12px;
     padding: 16px; background: var(--red-light);
@@ -600,8 +619,6 @@
     </div>
   </div>
 
-  <button class="pd-action" id="favFilterBtn" style="display:none">♥ 收藏清單</button>
-
   <div class="pd-section">
     <label>顯示名稱</label>
     <input id="nicknameInput" type="text" maxlength="20" placeholder="輸入綽號（最多 20 字）">
@@ -620,10 +637,13 @@
 
   <button class="pd-save-btn" id="saveProfileBtn">儲存</button>
 
-  <a class="pd-action" href="domination.html">🗾 制霸地圖</a>
-  <a class="pd-action" id="adminLink" href="admin.html" style="display:none">⚙️ 會員管理</a>
-  <button class="pd-action" id="clearDataBtn" style="color:#c00">🗑 清除我的所有記憶</button>
-  <button class="pd-action danger" id="logoutBtn">🚪 登出</button>
+  <div class="pd-actions">
+    <button class="pd-action" id="favFilterBtn" style="display:none">♥ 收藏清單</button>
+    <a class="pd-action" href="domination.html">🗾 制霸地圖</a>
+    <a class="pd-action" id="adminLink" href="admin.html" style="display:none">⚙️ 會員管理</a>
+    <button class="pd-action" id="clearDataBtn" style="color:#c00">🗑 清除我的所有記憶</button>
+    <button class="pd-action danger" id="logoutBtn">🚪 登出</button>
+  </div>
 </div>
 
 <div class="drawer-backdrop" id="drawerBackdrop" style="display:none"></div>
@@ -694,6 +714,14 @@
     <button class="clear-ov-cancel" id="clearCancelBtn">取消</button>
     <button class="clear-ov-confirm" id="clearConfirmBtn" disabled>確認清除</button>
   </div>
+</div>
+
+<div id="betaGate">
+  <p id="betaGateMsg">此頁面需要登入才能瀏覽</p>
+  <button class="btn-google" id="betaLoginBtn" style="display:none">
+    <svg viewBox="0 0 48 48" width="18" height="18"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.4 30.2 0 24 0 14.7 0 6.8 5.4 3 13.3l7.8 6C12.7 13.2 17.9 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 6.9-10.1 6.9-17z"/><path fill="#FBBC05" d="M10.8 28.7A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.7-4.7L2.4 13.3A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.6l8.4-5.9z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.1 0-11.3-3.7-13.2-9l-7.8 6C6.8 42.6 14.7 48 24 48z"/></svg>
+    以 Google 帳號登入
+  </button>
 </div>
 
 <div id="loadingScreen" class="loading-screen">
@@ -1058,7 +1086,7 @@ function locateUser() {
     btn.textContent = '📍 已定位';
     btn.classList.add('located');
     btn.disabled = false;
-    if (leafletMap) { showUserMarker(); leafletMap.setView([userLat, userLng], 15); }
+    if (leafletMap) { showUserMarker(); leafletMap.setView([userLat, userLng], 14); }
     render();
   }, () => {
     btn.textContent = '📍 定位';
@@ -1135,29 +1163,38 @@ function initMap() {
     maxZoom: 19
   }).addTo(leafletMap);
 
-  // 右下角控制組：定位 + 跟隨
-  const MapControls = L.Control.extend({
-    options: { position: 'bottomright' },
+  // 左下角：縮放到自身位置（半徑約 1km）
+  const LocateMeControl = L.Control.extend({
+    options: { position: 'bottomleft' },
     onAdd() {
-      const wrap = L.DomUtil.create('div', 'map-ctrl-group');
-
-      const locBtn = L.DomUtil.create('button', 'map-ctrl-btn', wrap);
-      locBtn.title = '定位到我的位置';
-      locBtn.innerHTML = '📍';
-      L.DomEvent.on(locBtn, 'click', L.DomEvent.stop);
-      L.DomEvent.on(locBtn, 'click', locateUser);
-
-      const followBtn = L.DomUtil.create('button', 'map-ctrl-btn', wrap);
-      followBtn.id    = 'followMapBtn';
-      followBtn.title = '跟隨我的位置';
-      followBtn.innerHTML = '🧭';
-      L.DomEvent.on(followBtn, 'click', L.DomEvent.stop);
-      L.DomEvent.on(followBtn, 'click', toggleFollow);
-
-      return wrap;
+      const btn = L.DomUtil.create('button', 'map-ctrl-btn map-ctrl-locate');
+      btn.title = '縮放到我的位置（約 1 公里範圍）';
+      btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>`;
+      L.DomEvent.on(btn, 'click', L.DomEvent.stop);
+      L.DomEvent.on(btn, 'click', () => {
+        if (!navigator.geolocation) { alert('此瀏覽器不支援 GPS 定位'); return; }
+        btn.style.opacity = '0.5';
+        btn.disabled = true;
+        navigator.geolocation.getCurrentPosition(pos => {
+          userLat = pos.coords.latitude;
+          userLng = pos.coords.longitude;
+          btn.style.opacity = '';
+          btn.disabled = false;
+          showUserMarker();
+          leafletMap.setView([userLat, userLng], 15);
+          const lb = document.getElementById('locateBtn');
+          if (lb) { lb.textContent = '📍 已定位'; lb.classList.add('located'); }
+          render();
+        }, () => {
+          btn.style.opacity = '';
+          btn.disabled = false;
+          alert('無法取得位置，請確認已允許定位權限');
+        }, { enableHighAccuracy: true, timeout: 8000 });
+      });
+      return btn;
     }
   });
-  new MapControls().addTo(leafletMap);
+  new LocateMeControl().addTo(leafletMap);
 
   // 手動拖曳地圖時退出跟隨模式
   leafletMap.on('dragstart', () => { if (followMode) toggleFollow(); });
@@ -1276,7 +1313,7 @@ function renderCard(shop) {
         ${isNewOpen(shop) ? '<span class="new-open-badge">NEW OPEN</span>' : ''}
         ${statusBadge(shop['營業狀態'])}
         <button class="fav-btn${!auth.currentUser || isWarned ? ' locked' : ''}" data-id="${escapeAttr(shop['ID'] || '')}">${favSet.has(shop['ID']) ? '♥' : '♡'}</button>
-        <button class="stamp-btn${isWarned ? ' locked' : (auth.currentUser ? ' can-stamp' : '')}${stampMap[shop['ID']] != null ? ' stamped' : ''}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}" title="踩點">👣</button>
+        <button class="stamp-btn${!auth.currentUser || isWarned ? ' locked' : ' can-stamp'}${stampMap[shop['ID']] != null ? ' stamped' : ''}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}" title="踩點">👣</button>
       </div>
     </div>
     <div class="card-meta">
@@ -1392,6 +1429,10 @@ function bdToday() {
 
 function launchFireworks(birthdayShops) {
   if (localStorage.getItem(BD_SKIP_KEY) === bdToday()) return;
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9998;pointer-events:auto;';
+  document.body.appendChild(overlay);
 
   const canvas = document.createElement('canvas');
   canvas.id = 'fireworks-canvas';
@@ -1511,6 +1552,7 @@ function launchFireworks(birthdayShops) {
 
   function dismiss() {
     dismissed = true;
+    overlay.remove();
     canvas.style.transition = 'opacity 0.4s ease';
     canvas.style.opacity = '0';
     setTimeout(() => canvas.remove(), 450);
@@ -1582,6 +1624,7 @@ function launchFireworks(birthdayShops) {
     if (!dismissed && (elapsed < DURATION || rockets.length > 0 || particles.length > 0)) {
       requestAnimationFrame(loop);
     } else if (!dismissed) {
+      overlay.remove();
       canvas.style.transition = 'opacity 1s ease';
       canvas.style.opacity = '0';
       setTimeout(() => canvas.remove(), 1100);
@@ -1602,10 +1645,16 @@ function launchFireworks(birthdayShops) {
       font-family:'Noto Serif TC',serif; font-weight:900;
       font-size:clamp(22px,5vw,40px); letter-spacing:0.12em;
       color:#fff; text-shadow:0 2px 12px rgba(0,0,0,0.5),0 0 30px #f06292;
-      background:rgba(0,0,0,0.28); padding:10px 28px; border-radius:50px;
-      white-space:nowrap;
+      background:rgba(0,0,0,0.28); padding:10px 28px; border-radius:20px;
+      display:flex; flex-direction:column; align-items:center; gap:4px;
+      text-align:center;
     `;
-    line.textContent = `${name} 生日快樂！`;
+    const nameLine = document.createElement('span');
+    nameLine.textContent = name;
+    const bdLine = document.createElement('span');
+    bdLine.textContent = '生日快樂！';
+    line.appendChild(nameLine);
+    line.appendChild(bdLine);
     banner.appendChild(line);
   });
 
@@ -1971,6 +2020,23 @@ document.getElementById('clearConfirmBtn').addEventListener('click', async () =>
 });
 
 // ── onAuthStateChanged ─────────────────────────────────────────────────────
+const BETA_ALLOWED_ROLES = ['admin', 'director'];
+
+function showBetaGate(msg, showLogin = false) {
+  document.getElementById('betaGate').style.display = 'flex';
+  document.getElementById('betaGateMsg').textContent = msg;
+  document.getElementById('betaLoginBtn').style.display = showLogin ? 'flex' : 'none';
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'none';
+}
+
+document.getElementById('betaLoginBtn').addEventListener('click', () => {
+  auth.signInWithPopup(provider).catch(err => {
+    if (err.code === 'auth/popup-blocked') auth.signInWithRedirect(provider);
+    else if (err.code !== 'auth/popup-closed-by-user') console.error(err);
+  });
+});
+
 auth.onAuthStateChanged(async user => {
   try {
     if (user) {
@@ -2007,6 +2073,15 @@ auth.onAuthStateChanged(async user => {
         Object.assign(userData, snap2.data());
       }
 
+      // 權限檢查：只有 admin / 協會幹部 可瀏覽
+      if (!BETA_ALLOWED_ROLES.includes(userData.role)) {
+        showBetaGate('此頁面僅開放協會幹部及管理員瀏覽');
+        userAvatar.style.display = 'block';
+        return;
+      }
+
+      document.getElementById('betaGate').style.display = 'none';
+
       // 頭像：優先用 Firestore avatarUrl，否則 Google 照片
       const avatar = getAvatarUrl(userData, user.photoURL);
       userAvatar.src       = avatar;
@@ -2034,7 +2109,7 @@ auth.onAuthStateChanged(async user => {
       showFavOnly = false;
       document.getElementById('favFilterBtn').classList.remove('active');
       closeProfileDropdown();
-      render();
+      showBetaGate('此頁面需要登入後才能瀏覽', true);
     }
   } catch (err) {
     console.error('auth state 處理失敗', err);
