@@ -230,24 +230,29 @@ async function loadAll(uid) {
 
     const visits = visitsSnap.exists ? (visitsSnap.data().visits || {}) : {};
 
-    // ===== 建立鄉鎮 index =====
+    // ===== 建立鄉鎮 index（只計營業中店家）=====
+    const activeShopIds = new Set();
     const shopsByTown = {};
     for (const shop of shopsRes) {
+      if (shop['營業狀態'] !== '營業中') continue;
+      activeShopIds.add(shop['ID']);
       const key = norm(shop['縣市']) + '_' + norm(shop['鄉鎮市區']);
       if (!shopsByTown[key]) shopsByTown[key] = [];
       shopsByTown[key].push(shop['ID']);
     }
+    const totalTownsWithShops = Object.keys(shopsByTown).length;
 
     // ===== 鄉鎮統計 =====
     function townStats(key) {
       const ids = shopsByTown[key] || [];
       let score = 0;
+      let hasVisit = false; // 至少一間吃過一次以上（含從業，不含路過）
 
       for (const id of ids) {
         const s = visits[id];
         if (s != null && s > 0) {
-          // ⚠️ 從業（20）不計入完成度
-          if (s === 20) continue;
+          if (s >= 1 || s === 20) hasVisit = true;
+          if (s === 20) continue; // 從業不計入完成度分數
           score += scoreFromStatus(s);
         }
       }
@@ -255,27 +260,29 @@ async function loadAll(uid) {
       return {
         count: ids.length,
         score,
-        max: ids.length * 10   // ✅ 修正
+        max: ids.length * 10,
+        hasVisit
       };
     }
 
 
-    // ===== 全域統計 =====
+    // ===== 全域統計（只算營業中店家）=====
     let totalScore = 0, stampedShops = 0;
 
-    for (const s of Object.values(visits)) {
+    for (const [shopId, s] of Object.entries(visits)) {
+      if (!activeShopIds.has(shopId)) continue;
       totalScore += scoreFromStatus(s);
-      if (s > 0) stampedShops++;
+      if (s >= 1 || s === 20) stampedShops++;
     }
 
-    document.getElementById('statScore').textContent = totalScore;
+    document.getElementById('statScore').textContent = Math.round(totalScore * 10) / 10;
     document.getElementById('statShops').textContent = stampedShops;
 
 
     // ===== 畫地圖 =====
     renderMap(geoRes, shopsByTown, visits, townStats, stats => {
       document.getElementById('statTowns').textContent = stats.visitedTowns;
-      document.getElementById('statFull').textContent  = stats.fullTowns;
+      document.getElementById('statFull').textContent  = stats.fullTowns + '/' + totalTownsWithShops;
     });
 
     document.getElementById('loadingMsg').style.display  = 'none';
@@ -322,10 +329,10 @@ function renderMap(geo, shopsByTown, visits, townStats, cb) {
     .attr('d', path)
     .attr('fill', d => {
       const key = norm(d.properties.COUNTYNAME) + '_' + norm(d.properties.TOWNNAME);
-      const { count, score, max } = townStats(key);
+      const { count, score, max, hasVisit } = townStats(key);
 
-      if (count > 0 && score > 0) visitedTowns++;
-      if (count > 0 && score >= max) fullTowns++;
+      if (count > 0 && hasVisit) visitedTowns++;
+      if (count > 0 && score >= max && score > 0) fullTowns++;
 
       return getFill(count, score, max);
     })
