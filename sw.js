@@ -1,4 +1,4 @@
-const STATIC_CACHE = 'ramen-static-v1';
+const STATIC_CACHE = 'ramen-static-v2';
 const DATA_CACHE   = 'ramen-data-v1';
 
 const STATIC_ASSETS = [
@@ -47,7 +47,20 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 其他資源 → Cache First
+  // finder.html → Network First（確保每次都取最新版）
+  if (url.pathname.endsWith('finder.html') || url.pathname === '/') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          caches.open(STATIC_CACHE).then(cache => cache.put(event.request, response.clone()));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // 其他靜態資源 → Cache First
   event.respondWith(
     caches.match(event.request).then(cached => cached || fetch(event.request))
   );
