@@ -364,27 +364,45 @@ function renderTable(users, visitsMap) {
   });
 
   // 一鍵清除
-  tbody.querySelectorAll('.clear-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const uid  = btn.dataset.uid;
-      const name = btn.dataset.name;
-      if (!confirm(`確定要清除「${name}」的所有收藏與踩點記錄嗎？\n此操作無法復原。`)) return;
-      if (!confirm(`再次確認：清除「${name}」的所有記憶？`)) return;
-      btn.disabled = true; btn.textContent = '…';
-      try {
-        await db.collection('users').doc(uid).update({
-          favorites: firebase.firestore.FieldValue.delete()
-        });
-        await db.collection('userVisits').doc(uid).delete();
-        // Update local stats display
-        const row = tbody.querySelector(`tr[data-uid="${uid}"]`);
+tbody.querySelectorAll('.clear-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const uid  = btn.dataset.uid;
+    const name = btn.dataset.name;
+
+    if (!confirm(`確定要清除「${name}」的所有收藏與踩點記錄嗎？\n此操作無法復原。`)) return;
+    if (!confirm(`再次確認：清除「${name}」的所有記憶？`)) return;
+
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    try {
+      // ✅ 不會因為文件不存在而失敗
+      await db.collection('users').doc(uid).set({
+        favorites: firebase.firestore.FieldValue.delete()
+      }, { merge: true });
+
+      // ✅ 刪除踩點
+      await db.collection('userVisits').doc(uid).delete();
+
+      // UI 更新（防呆）
+      const row = tbody.querySelector(`tr[data-uid="${uid}"]`);
+      if (row) {
         const cells = row.querySelectorAll('.stat-num');
-        cells[0].textContent = '─'; cells[1].textContent = '─';
-        showToast(`✓ 已清除 ${name} 的記憶`);
-      } catch (e) { showToast('❌ 清除失敗：' + e.message); }
-      btn.disabled = false; btn.textContent = '🗑';
-    });
+        cells[0].textContent = '─';
+        cells[1].textContent = '─';
+      }
+
+      showToast(`✓ 已清除 ${name} 的記憶`);
+
+    } catch (e) {
+      console.error(e);
+      showToast('❌ 清除失敗：' + e.message);
+    }
+
+    btn.disabled = false;
+    btn.textContent = '🗑';
   });
+});
 }
 
 function showToast(msg) {
