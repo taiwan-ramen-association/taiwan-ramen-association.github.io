@@ -405,14 +405,18 @@
     color: var(--red); flex-shrink: 0;
   }
 
+  /* ── FAV BUTTON locked ── */
+  .fav-btn.locked { opacity: 0.3; cursor: not-allowed; }
+
   /* ── STAMP BUTTON ── */
   .stamp-btn {
     border: none; background: none; cursor: pointer;
     font-size: 17px; padding: 0 2px; line-height: 1;
     flex-shrink: 0; opacity: 0.25; transition: opacity 0.15s;
   }
-  .stamp-btn.can-stamp { opacity: 0.45; cursor: pointer; }
+  .stamp-btn.can-stamp { opacity: 0.45; }
   .stamp-btn.stamped   { opacity: 1; }
+  .stamp-btn.locked    { opacity: 0.25; cursor: not-allowed; }
 
   /* ── STAMP MODAL ── */
   .stamp-backdrop {
@@ -422,56 +426,75 @@
   .stamp-modal {
     position: fixed; z-index: 601;
     left: 50%; top: 50%; transform: translate(-50%, -50%);
-    width: min(360px, calc(100vw - 32px));
-    background: var(--white); border-radius: 16px;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.3);
-    padding: 20px; display: none;
+    width: min(420px, calc(100vw - 20px));
+    background: var(--white); border-radius: 18px;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.35);
+    padding: 22px 20px; display: none;
+    max-height: 92vh; overflow-y: auto;
   }
   .sm-header {
     display: flex; align-items: flex-start;
-    justify-content: space-between; margin-bottom: 16px; gap: 10px;
+    justify-content: space-between; margin-bottom: 18px; gap: 10px;
   }
   .sm-title {
     font-family: 'Noto Serif TC', serif;
-    font-size: 15px; font-weight: 700; line-height: 1.4; flex: 1;
+    font-size: 17px; font-weight: 700; line-height: 1.4; flex: 1;
   }
   .sm-reset-btn {
     border: 1px solid #ddd; background: none; cursor: pointer;
-    font-size: 11px; color: var(--stone); padding: 3px 8px;
-    border-radius: 6px; white-space: nowrap; flex-shrink: 0;
-    transition: all 0.15s;
+    font-size: 12px; color: var(--stone); padding: 4px 10px;
+    border-radius: 7px; white-space: nowrap; flex-shrink: 0; transition: all 0.15s;
   }
   .sm-reset-btn:hover { border-color: #c00; color: #c00; }
-  .sm-statuses {
-    display: grid; grid-template-columns: repeat(5, 1fr);
-    gap: 5px; margin-bottom: 12px;
+  .sm-option {
+    display: flex; align-items: center; gap: 14px;
+    padding: 13px 14px; border: 1.5px solid var(--line);
+    border-radius: 13px; cursor: pointer; margin-bottom: 7px;
+    transition: all 0.15s; background: var(--paper); user-select: none;
   }
-  .sm-status-btn {
-    border: 1.5px solid var(--line); background: var(--paper);
-    border-radius: 10px; padding: 8px 3px;
-    font-size: 11px; font-family: 'Noto Sans TC', sans-serif;
-    cursor: pointer; text-align: center; line-height: 1.4;
-    transition: all 0.15s; color: var(--ink);
+  .sm-option:hover:not(.selected) { border-color: var(--red); background: #fff8f8; }
+  .sm-option.selected { border-color: var(--red); background: #fff0f0; }
+  .sm-option-icon  { font-size: 26px; line-height: 1; width: 34px; text-align: center; }
+  .sm-option-label { font-size: 15px; font-weight: 500; flex: 1; color: var(--ink); }
+  .sm-option-radio {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--line); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
   }
-  .sm-status-btn small { display: block; color: var(--stone); font-size: 10px; margin-top: 3px; }
-  .sm-status-btn:hover:not(.selected) { border-color: var(--red); color: var(--red); }
-  .sm-status-btn.selected { border-color: var(--red); background: var(--red); color: #fff; }
-  .sm-status-btn.selected small { color: rgba(255,255,255,0.75); }
-  .sm-extras {
-    display: flex; gap: 8px; margin-bottom: 14px;
+  .sm-option.selected .sm-option-radio { border-color: var(--red); background: var(--red); }
+  .sm-option.selected .sm-option-radio::after {
+    content: ''; width: 8px; height: 8px; background: #fff; border-radius: 50%;
   }
-  .sm-extra {
-    flex: 1; border: 1.5px dashed var(--line);
-    border-radius: 10px; padding: 10px 6px;
-    font-size: 11px; text-align: center; color: #bbb;
-    line-height: 1.6; background: #f8f8f8; pointer-events: none;
+  .sm-slider-wrap {
+    background: #fff0f0; border-left: 3px solid var(--red);
+    border-radius: 0 10px 10px 0; padding: 12px 16px;
+    margin: -7px 0 7px 18px; display: none;
   }
-  .sm-extra small { display: block; font-size: 10px; }
-  .sm-footer { display: flex; gap: 8px; }
+  .sm-slider-wrap.show { display: block; }
+  .sm-count-display {
+    font-size: 30px; font-weight: 800; color: var(--red);
+    text-align: center; line-height: 1; margin-bottom: 4px;
+  }
+  .sm-count-sub { font-size: 12px; color: var(--stone); text-align: center; margin-bottom: 10px; }
+  #smCountSlider { width: 100%; accent-color: var(--red); cursor: pointer; }
+  .sm-slider-ticks {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: var(--stone); margin-top: 5px;
+  }
+  .sm-review-wrap { margin-top: 14px; }
+  .sm-review-label { font-size: 12px; color: var(--stone); display: block; margin-bottom: 5px; }
+  .sm-review-input {
+    width: 100%; border: 1.5px solid var(--line); border-radius: 10px;
+    padding: 9px 12px; font-size: 14px; font-family: 'Noto Sans TC', sans-serif;
+    resize: none; background: var(--paper); color: var(--ink); transition: border-color 0.15s;
+  }
+  .sm-review-input:focus { outline: none; border-color: var(--red); }
+  .sm-review-count { text-align: right; font-size: 11px; color: var(--stone); margin-top: 3px; }
+  .sm-footer { display: flex; gap: 8px; margin-top: 16px; }
   .sm-btn {
-    flex: 1; padding: 11px; border: none; border-radius: 10px;
-    font-size: 14px; font-family: 'Noto Sans TC', sans-serif;
-    font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+    flex: 1; padding: 13px; border: none; border-radius: 12px;
+    font-size: 15px; font-family: 'Noto Sans TC', sans-serif;
+    font-weight: 600; cursor: pointer; transition: all 0.15s;
   }
   .sm-cancel  { background: var(--line); color: var(--stone); }
   .sm-cancel:hover  { background: #d0c8bc; }
@@ -486,6 +509,39 @@
     pointer-events: none; white-space: nowrap;
   }
   #stampToast.show { opacity: 1; }
+
+  /* ── CLEAR ALL DATA OVERLAY ── */
+  .clear-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.93);
+    z-index: 900; display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  }
+  .clear-overlay.show { display: flex; }
+  .clear-ov-title { color: #fff; font-size: 20px; font-weight: 700; }
+  .clear-ov-warn {
+    color: #ff6b6b; font-size: 14px; font-weight: 600;
+    text-align: center; line-height: 1.8; background: rgba(255,0,0,0.1);
+    padding: 10px 20px; border-radius: 10px; border: 1px solid rgba(255,100,100,0.3);
+  }
+  .clear-ov-count {
+    font-size: 80px; font-weight: 800; color: #fff; line-height: 1;
+    font-variant-numeric: tabular-nums; min-width: 1.5ch; text-align: center;
+  }
+  .clear-ov-count.ready { color: #ff4444; }
+  .clear-ov-btns { display: flex; gap: 12px; margin-top: 4px; }
+  .clear-ov-cancel {
+    padding: 13px 32px; background: #555; color: #fff;
+    border: none; border-radius: 12px; font-size: 15px;
+    font-family: 'Noto Sans TC', sans-serif; cursor: pointer; transition: background 0.15s;
+  }
+  .clear-ov-cancel:hover { background: #777; }
+  .clear-ov-confirm {
+    padding: 13px 32px; background: #cc0000; color: #fff;
+    border: none; border-radius: 12px; font-size: 15px;
+    font-family: 'Noto Sans TC', sans-serif; cursor: pointer; transition: all 0.15s;
+  }
+  .clear-ov-confirm:disabled { background: #444; cursor: not-allowed; opacity: 0.5; }
+  .clear-ov-confirm:not(:disabled):hover { background: #aa0000; }
 
   .map-ctrl-btn {
     width: 34px; height: 34px; border-radius: 6px;
@@ -566,6 +622,7 @@
 
   <a class="pd-action" href="domination.html">🗾 制霸地圖</a>
   <a class="pd-action" id="adminLink" href="admin.html" style="display:none">⚙️ 會員管理</a>
+  <button class="pd-action" id="clearDataBtn" style="color:#c00">🗑 清除我的所有記憶</button>
   <button class="pd-action danger" id="logoutBtn">🚪 登出</button>
 </div>
 
@@ -580,25 +637,64 @@
 <div id="stampModal" class="stamp-modal">
   <div class="sm-header">
     <div class="sm-title" id="smTitle"></div>
-    <button class="sm-reset-btn" id="smResetBtn">↺ 重置採點</button>
+    <button class="sm-reset-btn" id="smResetBtn">↺ 重置踩點</button>
   </div>
-  <div class="sm-statuses">
-    <button class="sm-status-btn" data-val="0">沒去過<small>0 分</small></button>
-    <button class="sm-status-btn" data-val="1">路過<small>1 分</small></button>
-    <button class="sm-status-btn" data-val="2">吃過<br>1次<small>3 分</small></button>
-    <button class="sm-status-btn" data-val="3">吃過<br>很多次<small>10 分</small></button>
-    <button class="sm-status-btn" data-val="4">從業過<small>20 分</small></button>
+
+  <div class="sm-option" data-status="none">
+    <div class="sm-option-icon">🙅</div>
+    <div class="sm-option-label">沒去過</div>
+    <div class="sm-option-radio"></div>
   </div>
-  <div class="sm-extras">
-    <div class="sm-extra">✏️ 寫20字心得<small>敬請期待</small></div>
-    <div class="sm-extra">📷 上傳拉麵照<small>敬請期待</small></div>
+  <div class="sm-option" data-status="pass">
+    <div class="sm-option-icon">🚶</div>
+    <div class="sm-option-label">路過</div>
+    <div class="sm-option-radio"></div>
   </div>
+  <div class="sm-option" data-status="once">
+    <div class="sm-option-icon">🍜</div>
+    <div class="sm-option-label">吃過1次</div>
+    <div class="sm-option-radio"></div>
+  </div>
+  <div class="sm-option" data-status="many">
+    <div class="sm-option-icon">🔥</div>
+    <div class="sm-option-label">吃過很多次</div>
+    <div class="sm-option-radio"></div>
+  </div>
+  <div class="sm-slider-wrap" id="smSliderWrap">
+    <div class="sm-count-display"><span id="smCountLabel">2</span>次</div>
+    <div class="sm-count-sub" id="smCountSub">繼續吃！</div>
+    <input type="range" id="smCountSlider" min="2" max="10" step="1" value="2">
+    <div class="sm-slider-ticks"><span>2次</span><span>5次</span><span>10次以上</span></div>
+  </div>
+  <div class="sm-option" data-status="work">
+    <div class="sm-option-icon">👨‍🍳</div>
+    <div class="sm-option-label">從業過</div>
+    <div class="sm-option-radio"></div>
+  </div>
+
+  <div class="sm-review-wrap">
+    <label class="sm-review-label">踩點心得（選填，最多 50 字）</label>
+    <textarea class="sm-review-input" id="smReview" maxlength="50" rows="2" placeholder="你對這間店的印象或感受…"></textarea>
+    <div class="sm-review-count"><span id="smReviewCount">0</span> / 50</div>
+  </div>
+
   <div class="sm-footer">
     <button class="sm-btn sm-cancel" id="smCancelBtn">取消</button>
-    <button class="sm-btn sm-confirm" id="smConfirmBtn">確認採點</button>
+    <button class="sm-btn sm-confirm" id="smConfirmBtn">確認踩點</button>
   </div>
 </div>
 <div id="stampToast"></div>
+
+<!-- Clear All Data Overlay -->
+<div class="clear-overlay" id="clearOverlay">
+  <div class="clear-ov-title">🗑 清除所有記憶</div>
+  <div class="clear-ov-warn">收藏清單與踩點記錄將全部清除<br>⚠️ 此動作不可還原，請再次確認</div>
+  <div class="clear-ov-count" id="clearCountdown">10</div>
+  <div class="clear-ov-btns">
+    <button class="clear-ov-cancel" id="clearCancelBtn">取消</button>
+    <button class="clear-ov-confirm" id="clearConfirmBtn" disabled>確認清除</button>
+  </div>
+</div>
 
 <div id="loadingScreen" class="loading-screen">
   <div class="loader"></div>
@@ -675,7 +771,9 @@ function escapeAttr(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;'); 
 
 async function toggleFav(shopId) {
   const user = typeof auth !== 'undefined' && auth.currentUser;
-  if (!user || !shopId) return;
+  if (!user) { showStampToast('請先登入才能使用收藏功能'); return; }
+  if (isWarned) { showStampToast('您的帳號目前受到限制'); return; }
+  if (!shopId) return;
   const ref = db.collection('users').doc(user.uid);
   if (favSet.has(shopId)) {
     favSet.delete(shopId);
@@ -1177,8 +1275,8 @@ function renderCard(shop) {
         ${shop['會員'] === 'Y' ? '<span class="member-badge">MEMBER SHOP</span>' : ''}
         ${isNewOpen(shop) ? '<span class="new-open-badge">NEW OPEN</span>' : ''}
         ${statusBadge(shop['營業狀態'])}
-        <button class="fav-btn" data-id="${escapeAttr(shop['ID'] || '')}">${favSet.has(shop['ID']) ? '♥' : '♡'}</button>
-        <button class="stamp-btn${auth.currentUser ? ' can-stamp' : ''}${stampMap[shop['ID']] != null ? ' stamped' : ''}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}" title="採點">👣</button>
+        <button class="fav-btn${!auth.currentUser || isWarned ? ' locked' : ''}" data-id="${escapeAttr(shop['ID'] || '')}">${favSet.has(shop['ID']) ? '♥' : '♡'}</button>
+        <button class="stamp-btn${isWarned ? ' locked' : (auth.currentUser ? ' can-stamp' : '')}${stampMap[shop['ID']] != null ? ' stamped' : ''}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}" title="踩點">👣</button>
       </div>
     </div>
     <div class="card-meta">
@@ -1669,11 +1767,32 @@ logoutBtn.addEventListener('click', () => {
   auth.signOut();
 });
 
-// ── Stamp (採點) ───────────────────────────────────────────────────────────
-let stampMap = {};
-let _stampShopId = null;
+// ── Stamp (踩點) ───────────────────────────────────────────────────────────
+// Encoding: 0=沒去過, 0.2=路過, 1=吃過1次, 2-10=吃過N次, 20=從業過
+let stampMap  = {};  // shopId → numeric score value
+let reviewMap = {};  // shopId → string
+let isWarned  = false;
+let _stampShopId   = null;
 let _stampShopName = '';
-let _stampVal = 2;
+let _stampStatus   = 'once'; // 'none'|'pass'|'once'|'many'|'work'
+let _stampCount    = 2;
+
+const STATUS_TO_VAL = { none: 0, pass: 0.2, once: 1, work: 20 };
+const STATUS_LABELS = { none:'沒去過', pass:'路過', once:'吃過1次', work:'從業過' };
+const COUNT_SUBS = ['','','好評常客！','熱愛此店！','忠實顧客！','拉麵信徒！','絕對常客！','高度上癮！','難以自拔！','快要從業了！','傳說中的常客！'];
+
+function valToStatus(val) {
+  if (val == null) return null;
+  if (val === 0)             return 'none';
+  if (val === 0.2)           return 'pass';
+  if (val === 1)             return 'once';
+  if (val >= 2 && val <= 10) return 'many';
+  if (val === 20)            return 'work';
+  return null;
+}
+function getStampVal() {
+  return _stampStatus === 'many' ? _stampCount : (STATUS_TO_VAL[_stampStatus] ?? 1);
+}
 
 function showStampToast(msg) {
   const t = document.getElementById('stampToast');
@@ -1685,16 +1804,27 @@ function showStampToast(msg) {
 
 async function loadStamps(uid) {
   const snap = await db.collection('userVisits').doc(uid).get();
-  stampMap = snap.exists ? (snap.data().visits || {}) : {};
+  if (snap.exists) {
+    stampMap  = snap.data().visits  || {};
+    reviewMap = snap.data().reviews || {};
+  } else {
+    stampMap = {}; reviewMap = {};
+  }
 }
 
 function openStampModal(shopId, shopName) {
-  if (!auth.currentUser) { showStampToast('請先登入才能採點'); return; }
+  if (!auth.currentUser) { showStampToast('請先登入才能踩點'); return; }
+  if (isWarned) { showStampToast('您的帳號目前受到限制'); return; }
   _stampShopId   = shopId;
   _stampShopName = shopName;
-  _stampVal      = stampMap[shopId] != null ? stampMap[shopId] : 2;
-  document.getElementById('smTitle').textContent = shopName;
-  updateSmBtns();
+  const stored = stampMap[shopId];
+  _stampStatus = valToStatus(stored) || 'once';
+  _stampCount  = (_stampStatus === 'many') ? stored : 2;
+  document.getElementById('smTitle').textContent   = shopName;
+  document.getElementById('smReview').value        = reviewMap[shopId] || '';
+  document.getElementById('smReviewCount').textContent = (reviewMap[shopId] || '').length;
+  updateSmOptions();
+  updateSlider();
   document.getElementById('stampBackdrop').style.display = 'block';
   document.getElementById('stampModal').style.display   = 'block';
 }
@@ -1704,52 +1834,140 @@ function closeStampModal() {
   document.getElementById('stampModal').style.display   = 'none';
 }
 
-function updateSmBtns() {
-  document.querySelectorAll('.sm-status-btn').forEach(b =>
-    b.classList.toggle('selected', parseInt(b.dataset.val) === _stampVal)
+function updateSmOptions() {
+  document.querySelectorAll('.sm-option').forEach(el =>
+    el.classList.toggle('selected', el.dataset.status === _stampStatus)
   );
+}
+
+function updateSlider() {
+  const wrap = document.getElementById('smSliderWrap');
+  wrap.classList.toggle('show', _stampStatus === 'many');
+  if (_stampStatus === 'many') {
+    document.getElementById('smCountSlider').value = _stampCount;
+    updateSliderLabel(_stampCount);
+  }
+}
+
+function updateSliderLabel(n) {
+  document.getElementById('smCountLabel').textContent = n >= 10 ? '10+' : n;
+  document.getElementById('smCountSub').textContent   = n >= 10 ? '傳說！你是這裡的傳說！' : (COUNT_SUBS[n] || '');
 }
 
 document.getElementById('stampBackdrop').addEventListener('click', closeStampModal);
 document.getElementById('smCancelBtn').addEventListener('click', closeStampModal);
 
-document.querySelectorAll('.sm-status-btn').forEach(b => {
-  b.addEventListener('click', () => { _stampVal = parseInt(b.dataset.val); updateSmBtns(); });
+document.querySelectorAll('.sm-option').forEach(el => {
+  el.addEventListener('click', () => {
+    _stampStatus = el.dataset.status;
+    if (_stampStatus === 'many' && _stampCount < 2) _stampCount = 2;
+    updateSmOptions();
+    updateSlider();
+  });
+});
+
+document.getElementById('smCountSlider').addEventListener('input', e => {
+  _stampCount = parseInt(e.target.value);
+  updateSliderLabel(_stampCount);
+});
+
+document.getElementById('smReview').addEventListener('input', e => {
+  document.getElementById('smReviewCount').textContent = e.target.value.length;
 });
 
 document.getElementById('smConfirmBtn').addEventListener('click', async () => {
   const shopId = _stampShopId;
   if (!shopId || !auth.currentUser) return;
-  stampMap[shopId] = _stampVal;
+  const val    = getStampVal();
+  const review = document.getElementById('smReview').value.trim();
+  stampMap[shopId] = val;
+  if (review) reviewMap[shopId] = review; else delete reviewMap[shopId];
   try {
-    await db.collection('userVisits').doc(auth.currentUser.uid).set(
-      { visits: { [shopId]: _stampVal } }, { merge: true }
-    );
-    document.querySelectorAll(`.stamp-btn[data-id="${shopId}"]`).forEach(b => {
-      b.classList.add('stamped');
-      b.dataset.val = _stampVal;
-    });
+    const uid = auth.currentUser.uid;
+    await db.collection('userVisits').doc(uid).set({ visits: { [shopId]: val } }, { merge: true });
+    if (review) {
+      await db.collection('userVisits').doc(uid).set({ reviews: { [shopId]: review } }, { merge: true });
+    } else {
+      await db.collection('userVisits').doc(uid).update({
+        [`reviews.${shopId}`]: firebase.firestore.FieldValue.delete()
+      }).catch(() => {});
+    }
+    document.querySelectorAll(`.stamp-btn[data-id="${shopId}"]`).forEach(b => b.classList.add('stamped'));
     closeStampModal();
-    const labels = ['沒去過','路過','吃過1次','吃過很多次','從業過'];
-    showStampToast(`✓ 已採點：${labels[_stampVal]}`);
-  } catch (e) { showStampToast('採點失敗：' + e.message); }
+    const lbl = _stampStatus === 'many'
+      ? `吃過${_stampCount >= 10 ? '10+' : _stampCount}次`
+      : STATUS_LABELS[_stampStatus];
+    showStampToast(`✓ 踩點：${lbl}`);
+  } catch (e) { showStampToast('踩點失敗：' + e.message); }
 });
 
 document.getElementById('smResetBtn').addEventListener('click', async () => {
-  if (!confirm(`確定要清除「${_stampShopName}」的採點記錄嗎？\n此操作無法復原。`)) return;
+  if (!confirm(`確定要清除「${_stampShopName}」的踩點記錄嗎？\n此操作無法復原。`)) return;
   const shopId = _stampShopId;
   if (!shopId || !auth.currentUser) return;
-  delete stampMap[shopId];
+  delete stampMap[shopId]; delete reviewMap[shopId];
   try {
     await db.collection('userVisits').doc(auth.currentUser.uid).update({
-      [`visits.${shopId}`]: firebase.firestore.FieldValue.delete()
+      [`visits.${shopId}`]:  firebase.firestore.FieldValue.delete(),
+      [`reviews.${shopId}`]: firebase.firestore.FieldValue.delete(),
     });
-    document.querySelectorAll(`.stamp-btn[data-id="${shopId}"]`).forEach(b => {
-      b.classList.remove('stamped');
-    });
+    document.querySelectorAll(`.stamp-btn[data-id="${shopId}"]`).forEach(b => b.classList.remove('stamped'));
     closeStampModal();
-    showStampToast('已清除採點記錄');
+    showStampToast('已清除踩點記錄');
   } catch (e) { showStampToast('重置失敗：' + e.message); }
+});
+
+// ── Clear All Data ─────────────────────────────────────────────────────────
+let _clearTimer = null;
+
+document.getElementById('clearDataBtn').addEventListener('click', () => {
+  closeProfileDropdown();
+  const el = document.getElementById('clearOverlay');
+  const btn = document.getElementById('clearConfirmBtn');
+  const cnt = document.getElementById('clearCountdown');
+  el.classList.add('show');
+  btn.disabled = true;
+  btn.textContent = '確認清除';
+  cnt.className = 'clear-ov-count';
+  let n = 10;
+  cnt.textContent = n;
+  clearInterval(_clearTimer);
+  _clearTimer = setInterval(() => {
+    n--;
+    cnt.textContent = n;
+    if (n <= 0) {
+      clearInterval(_clearTimer);
+      btn.disabled = false;
+      cnt.classList.add('ready');
+    }
+  }, 1000);
+});
+
+document.getElementById('clearCancelBtn').addEventListener('click', () => {
+  clearInterval(_clearTimer);
+  document.getElementById('clearOverlay').classList.remove('show');
+});
+
+document.getElementById('clearConfirmBtn').addEventListener('click', async () => {
+  const user = auth.currentUser;
+  if (!user) return;
+  const btn = document.getElementById('clearConfirmBtn');
+  btn.disabled = true; btn.textContent = '清除中…';
+  try {
+    await db.collection('users').doc(user.uid).update({
+      favorites: firebase.firestore.FieldValue.delete()
+    });
+    await db.collection('userVisits').doc(user.uid).delete();
+    favSet = new Set(); stampMap = {}; reviewMap = {};
+    showFavOnly = false;
+    document.getElementById('favFilterBtn').classList.remove('active');
+    render();
+    document.getElementById('clearOverlay').classList.remove('show');
+    showStampToast('✓ 所有記憶已清除');
+  } catch (e) {
+    showStampToast('清除失敗：' + e.message);
+    btn.disabled = false; btn.textContent = '確認清除';
+  }
 });
 
 // ── onAuthStateChanged ─────────────────────────────────────────────────────
@@ -1798,8 +2016,9 @@ auth.onAuthStateChanged(async user => {
       pdEmail.textContent       = user.email || '';
       nicknameInput.value       = userData.nickname || '';
       adminLink.style.display   = userData.role === 'admin' ? 'flex' : 'none';
+      isWarned = userData.role === 'warned';
 
-      // 載入收藏清單 + 採點記錄
+      // 載入收藏清單 + 踩點記錄
       const favIds = userData.favorites || [];
       favSet = new Set(favIds);
       document.getElementById('favFilterBtn').style.display = 'flex';
@@ -1808,8 +2027,9 @@ auth.onAuthStateChanged(async user => {
     } else {
       loginBtn.style.display   = 'flex';
       userAvatar.style.display = 'none';
+      isWarned = false;
       favSet = new Set();
-      stampMap = {};
+      stampMap = {}; reviewMap = {};
       document.getElementById('favFilterBtn').style.display = 'none';
       showFavOnly = false;
       document.getElementById('favFilterBtn').classList.remove('active');

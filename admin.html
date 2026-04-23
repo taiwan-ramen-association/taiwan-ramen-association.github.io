@@ -99,6 +99,7 @@
   .badge-member_honorary { background: #f8d7da; color: #721c24; }
   .badge-director        { background: #e2d9f3; color: #4a235a; }
   .badge-admin           { background: var(--red); color: var(--white); }
+  .badge-warned          { background: #ff9900; color: #fff; }
 
   .save-btn {
     padding: 4px 12px; background: var(--red); color: var(--white);
@@ -107,6 +108,13 @@
   }
   .save-btn.visible { opacity: 1; }
   .save-btn:hover { background: var(--red-dark); }
+  .clear-btn {
+    padding: 4px 10px; background: #cc3300; color: var(--white);
+    border: none; border-radius: 6px; font-size: 11px; cursor: pointer;
+    white-space: nowrap; transition: opacity 0.15s;
+  }
+  .clear-btn:hover { background: #aa2200; }
+  .stat-num { font-weight: 600; font-size: 12px; color: var(--ink); }
 
   .toast {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -165,6 +173,8 @@
         <th>Email</th>
         <th>目前身份</th>
         <th>等級</th>
+        <th>收藏</th>
+        <th>踩點</th>
         <th>最後登入</th>
         <th>操作</th>
       </tr>
@@ -198,6 +208,7 @@ const ROLES = [
   { value: 'member_sponsor',   label: '贊助會員' },
   { value: 'member_honorary',  label: '榮譽會員' },
   { value: 'director',         label: '理事／監事' },
+  { value: 'warned',           label: '⚠️ 警示用戶' },
   { value: 'admin',            label: 'admin' },
 ];
 
@@ -205,7 +216,7 @@ const ROLE_LABELS = {
   viewer: '一般用戶', store: '店家',
   member_individual: '個人會員', member_group: '團體會員',
   member_sponsor: '贊助會員', member_honorary: '榮譽會員',
-  director: '理事／監事', admin: 'Admin',
+  director: '理事／監事', warned: '⚠️ 警示用戶', admin: 'Admin',
 };
 
 let allUsers = [];
@@ -250,15 +261,28 @@ async function loadUsers() {
   allUsers = snap.docs
     .map(d => ({ uid: d.id, ...d.data() }))
     .sort((a, b) => (a.memberNo ?? Infinity) - (b.memberNo ?? Infinity));
-  renderTable(allUsers);
+
+  // Batch-fetch userVisits for all users
+  const visitsSnaps = await Promise.all(
+    allUsers.map(u => db.collection('userVisits').doc(u.uid).get())
+  );
+  const visitsMap = {};
+  visitsSnaps.forEach((s, i) => {
+    visitsMap[allUsers[i].uid] = s.exists ? s.data() : {};
+  });
+
+  renderTable(allUsers, visitsMap);
 }
+
+let _visitsMapGlobal = {};
 
 document.getElementById('roleFilter').addEventListener('change', e => {
   const val = e.target.value;
-  renderTable(val ? allUsers.filter(u => u.role === val) : allUsers);
+  renderTable(val ? allUsers.filter(u => u.role === val) : allUsers, _visitsMapGlobal);
 });
 
-function renderTable(users) {
+function renderTable(users, visitsMap) {
+  _visitsMapGlobal = visitsMap || {};
   const tbody = document.getElementById('userTbody');
   const table = document.getElementById('userTable');
   const loading = document.getElementById('loading');
@@ -272,9 +296,12 @@ function renderTable(users) {
     const roleOptions = ROLES.map(r =>
       `<option value="${r.value}" ${u.role === r.value ? 'selected' : ''}>${r.label}</option>`
     ).join('');
-    const googleAvatar  = u.photoURL || 'assets/icons/03.png';
-    const customAvatar  = u.avatarUrl || googleAvatar;
-    const nickname      = u.nickname || '<span style="color:#bbb;font-style:italic">未設定</span>';
+    const googleAvatar = u.photoURL || 'assets/icons/03.png';
+    const customAvatar = u.avatarUrl || googleAvatar;
+    const nickname     = u.nickname || '<span style="color:#bbb;font-style:italic">未設定</span>';
+    const favCount     = (u.favorites || []).length;
+    const vData        = (_visitsMapGlobal[u.uid] || {}).visits || {};
+    const stampCount   = Object.values(vData).filter(v => v > 0).length;
     return `
       <tr data-uid="${u.uid}">
         <td style="color:var(--stone);font-size:12px;white-space:nowrap">${u.memberNo ?? '─'}</td>
@@ -293,12 +320,15 @@ function renderTable(users) {
         <td>${u.email || '─'}</td>
         <td><span class="badge badge-${u.role}">${ROLE_LABELS[u.role] || u.role}</span></td>
         <td>Lv.${u.level ?? 0}</td>
+        <td class="stat-num">${favCount || '─'}</td>
+        <td class="stat-num">${stampCount || '─'}</td>
         <td>${lastLogin}</td>
         <td style="white-space:nowrap">
           <select class="role-select" data-uid="${u.uid}" data-original="${u.role}">
             ${roleOptions}
           </select>
           <button class="save-btn" data-uid="${u.uid}">儲存</button>
+          <button class="clear-btn" data-uid="${u.uid}" data-name="${u.displayName || u.email || u.uid}">🗑</button>
         </td>
       </tr>`;
   }).join('');
@@ -317,25 +347,42 @@ function renderTable(users) {
       const uid = btn.dataset.uid;
       const sel = tbody.querySelector(`.role-select[data-uid="${uid}"]`);
       const newRole = sel.value;
-      btn.disabled = true;
-      btn.textContent = '…';
+      btn.disabled = true; btn.textContent = '…';
       try {
         await db.collection('users').doc(uid).update({ role: newRole });
         sel.dataset.original = newRole;
         btn.classList.remove('visible');
-        // 更新 badge
         const row = tbody.querySelector(`tr[data-uid="${uid}"]`);
         row.querySelector('.badge').className = `badge badge-${newRole}`;
         row.querySelector('.badge').textContent = ROLE_LABELS[newRole] || newRole;
-        // 更新本地資料
         const u = allUsers.find(x => x.uid === uid);
         if (u) u.role = newRole;
         showToast(`✓ ${sel.options[sel.selectedIndex].label} 已套用`);
-      } catch (e) {
-        showToast('❌ 儲存失敗：' + e.message);
-      }
-      btn.disabled = false;
-      btn.textContent = '儲存';
+      } catch (e) { showToast('❌ 儲存失敗：' + e.message); }
+      btn.disabled = false; btn.textContent = '儲存';
+    });
+  });
+
+  // 一鍵清除
+  tbody.querySelectorAll('.clear-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const uid  = btn.dataset.uid;
+      const name = btn.dataset.name;
+      if (!confirm(`確定要清除「${name}」的所有收藏與踩點記錄嗎？\n此操作無法復原。`)) return;
+      if (!confirm(`再次確認：清除「${name}」的所有記憶？`)) return;
+      btn.disabled = true; btn.textContent = '…';
+      try {
+        await db.collection('users').doc(uid).update({
+          favorites: firebase.firestore.FieldValue.delete()
+        });
+        await db.collection('userVisits').doc(uid).delete();
+        // Update local stats display
+        const row = tbody.querySelector(`tr[data-uid="${uid}"]`);
+        const cells = row.querySelectorAll('.stat-num');
+        cells[0].textContent = '─'; cells[1].textContent = '─';
+        showToast(`✓ 已清除 ${name} 的記憶`);
+      } catch (e) { showToast('❌ 清除失敗：' + e.message); }
+      btn.disabled = false; btn.textContent = '🗑';
     });
   });
 }
