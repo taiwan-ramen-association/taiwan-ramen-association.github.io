@@ -893,6 +893,7 @@ let markerLayer  = null;
 let userLat      = null;
 let userLng      = null;
 let userMarker   = null;
+let userAccCircle = null;
 let watchId      = null;
 let followMode   = false;
 
@@ -1132,12 +1133,32 @@ function shopDist(shop) {
   return haversine(userLat, userLng, parseFloat(shop.lat), parseFloat(shop.lng));
 }
 
-function showUserMarker() {
+function showUserMarker(accuracy) {
   if (!leafletMap || userLat === null) return;
-  if (userMarker) leafletMap.removeLayer(userMarker);
+  if (userMarker)    leafletMap.removeLayer(userMarker);
+  if (userAccCircle) leafletMap.removeLayer(userAccCircle);
   userMarker = L.circleMarker([userLat, userLng], {
     radius: 8, color: '#fff', weight: 2.5, fillColor: '#1a73e8', fillOpacity: 1
   }).addTo(leafletMap).bindPopup('你在這裡');
+  if (accuracy && accuracy < 800) {
+    userAccCircle = L.circle([userLat, userLng], {
+      radius: accuracy,
+      color: '#1a73e8', weight: 1, fillColor: '#1a73e8', fillOpacity: 0.1,
+      interactive: false
+    }).addTo(leafletMap);
+  }
+}
+
+function fitLocate() {
+  if (!leafletMap || userLat === null) return;
+  leafletMap.invalidateSize();
+  const R    = 900;
+  const dLat = R / 111320;
+  const dLng = R / (111320 * Math.cos(userLat * Math.PI / 180));
+  leafletMap.fitBounds([
+    [userLat - dLat, userLng - dLng],
+    [userLat + dLat, userLng + dLng]
+  ]);
 }
 
 function locateUser() {
@@ -1145,13 +1166,14 @@ function locateUser() {
   if (userLat !== null) {
     userLat = userLng = null;
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; followMode = false; }
-    if (userMarker && leafletMap) { leafletMap.removeLayer(userMarker); userMarker = null; }
+    if (userMarker    && leafletMap) { leafletMap.removeLayer(userMarker);    userMarker    = null; }
+    if (userAccCircle && leafletMap) { leafletMap.removeLayer(userAccCircle); userAccCircle = null; }
     btn.textContent = '📍 定位';
     btn.classList.remove('located');
     render();
     return;
   }
-  if (!navigator.geolocation) { alert('此瀏覽器不支援 GPS 定位'); return; }
+  if (!navigator.geolocation) { showToast('此瀏覽器不支援 GPS 定位'); return; }
   btn.textContent = '⏳ 定位中…';
   btn.disabled = true;
   navigator.geolocation.getCurrentPosition(pos => {
@@ -1160,7 +1182,7 @@ function locateUser() {
     btn.textContent = '📍 已定位';
     btn.classList.add('located');
     btn.disabled = false;
-    if (leafletMap) { showUserMarker(); leafletMap.setView([userLat, userLng], 14); }
+    if (leafletMap) { showUserMarker(pos.coords.accuracy); fitLocate(); }
     render();
   }, () => {
     btn.textContent = '📍 定位';
@@ -1202,19 +1224,24 @@ function toggleFollow() {
     followMode = true;
     const followBtn = document.getElementById('followMapBtn');
     if (followBtn) followBtn.classList.add('following');
+    let firstFix = true;
     watchId = navigator.geolocation.watchPosition(pos => {
       userLat = pos.coords.latitude;
       userLng = pos.coords.longitude;
       document.getElementById('locateBtn').textContent = '📍 已定位';
       document.getElementById('locateBtn').classList.add('located');
-      showUserMarker();
-      if (followMode && leafletMap) leafletMap.setView([userLat, userLng]);
+      showUserMarker(pos.coords.accuracy);
+      if (followMode && leafletMap) {
+        if (firstFix) { fitLocate(); firstFix = false; }
+        else leafletMap.panTo([userLat, userLng]);
+      }
       render();
     }, () => {
       followMode = false;
       if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
       const followBtn = document.getElementById('followMapBtn');
       if (followBtn) followBtn.classList.remove('following');
+      showToast('定位失敗，請確認定位權限');
     }, { enableHighAccuracy: true });
   }
 }
@@ -1246,7 +1273,7 @@ function initMap() {
       btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>`;
       L.DomEvent.on(btn, 'click', L.DomEvent.stop);
       L.DomEvent.on(btn, 'click', () => {
-        if (!navigator.geolocation) { alert('此瀏覽器不支援 GPS 定位'); return; }
+        if (!navigator.geolocation) { showToast('此瀏覽器不支援 GPS 定位'); return; }
         btn.style.opacity = '0.5';
         btn.disabled = true;
         navigator.geolocation.getCurrentPosition(pos => {
@@ -1254,15 +1281,15 @@ function initMap() {
           userLng = pos.coords.longitude;
           btn.style.opacity = '';
           btn.disabled = false;
-          showUserMarker();
-          leafletMap.setView([userLat, userLng], 15);
+          showUserMarker(pos.coords.accuracy);
+          fitLocate();
           const lb = document.getElementById('locateBtn');
           if (lb) { lb.textContent = '📍 已定位'; lb.classList.add('located'); }
           render();
         }, () => {
           btn.style.opacity = '';
           btn.disabled = false;
-          alert('無法取得位置，請確認已允許定位權限');
+          showToast('無法取得位置，請確認已允許定位權限');
         }, { enableHighAccuracy: true, timeout: 8000 });
       });
       return btn;
