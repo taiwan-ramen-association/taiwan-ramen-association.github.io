@@ -161,12 +161,7 @@
     border-radius: 8px; padding: 10px 22px;
     font-size: 14px; font-family: 'Noto Sans TC', sans-serif; cursor: pointer;
   }
-  #betaGate {
-    display: none; flex-direction: column; align-items: center; justify-content: center;
-    min-height: 70vh; gap: 14px; text-align: center; padding: 30px 20px;
-  }
-  #betaGate p { color: var(--stone); font-size: 14px; line-height: 1.7; }
-  .btn-google {
+.btn-google {
     display: flex; align-items: center; gap: 8px;
     background: var(--white); border: 1px solid var(--line);
     padding: 10px 20px; border-radius: 8px;
@@ -675,7 +670,7 @@
 <body>
 
 <header>
-  <h1>🍜 台灣拉麵協會－拉麵搜尋器 <span style="font-size:11px;background:rgba(255,255,255,0.25);padding:2px 7px;border-radius:10px;font-weight:400;letter-spacing:0;">BETA</span></h1>
+  <h1>🍜 台灣拉麵協會－拉麵搜尋器</h1>
   <div class="header-right">
     <button class="google-login-btn" id="loginBtn">
       <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
@@ -797,13 +792,6 @@
   </div>
 </div>
 
-<div id="betaGate">
-  <p id="betaGateMsg">此頁面需要登入才能瀏覽</p>
-  <button class="btn-google" id="betaLoginBtn" style="display:none">
-    <svg viewBox="0 0 48 48" width="18" height="18"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.4 30.2 0 24 0 14.7 0 6.8 5.4 3 13.3l7.8 6C12.7 13.2 17.9 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 6.9-10.1 6.9-17z"/><path fill="#FBBC05" d="M10.8 28.7A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.7-4.7L2.4 13.3A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.6l8.4-5.9z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.1 0-11.3-3.7-13.2-9l-7.8 6C6.8 42.6 14.7 48 24 48z"/></svg>
-    以 Google 帳號登入
-  </button>
-</div>
 
 <div id="loadingScreen" class="loading-screen">
   <div class="loader"></div>
@@ -2140,22 +2128,6 @@ document.getElementById('clearConfirmBtn').addEventListener('click', async () =>
 });
 
 // ── onAuthStateChanged ─────────────────────────────────────────────────────
-const BETA_ALLOWED_ROLES = ['admin', 'director'];
-
-function showBetaGate(msg, showLogin = false) {
-  document.getElementById('betaGate').style.display = 'flex';
-  document.getElementById('betaGateMsg').textContent = msg;
-  document.getElementById('betaLoginBtn').style.display = showLogin ? 'flex' : 'none';
-  document.getElementById('loadingScreen').style.display = 'none';
-  document.getElementById('mainContent').style.display = 'none';
-}
-
-document.getElementById('betaLoginBtn').addEventListener('click', () => {
-  auth.signInWithPopup(provider).catch(err => {
-    if (err.code === 'auth/popup-blocked') auth.signInWithRedirect(provider);
-    else if (err.code !== 'auth/popup-closed-by-user') console.error(err);
-  });
-});
 
 auth.onAuthStateChanged(async user => {
   try {
@@ -2193,15 +2165,6 @@ auth.onAuthStateChanged(async user => {
         Object.assign(userData, snap2.data());
       }
 
-      // 權限檢查：只有 admin / 協會幹部 可瀏覽
-      if (!BETA_ALLOWED_ROLES.includes(userData.role)) {
-        showBetaGate('此頁面僅開放協會幹部及管理員瀏覽');
-        userAvatar.style.display = 'block';
-        return;
-      }
-
-      document.getElementById('betaGate').style.display = 'none';
-
       // 頭像：優先用 Firestore avatarUrl，否則 Google 照片
       const avatar = getAvatarUrl(userData, user.photoURL);
       userAvatar.src       = avatar;
@@ -2229,7 +2192,7 @@ auth.onAuthStateChanged(async user => {
       showFavOnly = false;
       document.getElementById('favFilterBtn').classList.remove('active');
       closeProfileDropdown();
-      showBetaGate('此頁面需要登入後才能瀏覽', true);
+      render();
     }
   } catch (err) {
     console.error('auth state 處理失敗', err);
