@@ -643,7 +643,7 @@ def run_path_c():
     print('\n▶ C【推上遠端】git push data.json + id_counters.json')
     result = subprocess.run(
         ['git', 'add', 'data/data.json', 'data/id_counters.json'],
-        cwd=root_dir, capture_output=True, text=True
+        cwd=root_dir, capture_output=True, text=True, encoding='utf-8'
     )
     if result.returncode != 0:
         print(f'  ❌ git add 失敗：{result.stderr.strip()}')
@@ -651,7 +651,7 @@ def run_path_c():
 
     status = subprocess.run(
         ['git', 'diff', '--cached', '--stat'],
-        cwd=root_dir, capture_output=True, text=True
+        cwd=root_dir, capture_output=True, text=True, encoding='utf-8'
     ).stdout.strip()
 
     if not status:
@@ -665,7 +665,7 @@ def run_path_c():
 
     result = subprocess.run(
         ['git', 'commit', '-m', msg],
-        cwd=root_dir, capture_output=True, text=True
+        cwd=root_dir, capture_output=True, text=True, encoding='utf-8'
     )
     if result.returncode != 0:
         print(f'  ❌ commit 失敗：{result.stderr.strip()}')
@@ -675,7 +675,7 @@ def run_path_c():
     print('  🚀 git push...')
     result = subprocess.run(
         ['git', 'push'],
-        cwd=root_dir, capture_output=True, text=True
+        cwd=root_dir, capture_output=True, text=True, encoding='utf-8'
     )
     if result.returncode == 0:
         print('  ✅ Push 完成！')
