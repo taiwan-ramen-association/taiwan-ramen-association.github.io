@@ -1,7 +1,10 @@
 """
 setup_data.py — 資料處理工具
-執行後選擇步驟，0 為全部執行
+A  開始編輯：JSON → Excel → 開啟檔案
+B  完成編輯：Excel → JSON → 正規化 → 寫回 Excel
+0  進階單步執行
 """
+import csv
 import json
 import os
 import re
@@ -23,12 +26,26 @@ except ImportError:
     install('requests')
     import requests
 
+try:
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, numbers
+    from openpyxl.worksheet.datavalidation import DataValidation
+    from openpyxl.utils import get_column_letter
+except ImportError:
+    print('安裝 openpyxl 中...')
+    install('openpyxl')
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, numbers
+    from openpyxl.worksheet.datavalidation import DataValidation
+    from openpyxl.utils import get_column_letter
+
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 tools_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir  = os.path.dirname(tools_dir)
 json_path = os.path.join(root_dir, 'data', 'data.json')
+xlsx_path = os.path.join(tools_dir, 'data.xlsx')
 dist_path = os.path.join(tools_dir, 'districts.json')
 
 # ── 共用 I/O ──────────────────────────────────────────────────────────────────
@@ -48,9 +65,9 @@ def load_districts():
 
 def section(num, title):
     print()
-    print('─' * 52)
-    print(f'  {num}  {title}')
-    print('─' * 52)
+    print('─' * 54)
+    print(f'  [{num}]  {title}')
+    print('─' * 54)
 
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 1：更新行政區清單
@@ -413,13 +430,28 @@ def _get_city_for_id(row):
         city = addr[:3]
     return city.replace('台', '臺')
 
+counters_path = os.path.join(root_dir, 'data', 'id_counters.json')
+
+def _load_counters():
+    if os.path.exists(counters_path):
+        with open(counters_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def _save_counters(city_max):
+    with open(counters_path, 'w', encoding='utf-8') as f:
+        json.dump(city_max, f, ensure_ascii=False, indent=2, sort_keys=True)
+
 def step_assign_ids():
     section(7, '分配店家 ID（縣市代碼 + 5位流水號）')
 
     rows = load_data()
 
-    # 掃描現有最大流水號
-    city_max = {}
+    # 從 id_counters.json 載入歷史最大值（防止因資料列被誤刪導致 ID 重用）
+    city_max = _load_counters()
+    print(f'  📋 讀取歷史計數器：{dict(sorted(city_max.items()))}')
+
+    # 再與現有資料的 ID 取最大值（兩者都納入，只增不減）
     for row in rows:
         eid = str(row.get('ID', '')).strip()
         if ID_RE.match(eid):
@@ -443,6 +475,11 @@ def step_assign_ids():
     rows = [{'ID': r.get('ID', ''), **{k: v for k, v in r.items() if k != 'ID'}} for r in rows]
 
     save_data(rows)
+
+    # 寫回計數器（只增不減，是唯一的安全防線）
+    _save_counters(city_max)
+    print(f'  💾 計數器已更新 → data/id_counters.json')
+
     print(f'\n  ✅ 完成：新分配 {assigned} 筆，共 {len(rows)} 筆')
 
     city_counts = {}
@@ -454,6 +491,108 @@ def step_assign_ids():
         print(f'    {letter} {CODE_TO_CITY.get(letter, letter)}: {city_counts[letter]} 間')
 
     return assigned
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Excel ↔ JSON 轉換
+# ════════════════════════════════════════════════════════════════════════════════
+DATE_TEXT_FIELDS = {'開幕日', 'ID'}
+
+def step_excel_to_json():
+    section('E', 'Excel → JSON')
+    if not os.path.exists(xlsx_path):
+        print('  ❌ 找不到 data.xlsx，請先執行 A【開始編輯】')
+        return False
+    print('  📂 讀取 data.xlsx...')
+    wb = openpyxl.load_workbook(xlsx_path)
+    ws = wb.active
+    rows_raw = list(ws.values)
+    if not rows_raw:
+        print('  ❌ Excel 是空的')
+        return False
+    headers = [str(h).strip() for h in rows_raw[0]]
+    rows = []
+    for row in rows_raw[1:]:
+        if all((v is None or str(v).strip() == '') for v in row):
+            continue
+        obj = {}
+        for i, h in enumerate(headers):
+            val = row[i] if i < len(row) else ''
+            if val is None:
+                val = ''
+            else:
+                val = str(val).strip()
+                if val.endswith('.0') and val[:-2].lstrip('-').isdigit():
+                    val = val[:-2]
+            obj[h] = val
+        if obj.get('店名', '').strip():
+            rows.append(obj)
+    save_data(rows)
+    print(f'  ✅ 完成：data.json 已更新（共 {len(rows)} 筆）')
+    return True
+
+def step_json_to_excel():
+    section('X', 'JSON → Excel（含樣式與下拉驗證）')
+    rows = load_data()
+    if not rows:
+        print('  ❌ data.json 是空的')
+        return False
+    print(f'  📝 寫入 {len(rows)} 筆資料...')
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = '店家資料'
+    headers = list(rows[0].keys())
+    header_fill = PatternFill(start_color='C8272D', end_color='C8272D', fill_type='solid')
+    header_font = Font(color='FFFFFF', bold=True, size=11)
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.fill      = header_fill
+        cell.font      = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+    for row_idx, row in enumerate(rows, 2):
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=row.get(h, ''))
+            if h in DATE_TEXT_FIELDS:
+                cell.number_format = numbers.FORMAT_TEXT
+    ws.freeze_panes = 'A2'
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or '')) for cell in col), default=0)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 40)
+    csv_path = os.path.join(tools_dir, 'item_detail.csv')
+    if os.path.exists(csv_path):
+        with open(csv_path, 'r', encoding='utf-8-sig') as f:
+            reader      = csv.reader(f)
+            vld_headers = next(reader)
+            vld_cols    = {h: [] for h in vld_headers}
+            for r in reader:
+                for i, h in enumerate(vld_headers):
+                    val = r[i].strip() if i < len(r) else ''
+                    if val:
+                        vld_cols[h].append(val)
+        ws_vld = wb.create_sheet('驗證清單')
+        ws_vld.sheet_state = 'hidden'
+        for col_idx, h in enumerate(vld_headers, 1):
+            ws_vld.cell(row=1, column=col_idx, value=h)
+            for row_idx, val in enumerate(vld_cols[h], 2):
+                ws_vld.cell(row=row_idx, column=col_idx, value=val)
+        last_row   = len(rows) + 1
+        col_letter = {}
+        for col_idx, h in enumerate(headers, 1):
+            if h in vld_cols:
+                col_letter[h] = get_column_letter(col_idx)
+        for vld_col_idx, h in enumerate(vld_headers, 1):
+            letter = col_letter.get(h)
+            if not letter or not vld_cols[h]:
+                continue
+            vld_col_letter = get_column_letter(vld_col_idx)
+            vld_range = f'驗證清單!${vld_col_letter}$2:${vld_col_letter}${len(vld_cols[h]) + 1}'
+            dv = DataValidation(type='list', formula1=vld_range, showDropDown=False, allow_blank=True)
+            dv.sqref = f'{letter}2:{letter}{last_row}'
+            ws.add_data_validation(dv)
+        print('  ✅ 已套用下拉選單驗證')
+    wb.save(xlsx_path)
+    print(f'  ✅ 完成！data.xlsx 已產生（共 {len(rows)} 筆）')
+    print(f'  📍 {xlsx_path}')
+    return True
 
 # ════════════════════════════════════════════════════════════════════════════════
 # 選單
@@ -470,39 +609,79 @@ STEPS = [
 
 def show_menu():
     print()
-    print('╔' + '═' * 50 + '╗')
-    print('║{:^50}║'.format('資料處理工具　Setup Data'))
-    print('╠' + '═' * 50 + '╣')
-    print('║  0  全部執行{:<37}║'.format(''))
-    print('║  ' + '─' * 47 + '║')
+    print('╔' + '═' * 52 + '╗')
+    print('║{:^52}║'.format('資料處理工具　Setup Data'))
+    print('╠' + '═' * 52 + '╣')
+    print('║  A  【開始編輯】JSON → Excel，開啟檔案{:<12}║'.format(''))
+    print('║  B  【完成編輯】Excel → JSON → 正規化 → Excel{:<6}║'.format(''))
+    print('║  ' + '─' * 49 + '║')
+    print('║  0  進階單步執行{:<35}║'.format(''))
+    print('║  ' + '─' * 49 + '║')
+    print('║  q  離開{:<43}║'.format(''))
+    print('╚' + '═' * 52 + '╝')
+
+def show_advanced_menu():
+    print()
+    print('╔' + '═' * 52 + '╗')
+    print('║{:^52}║'.format('進階單步執行'))
+    print('╠' + '═' * 52 + '╣')
     for num, desc, _ in STEPS:
-        print(f'║  {num}  {desc:<44}║')
-    print('║  ' + '─' * 47 + '║')
-    print('║  q  離開{:<41}║'.format(''))
-    print('╚' + '═' * 50 + '╝')
+        print(f'║  {num}  {desc:<46}║')
+    print('║  ' + '─' * 49 + '║')
+    print('║  b  返回主選單{:<37}║'.format(''))
+    print('╚' + '═' * 52 + '╝')
+
+def run_path_a():
+    print('\n▶ A【開始編輯】JSON → Excel → 開啟檔案')
+    ok = step_json_to_excel()
+    if ok:
+        print('\n  📂 開啟 Excel...')
+        subprocess.Popen(['cmd', '/c', 'start', '', xlsx_path])
+
+def run_path_b():
+    print('\n▶ B【完成編輯】Excel → JSON → 正規化 → Excel')
+    if not step_excel_to_json():
+        return
+    step_assign_ids()
+    step_fill_city_district()
+    step_normalize_hours()
+    step_normalize_days()
+    step_normalize_dates()
+    step_json_to_excel()
+    print()
+    print('═' * 54)
+    print('  ✅ 完成！data.json 與 data.xlsx 均已更新')
+    print('═' * 54)
 
 while True:
     show_menu()
-    choice = input('\n請輸入數字：').strip().lower()
+    choice = input('\n請輸入選項：').strip().lower()
 
     if choice == 'q':
-        print('\n👋 掰掰')
+        print('\n掰掰')
         break
 
-    elif choice == '0':
-        print('\n▶ 全部執行')
-        for _, _, fn in STEPS:
-            fn()
-        print()
-        print('═' * 52)
-        print('  全部完成！data.json 已更新')
-        print('═' * 52)
+    elif choice == 'a':
+        run_path_a()
+        input('\n按 Enter 繼續...')
 
-    elif choice.isdigit() and 1 <= int(choice) <= len(STEPS):
-        _, _, fn = STEPS[int(choice) - 1]
-        fn()
+    elif choice == 'b':
+        run_path_b()
+        input('\n按 Enter 繼續...')
+
+    elif choice == '0':
+        while True:
+            show_advanced_menu()
+            sub = input('\n請輸入數字（b 返回）：').strip().lower()
+            if sub == 'b':
+                break
+            elif sub.isdigit() and 1 <= int(sub) <= len(STEPS):
+                _, _, fn = STEPS[int(sub) - 1]
+                fn()
+                input('\n按 Enter 繼續...')
+            else:
+                print(f'\n  ⚠  「{sub}」不是有效的選項')
 
     else:
         print(f'\n  ⚠  「{choice}」不是有效的選項')
-
-    input('\n按 Enter 繼續...')
+        input('\n按 Enter 繼續...')

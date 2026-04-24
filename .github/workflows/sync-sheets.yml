@@ -150,7 +150,15 @@ jobs:
                   city = addr[:3].replace('台', '臺')
               return city
 
-          city_max = {}
+          # 讀取歷史計數器（防止因資料列被誤刪導致 ID 重用）
+          _counters_path = 'data/id_counters.json'
+          try:
+              with open(_counters_path, 'r', encoding='utf-8') as _f:
+                  city_max = json.load(_f)
+          except FileNotFoundError:
+              city_max = {}
+
+          # 再與現有資料的 ID 取最大值
           for row in rows:
               eid = str(row.get('ID', '')).strip()
               if ID_RE.match(eid):
@@ -165,6 +173,10 @@ jobs:
               city_max[letter] = n
               row['ID'] = f'{letter}{n:05d}'
               new_ids += 1
+
+          # 寫回計數器（只增不減）
+          with open(_counters_path, 'w', encoding='utf-8') as _f:
+              json.dump(dict(sorted(city_max.items())), _f, ensure_ascii=False, indent=2)
 
           # ID 移至第一欄
           rows = [{'ID': r.get('ID', ''), **{k: v for k, v in r.items() if k != 'ID'}} for r in rows]
@@ -249,7 +261,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/data.json
+          git add data/data.json data/id_counters.json
           git diff --cached --quiet && echo "No changes" || git commit -m "Auto-sync from Google Sheets $(date '+%Y-%m-%d %H:%M') UTC"
 
           git push
