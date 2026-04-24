@@ -151,10 +151,19 @@ def step_fill_city_district():
 def step_geocode():
     section(3, '補 lat/lng 座標')
 
-    rows       = load_data()
-    to_geocode = [r for r in rows if not r.get('lat') or not r.get('lng')]
-    total      = len(rows)
-    print(f'  需要 geocode：{len(to_geocode)} 筆（共 {total} 筆）')
+    print('  模式選擇（直接 Enter = 只補缺少座標）：')
+    print('    1. 只補缺少座標的店家  ← 預設')
+    print('    2. 重新更正所有有 Map URL 的店家（修正舊座標精度）')
+    mode = input('  請輸入 1 或 2：').strip() or '1'
+
+    rows  = load_data()
+    total = len(rows)
+    if mode == '2':
+        to_geocode = [r for r in rows if r.get('Map', '').startswith('http') or not r.get('lat')]
+        print(f'  重新 geocode：{len(to_geocode)} 筆（共 {total} 筆）')
+    else:
+        to_geocode = [r for r in rows if not r.get('lat') or not r.get('lng')]
+        print(f'  需要 geocode：{len(to_geocode)} 筆（共 {total} 筆）')
 
     if not to_geocode:
         print('  ✅ 無需處理')
