@@ -150,6 +150,40 @@
   }
   .settings-save:hover { opacity: 0.85; }
   .settings-status { font-size: 12px; color: var(--stone); }
+
+  /* Feature Flags */
+  .ff-card {
+    background: var(--white); border-radius: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+    padding: 20px 24px; margin-top: 20px;
+  }
+  .ff-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .ff-desc { font-size: 11px; color: var(--stone); margin-bottom: 16px; }
+  .ff-table { width: 100%; border-collapse: collapse; }
+  .ff-table th {
+    font-size: 11px; font-weight: 600; color: var(--stone);
+    text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--line);
+    letter-spacing: 0.4px;
+  }
+  .ff-table th.center, .ff-table td.center { text-align: center; }
+  .ff-table td { padding: 10px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .ff-table tr:last-child td { border-bottom: none; }
+  .ff-feat-name { font-weight: 600; }
+  .ff-feat-icon { font-size: 16px; margin-right: 6px; }
+  .ff-select {
+    padding: 5px 8px; border: 1px solid var(--line);
+    border-radius: 6px; font-size: 12px; background: var(--paper);
+    cursor: pointer; font-family: inherit; min-width: 90px;
+  }
+  .ff-select:focus { outline: 2px solid var(--red); border-color: transparent; }
+  .ff-footer { margin-top: 16px; display: flex; align-items: center; gap: 12px; }
+  .ff-save {
+    padding: 8px 20px; background: var(--red); color: var(--white);
+    border: none; border-radius: 7px; font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: opacity 0.15s;
+  }
+  .ff-save:hover { opacity: 0.85; }
+  .ff-status { font-size: 12px; color: var(--stone); }
 </style>
 </head>
 <body>
@@ -229,6 +263,51 @@
   </div>
 </div>
 
+<div class="ff-card" id="ffCard" style="display:none">
+  <h3>🔐 功能權限設定</h3>
+  <p class="ff-desc">設定每個功能對不同身份的「顯示」與「使用」權限。階層：all &lt; viewer &lt; member &lt; director &lt; admin</p>
+  <table class="ff-table">
+    <thead>
+      <tr>
+        <th>功能</th>
+        <th class="center">👁 顯示門檻（vis）</th>
+        <th class="center">✋ 使用門檻（perm）</th>
+      </tr>
+    </thead>
+    <tbody id="ffTbody">
+      <tr data-feat="favorites">
+        <td><span class="ff-feat-icon">♡</span><span class="ff-feat-name">收藏</span></td>
+        <td class="center"><select class="ff-select" data-col="vis"></select></td>
+        <td class="center"><select class="ff-select" data-col="perm"></select></td>
+      </tr>
+      <tr data-feat="stamps">
+        <td><span class="ff-feat-icon">👣</span><span class="ff-feat-name">踩點</span></td>
+        <td class="center"><select class="ff-select" data-col="vis"></select></td>
+        <td class="center"><select class="ff-select" data-col="perm"></select></td>
+      </tr>
+      <tr data-feat="queueReport">
+        <td><span class="ff-feat-icon">🕐</span><span class="ff-feat-name">排隊回報</span></td>
+        <td class="center"><select class="ff-select" data-col="vis"></select></td>
+        <td class="center"><select class="ff-select" data-col="perm"></select></td>
+      </tr>
+      <tr data-feat="rankings">
+        <td><span class="ff-feat-icon">🏆</span><span class="ff-feat-name">排行榜</span></td>
+        <td class="center"><select class="ff-select" data-col="vis"></select></td>
+        <td class="center"><select class="ff-select" data-col="perm"></select></td>
+      </tr>
+      <tr data-feat="domination">
+        <td><span class="ff-feat-icon">🗾</span><span class="ff-feat-name">制霸地圖</span></td>
+        <td class="center"><select class="ff-select" data-col="vis"></select></td>
+        <td class="center"><select class="ff-select" data-col="perm"></select></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="ff-footer">
+    <button class="ff-save" id="ffSaveBtn">儲存權限設定</button>
+    <span class="ff-status" id="ffStatus"></span>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -300,6 +379,7 @@ auth.onAuthStateChanged(async user => {
   app.style.display  = 'block';
   loadUsers();
   loadQueueSettings();
+  loadFeatureFlags();
 });
 
 async function loadUsers() {
@@ -457,6 +537,73 @@ function showToast(msg) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
+
+// ── Feature Flags ────────────────────────────────────────────────────
+const FF_ROLES = [
+  { value: 'all',      label: '🌐 all（所有人）' },
+  { value: 'viewer',   label: '👤 viewer（登入者）' },
+  { value: 'member',   label: '🟡 member（會員）' },
+  { value: 'director', label: '🟣 director（幹部）' },
+  { value: 'admin',    label: '🔴 admin（管理員）' },
+];
+const FF_DEFAULTS = {
+  favorites:   { vis: 'viewer',   perm: 'viewer'   },
+  stamps:      { vis: 'viewer',   perm: 'viewer'   },
+  queueReport: { vis: 'director', perm: 'director' },
+  rankings:    { vis: 'viewer',   perm: 'viewer'   },
+  domination:  { vis: 'viewer',   perm: 'viewer'   },
+};
+
+function buildFfSelects() {
+  document.querySelectorAll('#ffTbody tr').forEach(row => {
+    row.querySelectorAll('.ff-select').forEach(sel => {
+      sel.innerHTML = FF_ROLES.map(r => `<option value="${r.value}">${r.label}</option>`).join('');
+    });
+  });
+}
+
+async function loadFeatureFlags() {
+  buildFfSelects();
+  let data = { ...FF_DEFAULTS };
+  try {
+    const snap = await db.collection('meta').doc('featureFlags').get();
+    if (snap.exists) data = { ...data, ...snap.data() };
+  } catch(e) { console.warn('載入 featureFlags 失敗', e); }
+
+  document.querySelectorAll('#ffTbody tr').forEach(row => {
+    const feat = row.dataset.feat;
+    const flag = data[feat];
+    if (!flag) return;
+    row.querySelectorAll('.ff-select').forEach(sel => {
+      sel.value = flag[sel.dataset.col] || 'viewer';
+    });
+  });
+  document.getElementById('ffCard').style.display = '';
+}
+
+document.getElementById('ffSaveBtn').addEventListener('click', async () => {
+  const payload = {};
+  document.querySelectorAll('#ffTbody tr').forEach(row => {
+    const feat = row.dataset.feat;
+    payload[feat] = {};
+    row.querySelectorAll('.ff-select').forEach(sel => {
+      payload[feat][sel.dataset.col] = sel.value;
+    });
+  });
+
+  const btn = document.getElementById('ffSaveBtn');
+  const status = document.getElementById('ffStatus');
+  btn.disabled = true; btn.textContent = '儲存中…';
+  try {
+    await db.collection('meta').doc('featureFlags').set(payload);
+    status.textContent = `✅ 已儲存（${new Date().toLocaleTimeString('zh-TW')}）`;
+    showToast('✅ 功能權限已更新');
+  } catch(e) {
+    status.textContent = '❌ 儲存失敗';
+    showToast('❌ 儲存失敗：' + e.message);
+  }
+  btn.disabled = false; btn.textContent = '儲存權限設定';
+});
 
 // ── 排隊回報設定 ────────────────────────────────────────────────────
 async function loadQueueSettings() {

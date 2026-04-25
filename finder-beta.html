@@ -897,6 +897,7 @@
   <div class="pd-actions">
     <button class="pd-action" id="darkModeBtn">🌙 深色模式<span class="dark-toggle" id="darkToggle"></span></button>
     <button class="pd-action" id="favFilterBtn" style="display:none">♥ 收藏清單</button>
+    <button class="pd-action" id="rankingsPdBtn" style="display:none">🏆 回報排行榜</button>
     <a class="pd-action" href="domination.html">🗾 制霸地圖</a>
     <a class="pd-action" id="adminLink" href="admin.html" style="display:none">⚙️ 會員管理</a>
     <button class="pd-action" id="clearDataBtn" style="color:#c00">🗑 清除我的所有記憶</button>
@@ -906,7 +907,6 @@
 
 <div class="drawer-backdrop" id="drawerBackdrop" style="display:none"></div>
 <div class="drawer" id="drawer" style="display:none">
-  <button class="drawer-item" id="rankingsBtn">🏆 回報排行榜</button>
   <button class="drawer-item" id="resetBdSkipBtn">🎂 重設壽星通知</button>
   <a class="drawer-item" href="index.html">🏠 回首頁</a>
 </div>
@@ -1150,7 +1150,8 @@ async function loadData() {
   document.getElementById('errorScreen').style.display   = 'none';
   document.getElementById('mainContent').style.display   = 'none';
 
-  loadQueueSettings(); // 非同步背景載入，不阻塞主流程
+  loadQueueSettings();  // 非同步背景載入，不阻塞主流程
+  loadFeatureFlags();   // 同上
 
   try {
     const res  = await fetch(DATA_URL + '?t=' + Date.now()); // 避免快取
@@ -1649,8 +1650,8 @@ function renderCard(shop) {
         ${isNewOpen(shop) ? '<span class="new-open-badge">NEW OPEN</span>' : ''}
         ${statusBadge(shop['營業狀態'])}
         <span class="queue-badge-header" data-id="${escapeAttr(shop['ID'] || '')}" hidden></span>
-        <button class="fav-btn${!auth.currentUser || isWarned ? ' locked' : ''}" data-id="${escapeAttr(shop['ID'] || '')}">${favSet.has(shop['ID']) ? '♥' : '♡'}</button>
-        <button class="stamp-btn${!auth.currentUser || isWarned ? ' locked' : ' can-stamp'}${stampMap[shop['ID']] != null ? ' stamped' : ''}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}" title="踩點">👣</button>
+        ${canView('favorites') ? `<button class="fav-btn${!auth.currentUser || isWarned || !canUse('favorites') ? ' locked' : ''}" data-id="${escapeAttr(shop['ID'] || '')}">${favSet.has(shop['ID']) ? '♥' : '♡'}</button>` : ''}
+        ${canView('stamps') ? `<button class="stamp-btn${!auth.currentUser || isWarned || !canUse('stamps') ? ' locked' : ' can-stamp'}${stampMap[shop['ID']] != null ? ' stamped' : ''}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}" title="踩點">👣</button>` : ''}
       </div>
     </div>
     <div class="card-meta">
@@ -1662,11 +1663,11 @@ function renderCard(shop) {
       ${factions.map(t=>`<span class="tag tag-gray">${t}</span>`).join('')}
     </div>` : ''}
     <div class="card-detail">
-      <div class="queue-section" data-shop-id="${escapeAttr(shop['ID'] || '')}">
+      ${canView('queueReport') ? `<div class="queue-section" data-shop-id="${escapeAttr(shop['ID'] || '')}">
         <span class="queue-sec-label">🕐 目前排隊狀況</span>
         <div class="queue-count-row"><span class="queue-no-data">展開後載入...</span></div>
         <button class="queue-report-btn" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}">我要回報人數</button>
-      </div>
+      </div>` : ''}
       ${mapBtn}
       ${detailItems.length ? `<div class="detail-grid">${detailItems.map(d=>`<div><div class="detail-label">${d.l}</div><div class="detail-value">${d.v}</div></div>`).join('')}</div>` : ''}
       ${shop['營業備註'] ? `<div class="note-box">${shop['營業備註'].replace(/\n/g,'<br>')}</div>` : ''}
@@ -1768,7 +1769,7 @@ document.getElementById('favFilterBtn').addEventListener('click', () => {
   closeProfileDropdown();
   render();
 });
-document.getElementById('rankingsBtn').addEventListener('click', openRankingsModal);
+document.getElementById('rankingsPdBtn').addEventListener('click', () => { closeProfileDropdown(); openRankingsModal(); });
 document.getElementById('rkBackdrop').addEventListener('click', closeRankingsModal);
 document.getElementById('rkCloseBtn').addEventListener('click', closeRankingsModal);
 document.querySelectorAll('.rk-tab').forEach(tab => {
@@ -2199,6 +2200,48 @@ const queueCache = {};  // shopId → { entries, updatedAt }
 let _queueShopId   = null;
 let _queueSelected = null;
 let _queueGps      = null; // { lat, lng, confirmed }
+
+// ── Feature Flags ───────────────────────────────────────────────────────────
+let currentUserRole = ''; // 登入後由 onAuthStateChanged 填入
+let featureFlags = {
+  favorites:   { vis: 'viewer',   perm: 'viewer'   },
+  stamps:      { vis: 'viewer',   perm: 'viewer'   },
+  queueReport: { vis: 'director', perm: 'director' },
+  rankings:    { vis: 'viewer',   perm: 'viewer'   },
+  domination:  { vis: 'viewer',   perm: 'viewer'   },
+};
+
+const ROLE_LEVEL = { all: 0, viewer: 1, member: 2, director: 3, admin: 4 };
+const MEMBER_ROLES = ['member_individual','member_group','member_sponsor','member_honorary'];
+
+function getRoleLevel(role) {
+  if (role === 'admin')    return 4;
+  if (role === 'director') return 3;
+  if (MEMBER_ROLES.includes(role)) return 2;
+  if (role === 'viewer' || role === 'store') return 1;
+  return 0;
+}
+
+function canView(feature) {
+  const flag = featureFlags[feature];
+  if (!flag) return true;
+  const req = ROLE_LEVEL[flag.vis] ?? 1;
+  return getRoleLevel(currentUserRole) >= req;
+}
+
+function canUse(feature) {
+  const flag = featureFlags[feature];
+  if (!flag) return true;
+  const req = ROLE_LEVEL[flag.perm] ?? 1;
+  return getRoleLevel(currentUserRole) >= req;
+}
+
+async function loadFeatureFlags() {
+  try {
+    const snap = await db.collection('meta').doc('featureFlags').get();
+    if (snap.exists) featureFlags = { ...featureFlags, ...snap.data() };
+  } catch(e) {}
+}
 let isWarned  = false;
 let _stampShopId   = null;
 let _stampShopName = '';
@@ -2336,6 +2379,9 @@ async function refreshQueueSection(shopId) {
   }
 
   if (!btn) return;
+  if (!canUse('queueReport')) {
+    btn.disabled = true; btn.textContent = '🔒 無回報權限'; btn.classList.add('locked'); return;
+  }
   if (!auth.currentUser) {
     btn.disabled = true; btn.textContent = '登入後可回報'; return;
   }
@@ -2588,10 +2634,26 @@ document.getElementById('smResetBtn').addEventListener('click', async () => {
   } catch (e) { showStampToast('重置失敗：' + e.message); }
 });
 
+// ── applyFeatureFlags ───────────────────────────────────────────────────────
+function applyFeatureFlags() {
+  // 收藏清單按鈕（profile dropdown + filter btn）
+  const favFilterBtn = document.getElementById('favFilterBtn');
+  if (favFilterBtn) favFilterBtn.style.display = canView('favorites') ? 'flex' : 'none';
+
+  // 排行榜按鈕（profile dropdown）
+  const rkPdBtn = document.getElementById('rankingsPdBtn');
+  if (rkPdBtn) rkPdBtn.style.display = canView('rankings') ? '' : 'none';
+
+  // 制霸地圖連結
+  const domLink = document.querySelector('.pd-action[href="domination.html"]');
+  if (domLink) domLink.style.display = canView('domination') ? '' : 'none';
+}
+
 // ── Rankings Modal ─────────────────────────────────────────────────────────
 let _rkTab = 'current';
 
 function openRankingsModal() {
+  if (!canUse('rankings')) { showStampToast('🔒 排行榜暫不開放'); return; }
   document.getElementById('drawer').style.display = 'none';
   document.getElementById('drawerBackdrop').style.display = 'none';
   _rkTab = 'current';
@@ -2868,23 +2930,25 @@ auth.onAuthStateChanged(async user => {
       nicknameInput.value       = userData.nickname || '';
       adminLink.style.display   = userData.role === 'admin' ? 'flex' : 'none';
       isWarned = userData.role === 'warned';
+      currentUserRole = userData.role || 'viewer';
 
       // 載入收藏清單 + 踩點記錄
       const favIds = userData.favorites || [];
       favSet = new Set(favIds);
-      document.getElementById('favFilterBtn').style.display = 'flex';
       await loadStamps(user.uid);
+      applyFeatureFlags();
       render();
     } else {
       loginBtn.style.display   = 'flex';
       userAvatar.style.display = 'none';
       isWarned = false;
+      currentUserRole = '';
       favSet = new Set();
       stampMap = {}; reviewMap = {};
-      document.getElementById('favFilterBtn').style.display = 'none';
       showFavOnly = false;
       document.getElementById('favFilterBtn').classList.remove('active');
       closeProfileDropdown();
+      applyFeatureFlags();
       showBetaGate('此頁面需要登入後才能瀏覽', true);
     }
   } catch (err) {
