@@ -1,0 +1,867 @@
+// ═══════════════════════════════════════════════════════════════════
+//  台灣拉麵協會 資料彙整 Script v3
+//  功能：
+//    1. 彙整分區 → 待同步表單（mergeRegions）
+//    2. 差異比對：總表csv vs 待同步表單（diffReport）
+//    3. 套用差異報告（applyDiff）雙向同步
+//    4. 待同步表單 → 反向寫回六個分區（stagingToRegions）
+// ═══════════════════════════════════════════════════════════════════
+
+const CONFIG = {
+  REGIONS: ['北北基', '桃竹苗', '中彰投', '雲嘉南', '高屏', '宜花東澎金馬'],
+  STAGING: '待同步表單',
+  MAIN:    '總表csv',
+  LOG:     'LOG',
+
+  ALLOWED_SYNC: [
+    'taiwan.ramen.association@gmail.com',
+  ],
+
+  REGION_CITIES: {
+    '北北基': ['臺北市', '台北市', '新北市', '基隆市'],
+    '桃竹苗': ['桃園市', '新竹市', '新竹縣', '苗栗縣'],
+    '中彰投': ['臺中市', '台中市', '彰化縣', '南投縣'],
+    '雲嘉南': ['雲林縣', '嘉義市', '嘉義縣', '臺南市', '台南市'],
+    '高屏':   ['高雄市', '屏東縣'],
+    '宜花東澎金馬': ['宜蘭縣', '花蓮縣', '臺東縣', '台東縣', '澎湖縣', '金門縣', '連江縣'],
+  },
+
+  HEADERS: [
+    'ID',
+    '店名','地址','Map','類型','派系','醬底',
+    '週一','週二','週三','週四','週五','週六','週日',
+    '營業備註','排隊方式','點餐方式','支付方式',
+    '吧台數','桌位數','洗手間','其他',
+    '開幕日','歇業日','營業狀態',
+    'Facebook','Instagram','會員','縣市','鄉鎮市區','開幕月份',
+    'lat','lng'
+  ],
+
+  DIFF_IGNORE: [],
+};
+
+// ── 工具函式 ────────────────────────────────────────────────────────
+
+function getSheet(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(name);
+  if (!sheet) throw new Error(`找不到 Sheet：${name}`);
+  return sheet;
+}
+
+function getOrCreateSheet(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return ss.getSheetByName(name) || ss.insertSheet(name);
+}
+
+function getCurrentUser() {
+  const email = Session.getActiveUser().getEmail();
+  return email || '系統排程';
+}
+
+function isScheduledRun() {
+  return !Session.getActiveUser().getEmail();
+}
+
+const DATE_FIELDS = ['開幕日', '歇業日'];
+
+// Date 物件 → 'yyyy-MM-dd'；各種字串格式也統一修正
+function fixDateValue(val) {
+  // Apps Script 讀到日期儲存格時回傳 Date 物件
+  if (val instanceof Date && !isNaN(val)) {
+    return Utilities.formatDate(val, 'Asia/Taipei', 'yyyy-MM-dd');
+  }
+  const s = String(val).trim();
+  if (!s) return s;
+  // 已是標準格式
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // JS Date.toString()：'Fri Dec 23 2022 08:00:00 GMT+0800 (...)'
+  const m1 = s.match(/^[A-Za-z]{3} ([A-Za-z]{3}) (\d{1,2}) (\d{4})/);
+  if (m1) {
+    const d = new Date(`${m1[1]} ${m1[2]} ${m1[3]}`);
+    if (!isNaN(d)) return Utilities.formatDate(d, 'Asia/Taipei', 'yyyy-MM-dd');
+  }
+  // Date(yyyy,m,d)（gspread 舊格式，月份從 0 起算）
+  const m2 = s.match(/^Date\((\d+),(\d+),(\d+)\)/);
+  if (m2) {
+    const d = new Date(parseInt(m2[1]), parseInt(m2[2]), parseInt(m2[3]));
+    return Utilities.formatDate(d, 'Asia/Taipei', 'yyyy-MM-dd');
+  }
+  // yyyy年M月D日
+  const m3 = s.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if (m3) return `${m3[1]}-${String(m3[2]).padStart(2,'0')}-${String(m3[3]).padStart(2,'0')}`;
+  // yyyy/M/D
+  const m4 = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (m4) return `${m4[1]}-${String(m4[2]).padStart(2,'0')}-${String(m4[3]).padStart(2,'0')}`;
+  return s;
+}
+
+function sheetToRecords(sheet) {
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  const headers = data[0].map(h => String(h).trim());
+  return data.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => {
+      const raw = row[i] !== undefined ? row[i] : '';
+      obj[h] = DATE_FIELDS.includes(h) ? fixDateValue(raw) : String(raw).trim();
+    });
+    return obj;
+  }).filter(r => String(r['店名'] || '').trim());
+}
+
+function recordsToSheet(sheet, records) {
+  sheet.clearContents();
+  if (!records.length) return;
+  const values = [CONFIG.HEADERS];
+  records.forEach(r => {
+    values.push(CONFIG.HEADERS.map(h => r[h] !== undefined ? r[h] : ''));
+  });
+  sheet.getRange(1, 1, values.length, CONFIG.HEADERS.length).setValues(values);
+
+  // 開幕日/歇業日欄位設為純文字，防止 Sheets 自動重新解析成日期
+  DATE_FIELDS.forEach(field => {
+    const col = CONFIG.HEADERS.indexOf(field) + 1;
+    if (col > 0 && records.length > 0) {
+      sheet.getRange(2, col, records.length, 1).setNumberFormat('@');
+    }
+  });
+}
+
+function writeLog(action, executor, detail) {
+  const logSheet = getSheet(CONFIG.LOG);
+  const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
+  if (logSheet.getLastRow() === 0) {
+    logSheet.appendRow(['時間', '執行人', '動作', '詳細']);
+  }
+  logSheet.appendRow([now, executor, action, detail]);
+}
+
+// ── 功能一：彙整分區 → 待同步表單 ──────────────────────────────────
+function mergeRegions() {
+  const executor = getCurrentUser();
+  let ui;
+  try { ui = SpreadsheetApp.getUi(); } catch (e) { ui = null; }
+
+  try {
+    const allRecords  = [];
+    const seenKeys    = new Set();
+    const regionStats = [];
+
+    CONFIG.REGIONS.forEach(regionName => {
+      const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(regionName);
+      if (!sheet) {
+        regionStats.push(`${regionName}：找不到 Sheet，略過`);
+        return;
+      }
+      const records = sheetToRecords(sheet);
+      let added = 0;
+      records.forEach(r => {
+        const shopName = String(r['店名'] || '').trim();
+        const address  = String(r['地址'] || '').trim();
+        if (!shopName) return;
+        const key = `${shopName}__${address}`;
+        if (seenKeys.has(key)) return;
+        seenKeys.add(key);
+        allRecords.push(r);
+        added++;
+      });
+      regionStats.push(`${regionName}：${added} 筆`);
+    });
+
+    recordsToSheet(getSheet(CONFIG.STAGING), allRecords);
+
+    const detail = `共彙整 ${allRecords.length} 筆 | ${regionStats.join('、')}`;
+    writeLog('彙整分區 → 待同步表單', executor, detail);
+
+    if (ui) ui.alert('✅ 彙整完成', `${detail}\n\nLOG 已記錄。`, ui.ButtonSet.OK);
+  } catch (e) {
+    writeLog('彙整失敗', executor, e.message);
+    if (ui) ui.alert('❌ 發生錯誤', e.message, ui.ButtonSet.OK);
+  }
+}
+
+// ── 功能二：差異比對 總表csv vs 待同步表單 ──────────────────────────
+function diffReport() {
+  const executor = getCurrentUser();
+  let ui;
+  try { ui = SpreadsheetApp.getUi(); } catch (e) { ui = null; }
+
+  try {
+    const mainRecords    = sheetToRecords(getSheet(CONFIG.MAIN));
+    const stagingRecords = sheetToRecords(getSheet(CONFIG.STAGING));
+
+    const mainMap    = {};
+    const stagingMap = {};
+    const mainByName    = {};
+    const stagingByName = {};
+
+    mainRecords.forEach(r => {
+      const key  = `${r['店名']}__${r['地址']}`;
+      const name = String(r['店名']).trim();
+      mainMap[key] = r;
+      if (!mainByName[name]) mainByName[name] = [];
+      mainByName[name].push(r);
+    });
+    stagingRecords.forEach(r => {
+      const key  = `${r['店名']}__${r['地址']}`;
+      const name = String(r['店名']).trim();
+      stagingMap[key] = r;
+      if (!stagingByName[name]) stagingByName[name] = [];
+      stagingByName[name].push(r);
+    });
+
+    const allKeys = new Set([...Object.keys(mainMap), ...Object.keys(stagingMap)]);
+    const diffRows = [];
+
+    allKeys.forEach(key => {
+      const inMain    = !!mainMap[key];
+      const inStaging = !!stagingMap[key];
+      const [shopName, address] = key.split('__');
+
+      if (inMain && inStaging) {
+        const mainR    = mainMap[key];
+        const stagingR = stagingMap[key];
+        const diffFields = [];
+
+        CONFIG.HEADERS.forEach(h => {
+          if (CONFIG.DIFF_IGNORE.includes(h)) return;
+          const mv = String(mainR[h]    || '').trim();
+          const sv = String(stagingR[h] || '').trim();
+          if (mv !== sv) diffFields.push(`[${h}] 總表：「${mv}」/ 待同步：「${sv}」`);
+        });
+
+        if (diffFields.length > 0) {
+          diffRows.push({
+            狀態: '🔄 有差異',
+            店名: shopName,
+            地址: address,
+            差異內容: diffFields.join('\n'),
+            處理方式: '',
+            備註: '',
+          });
+        }
+      } else if (inMain && !inStaging) {
+        const sameNameInStaging = stagingByName[shopName];
+        let note = '';
+        if (sameNameInStaging && sameNameInStaging.length > 0) {
+          note = `⚠️ 疑似搬遷或分店，需人工確認（待同步有同名店家，地址：${sameNameInStaging.map(r => r['地址']).join('、')}）`;
+        }
+        diffRows.push({
+          狀態: '➖ 僅總表csv有',
+          店名: shopName,
+          地址: address,
+          差異內容: '',
+          處理方式: '',
+          備註: note,
+        });
+      } else if (!inMain && inStaging) {
+        const sameAddrInMain = mainRecords.find(r => String(r['地址']).trim() === address);
+        let note = '';
+        if (sameAddrInMain) {
+          note = `⚠️ 疑似原址改名，需人工確認（總表同地址店家：${sameAddrInMain['店名']}，狀態：${sameAddrInMain['營業狀態']}）`;
+        }
+        diffRows.push({
+          狀態: '➕ 僅待同步表單有',
+          店名: shopName,
+          地址: address,
+          差異內容: '',
+          處理方式: '',
+          備註: note,
+        });
+      }
+    });
+
+    // 建立差異報告 Sheet
+    const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMdd_HHmm');
+    const reportSheetName = `差異報告_${now}`;
+    const reportSheet = getOrCreateSheet(reportSheetName);
+    reportSheet.clearContents();
+
+    if (diffRows.length === 0) {
+      reportSheet.appendRow(['✅ 兩份資料完全一致，無差異']);
+      writeLog('差異比對', executor, '無差異');
+      if (ui) ui.alert('✅ 無差異', '總表csv 與待同步表單內容完全一致。', ui.ButtonSet.OK);
+      return;
+    }
+
+    // 標題
+    const reportHeaders = [
+      '狀態', '店名', '地址', '差異內容',
+      '處理方式（填：採用總表 / 採用待同步）', '備註'
+    ];
+
+    // 批次寫入：一次 setValues 取代逐行 appendRow
+    const dataValues = diffRows.map(row => [
+      row.狀態, row.店名, row.地址, row.差異內容, row.處理方式, row.備註
+    ]);
+    reportSheet.getRange(1, 1, 1 + dataValues.length, reportHeaders.length)
+      .setValues([reportHeaders, ...dataValues]);
+
+    // 標題列樣式
+    const headerRange = reportSheet.getRange(1, 1, 1, reportHeaders.length);
+    headerRange.setBackground('#1a1209');
+    headerRange.setFontColor('#ffffff');
+    headerRange.setFontWeight('bold');
+
+    // 批次著色：一次 setBackgrounds 傳入整個二維顏色陣列
+    const bgColors = diffRows.map(row => {
+      let color = '#ffffff';
+      if (row.狀態.includes('🔄'))      color = '#fff8e1';
+      else if (row.狀態.includes('➕')) color = '#e8f5e9';
+      else if (row.狀態.includes('➖')) color = '#fce4ec';
+      return Array(reportHeaders.length).fill(color);
+    });
+    if (bgColors.length) {
+      reportSheet.getRange(2, 1, bgColors.length, reportHeaders.length).setBackgrounds(bgColors);
+    }
+
+    const cntDiff        = diffRows.filter(r => r.狀態.includes('🔄')).length;
+    const cntOnlyMain    = diffRows.filter(r => r.狀態.includes('➖')).length;
+    const cntOnlyStaging = diffRows.filter(r => r.狀態.includes('➕')).length;
+    const detail = `🔄 有差異：${cntDiff} 筆　➖ 僅總表：${cntOnlyMain} 筆　➕ 僅待同步：${cntOnlyStaging} 筆`;
+    writeLog('差異比對', executor, detail);
+
+    if (ui) ui.alert(
+      '📊 差異報告完成',
+      `已產生「${reportSheetName}」\n\n${detail}\n\n請在「處理方式」欄填入：\n「採用總表」→ 以總表csv為準，同步到待同步表單\n「採用待同步」→ 以待同步表單為準，同步到總表csv\n\n填完後按「④ 套用差異報告」`,
+      ui.ButtonSet.OK
+    );
+
+  } catch (e) {
+    writeLog('差異比對失敗', executor, e.message);
+    if (ui) ui.alert('❌ 發生錯誤', e.message, ui.ButtonSet.OK);
+  }
+}
+
+// ── 功能三：套用差異報告（雙向同步）────────────────────────────────
+function applyDiff() {
+  const executor = getCurrentUser();
+  const ui = SpreadsheetApp.getUi();
+
+  if (!CONFIG.ALLOWED_SYNC.includes(executor)) {
+    ui.alert('❌ 權限不足', `您的帳號（${executor}）沒有執行此操作的權限。`, ui.ButtonSet.OK);
+    return;
+  }
+
+  // 找最新的差異報告
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const reportSheets = ss.getSheets()
+    .filter(s => s.getName().startsWith('差異報告_'))
+    .sort((a, b) => b.getName().localeCompare(a.getName()));
+
+  if (!reportSheets.length) {
+    ui.alert('⚠️ 找不到差異報告', '請先執行「③ 差異比對」。', ui.ButtonSet.OK);
+    return;
+  }
+
+  const reportSheet = reportSheets[0];
+  const confirm = ui.alert(
+    '確認套用',
+    `將套用「${reportSheet.getName()}」的處理結果\n執行人：${executor}\n\n採用總表 → 更新待同步表單\n採用待同步 → 更新總表csv\n\n確定繼續？`,
+    ui.ButtonSet.YES_NO
+  );
+  if (confirm !== ui.Button.YES) return;
+
+  try {
+    const reportData = reportSheet.getDataRange().getValues();
+    if (reportData.length < 2) {
+      ui.alert('⚠️ 報告是空的', '', ui.ButtonSet.OK);
+      return;
+    }
+
+    const reportHeaders = reportData[0].map(h => String(h).trim());
+    const statusIdx = reportHeaders.indexOf('狀態');
+    const nameIdx   = reportHeaders.indexOf('店名');
+    const addrIdx   = reportHeaders.indexOf('地址');
+    const actionIdx = reportHeaders.findIndex(h => h.includes('處理方式'));
+
+    const mainRecords    = sheetToRecords(getSheet(CONFIG.MAIN));
+    const stagingRecords = sheetToRecords(getSheet(CONFIG.STAGING));
+
+    const mainMap    = {};
+    const stagingMap = {};
+    mainRecords.forEach(r => {
+      mainMap[`${r['店名']}__${r['地址']}`] = r;
+    });
+    stagingRecords.forEach(r => {
+      stagingMap[`${r['店名']}__${r['地址']}`] = r;
+    });
+
+    let applied = 0;
+    let skipped = 0;
+
+    reportData.slice(1).forEach(row => {
+      const status = String(row[statusIdx] || '').trim();
+      const name   = String(row[nameIdx]   || '').trim();
+      const addr   = String(row[addrIdx]   || '').trim();
+      const action = String(row[actionIdx] || '').trim();
+      const key    = `${name}__${addr}`;
+
+      if (!action) { skipped++; return; }
+
+      if (action === '採用待同步') {
+        // 待同步表單的資料 → 寫回總表csv
+        if (stagingMap[key]) {
+          mainMap[key] = { ...mainMap[key], ...stagingMap[key] };
+          applied++;
+        } else if (status.includes('➕')) {
+          // 待同步有但總表沒有 → 新增到總表
+          mainMap[key] = stagingMap[key];
+          applied++;
+        }
+      } else if (action === '採用總表') {
+        // 總表csv的資料 → 寫回待同步表單（新增或覆蓋）
+        if (mainMap[key]) {
+          stagingMap[key] = { ...mainMap[key] };
+          applied++;
+        }
+      }
+    });
+
+    // 雙向寫回
+    recordsToSheet(getSheet(CONFIG.MAIN),    Object.values(mainMap));
+    recordsToSheet(getSheet(CONFIG.STAGING), Object.values(stagingMap));
+
+    const detail = `套用 ${applied} 筆，略過 ${skipped} 筆（未填處理方式）`;
+    writeLog('套用差異報告（雙向）', executor, `${reportSheet.getName()} | ${detail}`);
+
+    ui.alert('✅ 套用完成', `${detail}\n\n兩邊資料已同步。\nLOG 已記錄。`, ui.ButtonSet.OK);
+
+  } catch (e) {
+    ui.alert('❌ 發生錯誤', e.message, ui.ButtonSet.OK);
+  }
+}
+
+// ── 功能四：待同步表單 → 反向寫回六個分區 ──────────────────────────
+function stagingToRegions() {
+  const executor = getCurrentUser();
+  const ui = SpreadsheetApp.getUi();
+
+  if (!CONFIG.ALLOWED_SYNC.includes(executor)) {
+    ui.alert('❌ 權限不足', `您的帳號（${executor}）沒有執行此操作的權限。`, ui.ButtonSet.OK);
+    return;
+  }
+
+  const confirm = ui.alert(
+    '⚠️ 確認反向寫入',
+    `將把「${CONFIG.STAGING}」依縣市完整覆蓋六個分區 Sheet\n執行人：${executor}\n\n此操作無法復原，確定繼續？`,
+    ui.ButtonSet.YES_NO
+  );
+  if (confirm !== ui.Button.YES) return;
+
+  try {
+    const stagingRecords = sheetToRecords(getSheet(CONFIG.STAGING));
+
+    const cityToRegion = {};
+    Object.entries(CONFIG.REGION_CITIES).forEach(([region, cities]) => {
+      cities.forEach(city => { cityToRegion[city] = region; });
+    });
+
+    const regionData = {};
+    CONFIG.REGIONS.forEach(r => { regionData[r] = []; });
+
+    let unmatched = 0;
+    stagingRecords.forEach(r => {
+      const city   = String(r['縣市'] || '').trim();
+      const region = cityToRegion[city];
+      if (region) {
+        regionData[region].push(r);
+      } else {
+        unmatched++;
+      }
+    });
+
+    const regionStats = [];
+    CONFIG.REGIONS.forEach(regionName => {
+      const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(regionName);
+      if (!sheet) {
+        regionStats.push(`${regionName}：找不到 Sheet，略過`);
+        return;
+      }
+      const records = regionData[regionName] || [];
+      recordsToSheet(sheet, records);
+      regionStats.push(`${regionName}：${records.length} 筆`);
+    });
+
+    const detail = `${regionStats.join('、')}${unmatched ? `　⚠️ 縣市無法對應：${unmatched} 筆` : ''}`;
+    writeLog('待同步表單 → 六個分區', executor, detail);
+
+    ui.alert('✅ 反向寫入完成', `${detail}\n\nLOG 已記錄。`, ui.ButtonSet.OK);
+
+  } catch (e) {
+    ui.alert('❌ 發生錯誤', e.message, ui.ButtonSet.OK);
+  }
+}
+
+// ── 清理舊差異報告，只保留最新一份 ──────────────────────────────────
+function cleanOldDiffReports() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const reports = ss.getSheets()
+    .filter(s => s.getName().startsWith('差異報告_'))
+    .sort((a, b) => b.getName().localeCompare(a.getName()));
+  reports.slice(1).forEach(s => ss.deleteSheet(s));
+}
+
+// ── 排程入口：每日凌晨4點彙整 + 差異比對 + 清理舊報告 ────────────────
+function dailyMergeAndDiff() {
+  cleanOldDiffReports();
+  mergeRegions();
+  diffReport();
+}
+
+// ── 統一修正開幕日/歇業日格式（手動補跑用）────────────────────────────
+function normalizeDates() {
+  const executor = getCurrentUser();
+  const allSheets = [CONFIG.MAIN, CONFIG.STAGING, ...CONFIG.REGIONS];
+  const stats = [];
+
+  allSheets.forEach(name => {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+    if (!sheet) { stats.push(`${name}：找不到 Sheet`); return; }
+    const records = sheetToRecords(sheet);  // fixDateValue 已在內部套用
+    if (!records.length) { stats.push(`${name}：無資料`); return; }
+    recordsToSheet(sheet, records);
+    stats.push(`${name}：${records.length} 筆`);
+  });
+
+  writeLog('修正日期格式', executor, stats.join('、'));
+
+  let ui;
+  try { ui = SpreadsheetApp.getUi(); } catch (e) { ui = null; }
+  if (ui) ui.alert('✅ 日期格式修正完成', stats.join('\n'), ui.ButtonSet.OK);
+}
+
+// ── 依縣市自訂順序排序 ───────────────────────────────────────────────
+const CITY_ORDER = [
+  // 六都（由北到南）
+  '臺北市', '台北市',
+  '新北市',
+  '桃園市',
+  '臺中市', '台中市',
+  '臺南市', '台南市',
+  '高雄市',
+  // 省轄市／縣（由北到南、由西向東）
+  '基隆市',
+  '新竹市', '新竹縣',
+  '苗栗縣',
+  '彰化縣', '南投縣',
+  '雲林縣',
+  '嘉義市', '嘉義縣',
+  '屏東縣',
+  '宜蘭縣',
+  '花蓮縣',
+  '臺東縣', '台東縣',
+  // 離島
+  '澎湖縣', '金門縣', '連江縣',
+];
+
+function cityRank(city) {
+  const idx = CITY_ORDER.indexOf(String(city).trim());
+  return idx === -1 ? 9999 : idx;
+}
+
+function sortByCity() {
+  const ui       = SpreadsheetApp.getUi();
+  const ss       = SpreadsheetApp.getActiveSpreadsheet();
+  const executor = getCurrentUser();
+
+  // 讓使用者選擇要排序哪個 Sheet
+  const sheetNames = [CONFIG.MAIN, CONFIG.STAGING, ...CONFIG.REGIONS];
+  const response = ui.prompt(
+    '依縣市排序',
+    `請輸入要排序的 Sheet 名稱：\n（可選：${sheetNames.join('、')}）`,
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+
+  const sheetName = response.getResponseText().trim();
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    ui.alert('❌ 找不到 Sheet', `「${sheetName}」不存在。`, ui.ButtonSet.OK);
+    return;
+  }
+
+  const records = sheetToRecords(sheet);
+  if (!records.length) {
+    ui.alert('⚠️ 無資料', `「${sheetName}」沒有資料。`, ui.ButtonSet.OK);
+    return;
+  }
+
+  records.sort((a, b) => {
+    const rankDiff = cityRank(a['縣市']) - cityRank(b['縣市']);
+    if (rankDiff !== 0) return rankDiff;
+    // 同縣市：按鄉鎮市區字典序
+    return String(a['鄉鎮市區'] || '').localeCompare(String(b['鄉鎮市區'] || ''), 'zh-TW');
+  });
+
+  recordsToSheet(sheet, records);
+
+  writeLog('依縣市排序', executor, `${sheetName}：${records.length} 筆`);
+  ui.alert('✅ 排序完成', `「${sheetName}」已依縣市順序重新排列（${records.length} 筆）。`, ui.ButtonSet.OK);
+}
+
+// ── 選單建立 ────────────────────────────────────────────────────────
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('🍜 拉麵協會')
+    .addItem('① 彙整分區 → 待同步表單', 'mergeRegions')
+    .addSeparator()
+    .addItem('③ 差異比對：總表csv vs 待同步表單', 'diffReport')
+    .addItem('④ 套用差異報告（管理員）', 'applyDiff')
+    .addSeparator()
+    .addItem('⑤ 待同步表單 → 反向寫回六個分區（管理員）', 'stagingToRegions')
+    .addSeparator()
+    .addItem('⑥ 依縣市排序', 'sortByCity')
+    .addItem('⑦ 修正開幕日/歇業日格式', 'normalizeDates')
+    .addSeparator()
+    .addItem('⑧ 計算本月排行榜', 'calculateMonthlyRankings')
+    .addItem('⑨ 執行本月抽獎', 'drawRankingWinners')
+    .addToUi();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  月度排行榜計算器 v1
+//  讀取 Firestore reportLogs → 計算排名 → 寫入 rankings/{YYYY-MM}
+//
+//  前置作業（一次性）：
+//  1. Apps Script 專案設定 → 變更 GCP 專案 → 填入 Firebase 的 GCP 專案編號
+//  2. 如無法取得 OAuth，改用 SERVICE_ACCOUNT_KEY（詳見 getAccessToken_）
+// ═══════════════════════════════════════════════════════════════════
+
+const RANKING_CONFIG = {
+  PROJECT_ID:       'taiwan-ramen-association',
+  PLACEMENT_MIN:    20,   // 累計回報達此數才「出水」進入排名
+  TRUST_THRESHOLD:  30,   // 信任分低於此值不列入抽獎池
+  TOP_GUARANTEED:   3,    // 前幾名保證得獎
+  DRAW_POOL_MAX:    50,   // 抽獎池最大人數
+  DRAW_WINNERS:     3,    // 每月抽出幾名
+};
+
+const FS_BASE_ = `https://firestore.googleapis.com/v1/projects/${RANKING_CONFIG.PROJECT_ID}/databases/(default)/documents`;
+
+function getAccessToken_() {
+  // 若 Apps Script 已連結相同 GCP 專案，直接使用 OAuth token
+  // 若出現 403，請改用 Service Account Key 存在 Script Properties
+  const key = PropertiesService.getScriptProperties().getProperty('SA_KEY');
+  if (key) {
+    const sa  = JSON.parse(key);
+    const jwt = makeJwt_(sa);
+    const res = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      payload: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
+    });
+    return JSON.parse(res.getContentText()).access_token;
+  }
+  return ScriptApp.getOAuthToken();
+}
+
+function fsHeaders_() {
+  return { 'Authorization': 'Bearer ' + getAccessToken_(), 'Content-Type': 'application/json' };
+}
+
+// ── Firestore 值轉換 ────────────────────────────────────────────────
+function fsValueToJs_(val) {
+  if (!val) return null;
+  if ('stringValue'  in val) return val.stringValue;
+  if ('integerValue' in val) return Number(val.integerValue);
+  if ('doubleValue'  in val) return val.doubleValue;
+  if ('booleanValue' in val) return val.booleanValue;
+  if ('nullValue'    in val) return null;
+  if ('arrayValue'   in val) return (val.arrayValue.values || []).map(fsValueToJs_);
+  if ('mapValue'     in val) {
+    const obj = {};
+    for (const [k, v] of Object.entries(val.mapValue.fields || {})) obj[k] = fsValueToJs_(v);
+    return obj;
+  }
+  return null;
+}
+
+function jsValueToFs_(val) {
+  if (val === null || val === undefined) return { nullValue: null };
+  if (typeof val === 'string')  return { stringValue: val };
+  if (typeof val === 'boolean') return { booleanValue: val };
+  if (typeof val === 'number')  return Number.isInteger(val) ? { integerValue: String(val) } : { doubleValue: val };
+  if (Array.isArray(val)) return { arrayValue: { values: val.map(jsValueToFs_) } };
+  if (typeof val === 'object') {
+    const fields = {};
+    for (const [k, v] of Object.entries(val)) fields[k] = jsValueToFs_(v);
+    return { mapValue: { fields } };
+  }
+  return { nullValue: null };
+}
+
+function parseDoc_(doc) {
+  const result = { _id: doc.name.split('/').pop() };
+  for (const [k, v] of Object.entries(doc.fields || {})) result[k] = fsValueToJs_(v);
+  return result;
+}
+
+// ── Firestore REST 操作 ─────────────────────────────────────────────
+function fsGet_(collection, docId) {
+  const resp = UrlFetchApp.fetch(
+    `${FS_BASE_}/${collection}/${encodeURIComponent(docId)}`,
+    { method: 'GET', headers: fsHeaders_(), muteHttpExceptions: true }
+  );
+  if (resp.getResponseCode() !== 200) return null;
+  return parseDoc_(JSON.parse(resp.getContentText()));
+}
+
+function fsPatch_(collection, docId, data) {
+  const fields = {};
+  for (const [k, v] of Object.entries(data)) fields[k] = jsValueToFs_(v);
+  UrlFetchApp.fetch(
+    `${FS_BASE_}/${collection}/${encodeURIComponent(docId)}`,
+    { method: 'PATCH', headers: fsHeaders_(), payload: JSON.stringify({ fields }), muteHttpExceptions: true }
+  );
+}
+
+function fsRunQuery_(query) {
+  const resp = UrlFetchApp.fetch(
+    `${FS_BASE_}:runQuery`,
+    { method: 'POST', headers: fsHeaders_(), payload: JSON.stringify({ structuredQuery: query }), muteHttpExceptions: true }
+  );
+  const results = JSON.parse(resp.getContentText());
+  return results.filter(r => r.document).map(r => parseDoc_(r.document));
+}
+
+// ── 主函數：計算月排名 ──────────────────────────────────────────────
+function calculateMonthlyRankings() {
+  const now      = new Date();
+  const year     = now.getFullYear();
+  const month    = now.getMonth(); // 0-indexed
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const startMs  = new Date(year, month, 1).getTime();
+  const endMs    = now.getTime();
+
+  Logger.log(`計算 ${monthKey} 排行榜`);
+
+  // 1. 撈當月所有 reportLogs
+  const logs = fsRunQuery_({
+    from: [{ collectionId: 'reportLogs' }],
+    where: {
+      compositeFilter: {
+        op: 'AND',
+        filters: [
+          { fieldFilter: { field: { fieldPath: 'ts' }, op: 'GREATER_THAN_OR_EQUAL', value: { integerValue: String(startMs) } } },
+          { fieldFilter: { field: { fieldPath: 'ts' }, op: 'LESS_THAN_OR_EQUAL',    value: { integerValue: String(endMs)   } } }
+        ]
+      }
+    }
+  });
+
+  Logger.log(`找到 ${logs.length} 筆 reportLogs`);
+  if (!logs.length) { Logger.log('本月無回報，結束。'); return; }
+
+  // 2. 依 uid 統計本月回報次數
+  const monthCount = {};
+  const uids = new Set();
+  for (const log of logs) {
+    if (!log.uid) continue;
+    monthCount[log.uid] = (monthCount[log.uid] || 0) + 1;
+    uids.add(log.uid);
+  }
+
+  // 3. 撈每個用戶的 users 文件
+  const userData = {};
+  for (const uid of uids) {
+    const user = fsGet_('users', uid);
+    if (user) userData[uid] = user;
+  }
+
+  // 4. 篩選「已出水」且本月有回報的用戶
+  const eligible = [];
+  for (const uid of uids) {
+    const u          = userData[uid] || {};
+    const totalCount = u.reportCount || 0;
+    const trust      = (u.trustScore !== undefined && u.trustScore !== null) ? u.trustScore : 50;
+    const placed     = totalCount >= RANKING_CONFIG.PLACEMENT_MIN;
+    if (!placed) continue;
+    eligible.push({
+      uid,
+      displayName: u.nickname || u.displayName || '匿名用戶',
+      monthCount:  monthCount[uid] || 0,
+      trustScore:  trust,
+      totalCount,
+    });
+  }
+
+  // 5. 依本月回報數排序（同分時信任分高者優先）
+  eligible.sort((a, b) => b.monthCount - a.monthCount || b.trustScore - a.trustScore);
+
+  // 6. 分配保證得獎 & 抽獎池
+  const toEntry = u => ({ uid: u.uid, displayName: u.displayName, monthCount: u.monthCount });
+  const top3 = eligible.slice(0, RANKING_CONFIG.TOP_GUARANTEED).map(toEntry);
+  const drawPool = eligible
+    .slice(RANKING_CONFIG.TOP_GUARANTEED, RANKING_CONFIG.DRAW_POOL_MAX)
+    .filter(u => u.trustScore >= RANKING_CONFIG.TRUST_THRESHOLD)
+    .map(toEntry);
+
+  // 7. 寫入 Firestore rankings/{YYYY-MM}
+  fsPatch_('rankings', monthKey, {
+    monthKey,
+    calculatedAt:  endMs,
+    top3,
+    drawPool,
+    totalEligible: eligible.length,
+    totalReports:  logs.length,
+    drawnAt:       null,
+    drawnWinners:  [],
+  });
+
+  Logger.log(`✅ 完成 — top3: ${top3.map(u => u.displayName).join('、')} ｜ 抽獎池: ${drawPool.length} 人`);
+}
+
+// ── 抽獎（管理員手動執行）──────────────────────────────────────────
+function drawRankingWinners() {
+  const now      = new Date();
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const doc      = fsGet_('rankings', monthKey);
+
+  if (!doc)         { Logger.log('找不到本月排行榜，請先執行 calculateMonthlyRankings()'); return; }
+  if (doc.drawnAt)  { Logger.log('本月已完成抽獎：' + new Date(doc.drawnAt).toLocaleString()); return; }
+
+  const pool = doc.drawPool || [];
+  if (!pool.length) { Logger.log('抽獎池為空，無法抽獎'); return; }
+
+  // Fisher–Yates shuffle
+  const shuffled = [...pool];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const winners = shuffled.slice(0, RANKING_CONFIG.DRAW_WINNERS);
+
+  fsPatch_('rankings', monthKey, { drawnAt: Date.now(), drawnWinners: winners });
+  Logger.log(`🎉 抽獎結果：${winners.map(w => w.displayName).join('、')}`);
+}
+
+// ── 設定每月自動觸發器（只需執行一次）─────────────────────────────
+function setupMonthlyTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'calculateMonthlyRankings')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+
+  ScriptApp.newTrigger('calculateMonthlyRankings')
+    .timeBased().onMonthDay(1).atHour(2).create();
+
+  Logger.log('✅ 已設定每月 1 日凌晨 2:00 自動計算排行榜');
+}
+
+// ── JWT 工具（使用 Service Account 時才需要）───────────────────────
+function makeJwt_(sa) {
+  const now = Math.floor(Date.now() / 1000);
+  const header  = Utilities.base64EncodeWebSafe(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const payload = Utilities.base64EncodeWebSafe(JSON.stringify({
+    iss: sa.client_email,
+    sub: sa.client_email,
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+    scope: 'https://www.googleapis.com/auth/datastore',
+  }));
+  const sig = Utilities.base64EncodeWebSafe(
+    Utilities.computeRsaSha256Signature(`${header}.${payload}`, sa.private_key)
+  );
+  return `${header}.${payload}.${sig}`;
+}
