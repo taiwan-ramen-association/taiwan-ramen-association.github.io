@@ -275,6 +275,11 @@
       </tr>
     </thead>
     <tbody id="ffTbody">
+      <tr data-feat="betaAccess">
+        <td><span class="ff-feat-icon">🧪</span><span class="ff-feat-name">Beta 測試版存取</span></td>
+        <td class="center"><select class="ff-select" data-col="vis"></select></td>
+        <td class="center"><select class="ff-select" data-col="perm"></select></td>
+      </tr>
       <tr data-feat="favorites">
         <td><span class="ff-feat-icon">♡</span><span class="ff-feat-name">收藏</span></td>
         <td class="center"><select class="ff-select" data-col="vis"></select></td>
@@ -547,6 +552,7 @@ const FF_ROLES = [
   { value: 'admin',    label: '🔴 admin（管理員）' },
 ];
 const FF_DEFAULTS = {
+  betaAccess:  { vis: 'director', perm: 'director' },
   favorites:   { vis: 'viewer',   perm: 'viewer'   },
   stamps:      { vis: 'viewer',   perm: 'viewer'   },
   queueReport: { vis: 'director', perm: 'director' },

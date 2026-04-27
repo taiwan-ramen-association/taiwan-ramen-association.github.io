@@ -2858,7 +2858,11 @@ document.getElementById('clearConfirmBtn').addEventListener('click', async () =>
 });
 
 // ── onAuthStateChanged ─────────────────────────────────────────────────────
-const BETA_ALLOWED_ROLES = ['admin', 'director'];
+const ROLE_LEVEL = { all: 0, viewer: 1, member: 2, director: 3, admin: 4 };
+
+function hasPermission(userRole, requiredRole) {
+  return (ROLE_LEVEL[userRole] ?? 0) >= (ROLE_LEVEL[requiredRole] ?? 99);
+}
 
 function showBetaGate(msg, showLogin = false) {
   document.getElementById('betaGate').style.display = 'flex';
@@ -2911,9 +2915,17 @@ auth.onAuthStateChanged(async user => {
         Object.assign(userData, snap2.data());
       }
 
-      // 權限檢查：只有 admin / 協會幹部 可瀏覽
-      if (!BETA_ALLOWED_ROLES.includes(userData.role)) {
-        showBetaGate('此頁面僅開放協會幹部及管理員瀏覽');
+      // 從 Firestore 讀取 featureFlags，決定 beta 存取門檻
+      let betaPermRole = 'director'; // 預設值
+      try {
+        const ffSnap = await db.collection('meta').doc('featureFlags').get();
+        if (ffSnap.exists && ffSnap.data().betaAccess?.perm) {
+          betaPermRole = ffSnap.data().betaAccess.perm;
+        }
+      } catch(e) { /* Firestore rules 未允許時沿用預設值 */ }
+
+      if (!hasPermission(userData.role, betaPermRole)) {
+        showBetaGate('此頁面僅開放特定身份瀏覽');
         userAvatar.style.display = 'block';
         return;
       }
