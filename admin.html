@@ -364,6 +364,12 @@
   </div>
 </div>
 
+<div class="reports-card" id="devicesCard" style="display:none">
+  <h3>📱 已訂閱推播的裝置</h3>
+  <p class="reports-desc">每台裝置的 FCM token 獨立儲存，不會互相覆蓋。可單獨移除特定裝置。</p>
+  <div id="devicesList" style="font-size:13px;color:var(--stone)">載入中…</div>
+</div>
+
 <div class="reports-card" id="reportsCard" style="display:none">
   <h3>📨 問題回報</h3>
   <p class="reports-desc">來自前台用戶的問題回報。確認處理後可單筆刪除，或清除全部資料。</p>
@@ -462,6 +468,7 @@ auth.onAuthStateChanged(async user => {
   loadFeatureFlags();
   loadIssueReports();
   registerFcmToken(user.uid);
+  renderFcmDevices(user.uid);
 });
 
 async function loadUsers() {
@@ -876,12 +883,13 @@ async function registerFcmToken(uid, manual = false) {
     });
     if (!token) { updateNotifyBtn('off'); return; }
 
-    const snap = await db.collection('users').doc(uid).get();
-    if (snap.data()?.fcmToken !== token) {
-      await db.collection('users').doc(uid).update({ fcmToken: token });
-    }
+    // 用陣列儲存多裝置 token，避免重複
+    await db.collection('users').doc(uid).update({
+      fcmTokens: firebase.firestore.FieldValue.arrayUnion(token),
+    });
     updateNotifyBtn('on');
     if (manual) showToast('✅ 推播通知已啟用！');
+    renderFcmDevices(uid);
   } catch(e) {
     updateNotifyBtn('off');
     console.warn('[FCM] Token 登記失敗：', e.message);
@@ -892,6 +900,56 @@ async function registerFcmToken(uid, manual = false) {
 document.getElementById('notifyBtn').addEventListener('click', () => {
   if (_fcmUid) registerFcmToken(_fcmUid, true);
 });
+
+async function renderFcmDevices(uid) {
+  const card = document.getElementById('devicesCard');
+  const list = document.getElementById('devicesList');
+  card.style.display = '';
+
+  try {
+    const snap = await db.collection('users').doc(uid).get();
+    const tokens = snap.data()?.fcmTokens || [];
+
+    // 取得目前這台裝置的 token（用來標記「本機」）
+    let currentToken = null;
+    try {
+      const swReg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js');
+      if (swReg) {
+        const messaging = firebase.messaging();
+        currentToken = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg }).catch(() => null);
+      }
+    } catch(e) {}
+
+    if (!tokens.length) {
+      list.innerHTML = '<span style="color:var(--stone)">尚無訂閱裝置</span>';
+      return;
+    }
+
+    list.innerHTML = tokens.map((t, i) => {
+      const isCurrent = t === currentToken;
+      const short = t.slice(0, 20) + '…' + t.slice(-8);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line)">
+        <span style="flex:1;font-family:monospace;font-size:11px">${short}${isCurrent ? ' <span style="color:#2d7a2d;font-family:sans-serif">← 本裝置</span>' : ''}</span>
+        <button onclick="removeFcmToken('${uid}','${t}')" style="padding:3px 8px;border:1px solid var(--line);border-radius:5px;font-size:11px;cursor:pointer;background:none;color:var(--stone)">移除</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '載入失敗';
+  }
+}
+
+async function removeFcmToken(uid, token) {
+  if (!confirm('確定移除此裝置的推播訂閱？')) return;
+  try {
+    await db.collection('users').doc(uid).update({
+      fcmTokens: firebase.firestore.FieldValue.arrayRemove(token),
+    });
+    showToast('✅ 已移除');
+    renderFcmDevices(uid);
+  } catch(e) {
+    showToast('❌ 移除失敗：' + e.message);
+  }
+}
 </script>
 </body>
 </html>
