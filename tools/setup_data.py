@@ -602,16 +602,73 @@ def step_json_to_excel():
     return True
 
 # ════════════════════════════════════════════════════════════════════════════════
+# STEP 8：依縣市排序
+# ════════════════════════════════════════════════════════════════════════════════
+CITY_ORDER = [
+    # 六都
+    '臺北市', '新北市', '桃園市', '臺中市', '臺南市', '高雄市',
+    # 其他縣市由北到南
+    '基隆市', '新竹市', '新竹縣', '苗栗縣',
+    '彰化縣', '南投縣', '雲林縣', '嘉義市', '嘉義縣',
+    '屏東縣', '宜蘭縣', '花蓮縣', '臺東縣',
+    '澎湖縣', '金門縣', '連江縣',
+]
+CITY_RANK = {city: i for i, city in enumerate(CITY_ORDER)}
+
+def step_sort():
+    section(8, '依縣市排序（六都優先，再由北到南）')
+    rows = load_data()
+
+    def sort_key(row):
+        city = str(row.get('縣市', '')).strip().replace('台', '臺')
+        dist = str(row.get('鄉鎮市區', '')).strip()
+        addr = str(row.get('地址', '')).strip()
+        return (CITY_RANK.get(city, 99), city, dist, addr)
+
+    rows.sort(key=sort_key)
+    save_data(rows)
+    print(f'  ✅ 完成：已排序 {len(rows)} 筆')
+
+# ════════════════════════════════════════════════════════════════════════════════
+# STEP 9：自動更新歇業狀態
+# ════════════════════════════════════════════════════════════════════════════════
+import datetime as _dt
+
+def step_auto_close():
+    section(9, '自動更新歇業狀態（歇業日已過 → 已歇業）')
+    rows = load_data()
+    today = _dt.date.today().isoformat()   # YYYY-MM-DD
+    updated = 0
+
+    for row in rows:
+        closing = str(row.get('歇業日', '')).strip()
+        if not re.match(r'^\d{4}-\d{2}-\d{2}$', closing):
+            continue
+        if row.get('營業狀態') == '已歇業':
+            continue
+        if today > closing:
+            old = row.get('營業狀態', '（空）')
+            print(f'    ✓ {row["店名"]}：歇業日 {closing} 已過，{old!r} → "已歇業"')
+            row['營業狀態'] = '已歇業'
+            updated += 1
+
+    save_data(rows)
+    print(f'\n  ✅ 完成：更新 {updated} 筆')
+    return updated
+
+# ════════════════════════════════════════════════════════════════════════════════
 # 選單
 # ════════════════════════════════════════════════════════════════════════════════
 STEPS = [
-    (1, '更新行政區清單（內政部 API）',   step_update_districts),
-    (2, '補縣市／鄉鎮市區',               step_fill_city_district),
-    (3, '補 lat/lng 座標',                step_geocode),
-    (4, '正規化營業時段格式',             step_normalize_hours),
-    (5, '正規化星期排序',                 step_normalize_days),
+    (1, '更新行政區清單（內政部 API）',          step_update_districts),
+    (2, '補縣市／鄉鎮市區',                      step_fill_city_district),
+    (3, '補 lat/lng 座標',                       step_geocode),
+    (4, '正規化營業時段格式',                    step_normalize_hours),
+    (5, '正規化星期排序',                        step_normalize_days),
     (6, '正規化開幕日 / 歇業日（→ YYYY-MM-DD）', step_normalize_dates),
-    (7, '分配店家 ID',                    step_assign_ids),
+    (7, '分配店家 ID',                           step_assign_ids),
+    (8, '依縣市排序（六都優先，再由北到南）',    step_sort),
+    (9, '自動更新歇業狀態',                      step_auto_close),
 ]
 
 def show_menu():
@@ -712,6 +769,8 @@ def run_path_c():
     step_normalize_hours()
     step_normalize_days()
     step_normalize_dates()
+    step_auto_close()
+    step_sort()
     step_json_to_excel()
     print()
     print('═' * 54)

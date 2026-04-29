@@ -89,6 +89,9 @@ jobs:
                   return f'{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}'
               return val
 
+          import datetime as _dt
+          today_str = _dt.date.today().isoformat()
+
           for row in rows:
               for k in ('開幕日', '歇業日'):
                   if k in row:
@@ -96,6 +99,11 @@ jobs:
               d = str(row.get('開幕日', '')).strip()
               if re.match(r'^\d{4}-\d{2}-\d{2}$', d):
                   row['開幕月份'] = int(d.split('-')[1])
+              # 歇業日已過 → 自動設為已歇業
+              closing = str(row.get('歇業日', '')).strip()
+              if re.match(r'^\d{4}-\d{2}-\d{2}$', closing) and row.get('營業狀態') != '已歇業':
+                  if today_str > closing:
+                      row['營業狀態'] = '已歇業'
 
           # 自動從地址解析縣市與鄉鎮市區（比對內政部官方清單）
           try:
