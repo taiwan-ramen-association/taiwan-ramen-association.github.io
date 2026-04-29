@@ -65,3 +65,38 @@ self.addEventListener('fetch', event => {
     caches.match(event.request).then(cached => cached || fetch(event.request))
   );
 });
+
+// ── FCM / Web Push ──────────────────────────────────────────────────────────
+self.addEventListener('push', event => {
+  let payload = { title: '📝 新問題回報', body: '', icon: '/assets/icons/03.png' };
+  try {
+    const data = event.data?.json();
+    if (data?.notification) {
+      payload.title = data.notification.title || payload.title;
+      payload.body  = data.notification.body  || '';
+    }
+  } catch(e) {}
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body:  payload.body,
+      icon:  payload.icon,
+      badge: '/assets/icons/03.png',
+      tag:   'issue-report',      // 同類通知合併，不堆疊
+      renotify: true,
+      data:  { url: '/admin.html' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = event.notification.data?.url || '/admin.html';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const existing = list.find(c => c.url.includes('admin.html'));
+      if (existing) return existing.focus();
+      return clients.openWindow(target);
+    })
+  );
+});

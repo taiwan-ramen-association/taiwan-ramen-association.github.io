@@ -8,6 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -459,6 +460,7 @@ auth.onAuthStateChanged(async user => {
   loadQueueSettings();
   loadFeatureFlags();
   loadIssueReports();
+  registerFcmToken(user.uid);
 });
 
 async function loadUsers() {
@@ -825,6 +827,35 @@ document.getElementById('reportsClearBtn').addEventListener('click', async () =>
   }
   btn.disabled = false; btn.textContent = '🗑 清除全部';
 });
+
+// ── FCM 推播 Token 登記 ───────────────────────────────────────────────────
+const VAPID_KEY = 'BD9PCYXQMk-XzFot9upaS2N7tj1d8MJECT5vscLJR6OMysWlm-fHRlvvttjv1W0E_vTs8kitPFgu2tmNMJ6akEU';
+
+async function registerFcmToken(uid) {
+  try {
+    const messaging = firebase.messaging();
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      console.log('[FCM] 通知權限未授予');
+      return;
+    }
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY });
+    if (!token) return;
+    // 只在 token 有變化時才寫入，避免不必要的 Firestore 寫入
+    const snap = await db.collection('users').doc(uid).get();
+    if (snap.data()?.fcmToken !== token) {
+      await db.collection('users').doc(uid).update({ fcmToken: token });
+      console.log('[FCM] Token 已更新');
+    }
+    // Token 輪換：當 FCM 刷新時自動更新
+    messaging.onTokenRefresh(async () => {
+      const newToken = await messaging.getToken({ vapidKey: VAPID_KEY });
+      if (newToken) await db.collection('users').doc(uid).update({ fcmToken: newToken });
+    });
+  } catch(e) {
+    console.warn('[FCM] Token 登記失敗：', e.message);
+  }
+}
 </script>
 </body>
 </html>

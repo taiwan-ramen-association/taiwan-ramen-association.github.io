@@ -30,3 +30,8 @@ Thumbs.db
 
 # Apps Script 中繼站（本機用，不上版控）
 apps script.json
+
+# Cloud Functions（另外 deploy，不納入 GitHub Pages）
+functions/node_modules/
+.firebase/
+firebase-debug.log
