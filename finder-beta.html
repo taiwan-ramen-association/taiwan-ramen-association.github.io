@@ -567,6 +567,9 @@
   .map-btn-icon { font-size: 16px; }
 
   .link-row { display: flex; gap: 7px; flex-wrap: wrap; }
+  /* 卡片內社群列：按鈕稍大，底部有間距 */
+  .card-social-row { margin-bottom: 10px; }
+  .card-social-row .link-btn { flex: 1; justify-content: center; padding: 9px 11px; font-size: 13px; }
   .link-btn {
     display: inline-flex; align-items: center; gap: 4px;
     padding: 6px 11px; border-radius: 8px; font-size: 12px;
@@ -1765,27 +1768,27 @@ function renderCard(shop) {
     </div>` : ''}
     <div class="card-detail">
       <div class="card-tabs">
-        <button class="card-tab active" data-tab-target="overview">大綱</button>
-        <button class="card-tab" data-tab-target="info">資訊</button>
+        <button class="card-tab active" data-tab-target="info">資訊</button>
         <button class="card-tab" data-tab-target="menu">菜單</button>
+        <button class="card-tab" data-tab-target="photos">照片</button>
         <button class="card-tab" data-tab-target="reviews">評論</button>
       </div>
-      <div class="card-tab-panel active" data-tab-panel="overview">
+      <div class="card-tab-panel active" data-tab-panel="info">
+        ${mapBtn}
+        ${detailItems.length ? `<table class="info-table">${detailItems.map(d=>`<tr><td class="info-label">${d.l}</td><td>${d.v}</td></tr>`).join('')}</table>` : ''}
+        ${shop['營業備註'] ? `<div class="note-box">${shop['營業備註'].replace(/\n/g,'<br>')}</div>` : ''}
+        ${links.length ? `<div class="link-row card-social-row">${links.join('')}</div>` : ''}
         ${canView('queueReport') ? `<div class="queue-section" data-shop-id="${escapeAttr(shop['ID'] || '')}">
           <span class="queue-sec-label">🕐 目前排隊狀況</span>
           <div class="queue-count-row"><span class="queue-no-data">展開後載入...</span></div>
           <button class="queue-report-btn" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}">我要回報</button>
         </div>` : ''}
-        ${mapBtn}
-        ${shop['營業備註'] ? `<div class="note-box">${shop['營業備註'].replace(/\n/g,'<br>')}</div>` : ''}
-        ${links.length ? `<div class="link-row">${links.join('')}</div>` : ''}
-        ${!canView('queueReport') && !mapBtn && !shop['營業備註'] && !links.length ? `<p class="tab-placeholder" style="padding:14px 0 4px">— 無額外資訊 —</p>` : ''}
-      </div>
-      <div class="card-tab-panel" data-tab-panel="info">
-        ${detailItems.length ? `<table class="info-table">${detailItems.map(d=>`<tr><td class="info-label">${d.l}</td><td>${d.v}</td></tr>`).join('')}</table>` : `<p class="tab-placeholder">尚無詳細資訊</p>`}
       </div>
       <div class="card-tab-panel" data-tab-panel="menu">
         <p class="tab-placeholder">🍜 菜單功能<br>即將上線</p>
+      </div>
+      <div class="card-tab-panel" data-tab-panel="photos">
+        <p class="tab-placeholder">📷 照片功能<br>即將上線</p>
       </div>
       <div class="card-tab-panel" data-tab-panel="reviews">
         <p class="tab-placeholder">💬 評論功能<br>即將上線</p>
@@ -1831,8 +1834,8 @@ function render() {
         const detail = card.querySelector('.card-detail');
         detail.querySelectorAll('.card-tab').forEach(t => t.classList.toggle('active', t.dataset.tabTarget === target));
         detail.querySelectorAll('.card-tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tabPanel === target));
-        // 切到大綱時補刷新排隊資料
-        if (target === 'overview') {
+        // 切到資訊時補刷新排隊資料
+        if (target === 'info') {
           const shopId = card.dataset.shopId;
           if (shopId) refreshQueueSection(shopId);
         }
