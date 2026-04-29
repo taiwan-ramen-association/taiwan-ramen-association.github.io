@@ -882,12 +882,6 @@ async function registerFcmToken(uid, manual = false) {
     }
     updateNotifyBtn('on');
     if (manual) showToast('✅ 推播通知已啟用！');
-
-    // Token 輪換
-    messaging.onTokenRefresh(async () => {
-      const newToken = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
-      if (newToken) await db.collection('users').doc(uid).update({ fcmToken: newToken });
-    });
   } catch(e) {
     updateNotifyBtn('off');
     console.warn('[FCM] Token 登記失敗：', e.message);
