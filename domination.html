@@ -163,9 +163,8 @@ const provider = new firebase.auth.GoogleAuthProvider();
 
 const norm = s => (s || '').replace(/台/g, '臺').trim();
 
-// ── 行政區劃改制對照（GeoJSON 舊名 → 現行名） ──────────────────────────────
-// 縣市改名：台北縣→新北市（2010）、桃園縣→桃園市（2014）
-// 台中/台南/高雄 縣市合併後統一為直轄市名
+// ── 行政區劃改制（縣市改名，共 5 筆）──────────────────────────────────────
+// 鄉鎮市區名稱改制由 districts.json 動態推導，不寫死
 const _COUNTY_RENAME = {
   '臺北縣': '新北市',
   '桃園縣': '桃園市',
@@ -173,63 +172,28 @@ const _COUNTY_RENAME = {
   '臺南縣': '臺南市',
   '高雄縣': '高雄市',
 };
-// 鄉鎮市 → 區（僅列出確有店家、且 GeoJSON 舊名與現行名不同者）
-const _DISTRICT_RENAME = {
-  // ── 新北市（原臺北縣）──
-  '板橋市': '板橋區', '中和市': '中和區', '永和市': '永和區',
-  '新莊市': '新莊區', '三重市': '三重區', '新店市': '新店區',
-  '土城市': '土城區', '蘆洲市': '蘆洲區', '樹林市': '樹林區',
-  '汐止市': '汐止區', '鶯歌鎮': '鶯歌區', '三峽鎮': '三峽區',
-  '淡水鎮': '淡水區', '瑞芳鎮': '瑞芳區', '五股鄉': '五股區',
-  '泰山鄉': '泰山區', '林口鄉': '林口區', '深坑鄉': '深坑區',
-  '石碇鄉': '石碇區', '坪林鄉': '坪林區', '三芝鄉': '三芝區',
-  '石門鄉': '石門區', '八里鄉': '八里區', '平溪鄉': '平溪區',
-  '雙溪鄉': '雙溪區', '貢寮鄉': '貢寮區', '金山鄉': '金山區',
-  '萬里鄉': '萬里區', '烏來鄉': '烏來區',
-  // ── 桃園市（原桃園縣）──
-  // 注意：舊「桃園市」是縣轄市，升格後改稱「桃園區」
-  '桃園市': '桃園區',
-  '中壢市': '中壢區', '大溪鎮': '大溪區', '楊梅市': '楊梅區',
-  '蘆竹鄉': '蘆竹區', '大園鄉': '大園區', '龜山鄉': '龜山區',
-  '八德市': '八德區', '龍潭鄉': '龍潭區', '平鎮市': '平鎮區',
-  '新屋鄉': '新屋區', '觀音鄉': '觀音區', '復興鄉': '復興區',
-  // ── 臺中市（原臺中縣）──
-  '豐原市': '豐原區', '大里市': '大里區', '太平市': '太平區',
-  '清水鎮': '清水區', '梧棲鎮': '梧棲區', '大甲鎮': '大甲區',
-  '沙鹿鎮': '沙鹿區', '大肚鄉': '大肚區', '龍井鄉': '龍井區',
-  '霧峰鄉': '霧峰區', '烏日鄉': '烏日區', '神岡鄉': '神岡區',
-  '潭子鄉': '潭子區', '大雅鄉': '大雅區', '外埔鄉': '外埔區',
-  '大安鄉': '大安區', '后里鄉': '后里區', '石岡鄉': '石岡區',
-  '東勢鎮': '東勢區', '新社鄉': '新社區', '和平鄉': '和平區',
-  // ── 臺南市（原臺南縣）──
-  '永康市': '永康區', '新營市': '新營區', '麻豆鎮': '麻豆區',
-  '佳里鎮': '佳里區', '歸仁鄉': '歸仁區', '新化鎮': '新化區',
-  '善化鎮': '善化區', '新市鄉': '新市區', '安定鄉': '安定區',
-  '山上鄉': '山上區', '玉井鄉': '玉井區', '楠西鄉': '楠西區',
-  '南化鄉': '南化區', '左鎮鄉': '左鎮區', '仁德鄉': '仁德區',
-  '關廟鄉': '關廟區', '龍崎鄉': '龍崎區', '官田鄉': '官田區',
-  '大內鄉': '大內區', '六甲鄉': '六甲區', '下營鄉': '下營區',
-  '柳營鄉': '柳營區', '鹽水鎮': '鹽水區', '白河鎮': '白河區',
-  '東山鄉': '東山區', '後壁鄉': '後壁區', '學甲鎮': '學甲區',
-  '北門鄉': '北門區', '將軍鄉': '將軍區', '七股鄉': '七股區',
-  '西港鄉': '西港區',
-  // ── 高雄市（原高雄縣）──
-  '鳳山市': '鳳山區', '林園鄉': '林園區', '大寮鄉': '大寮區',
-  '大樹鄉': '大樹區', '大社鄉': '大社區', '仁武鄉': '仁武區',
-  '鳥松鄉': '鳥松區', '岡山鎮': '岡山區', '橋頭鄉': '橋頭區',
-  '燕巢鄉': '燕巢區', '田寮鄉': '田寮區', '阿蓮鄉': '阿蓮區',
-  '路竹鄉': '路竹區', '湖內鄉': '湖內區', '茄萣鄉': '茄萣區',
-  '永安鄉': '永安區', '彌陀鄉': '彌陀區', '梓官鄉': '梓官區',
-  '旗山鎮': '旗山區', '美濃鎮': '美濃區', '六龜鄉': '六龜區',
-  '甲仙鄉': '甲仙區', '杉林鄉': '杉林區', '內門鄉': '內門區',
-  '茂林鄉': '茂林區', '桃源鄉': '桃源區', '那瑪夏鄉': '那瑪夏區',
-};
+
+// 由 districts.json 建立的行政區 Set：{ county → Set(districtNames) }
+// 載入後由 initDistrictSets() 填入
+let _districtSets = {};
+
+function initDistrictSets(districtsData) {
+  _districtSets = {};
+  for (const [county, dists] of Object.entries(districtsData)) {
+    _districtSets[norm(county)] = new Set(dists.map(norm));
+  }
+}
 
 function normGeo(countyRaw, townRaw) {
   let county = norm(countyRaw);
   let town   = norm(townRaw);
+  // 縣市改名
   county = _COUNTY_RENAME[county] || county;
-  town   = _DISTRICT_RENAME[town]  || town;
+  // 若 town 尾字是鄉/鎮/市，嘗試換成「區」後在 districts.json 中驗證
+  if (/[鄉鎮市]$/.test(town)) {
+    const candidate = town.slice(0, -1) + '區';
+    if (_districtSets[county]?.has(candidate)) town = candidate;
+  }
   return county + '_' + town;
 }
 
@@ -292,11 +256,13 @@ auth.onAuthStateChanged(async user => {
 // ===== 主載入 =====
 async function loadAll(uid) {
   try {
-    const [shopsRes, visitsSnap, geoRes] = await Promise.all([
+    const [shopsRes, visitsSnap, geoRes, districtsRes] = await Promise.all([
       fetch('data/data.json').then(r => r.json()),
       db.collection('userVisits').doc(uid).get(),
       fetch('https://cdn.jsdelivr.net/gh/g0v/twgeojson@master/json/twTown1982.geo.json').then(r => r.json()),
+      fetch('data/districts.json').then(r => r.json()),
     ]);
+    initDistrictSets(districtsRes);
 
     const visits = visitsSnap.exists ? (visitsSnap.data().visits || {}) : {};
 
