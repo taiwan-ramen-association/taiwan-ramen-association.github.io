@@ -317,6 +317,14 @@
   .card-tab.active { color: var(--red); border-bottom-color: var(--red); }
   .card-tab-panel { display: none; }
   .card-tab-panel.active { display: block; }
+  /* ── PHOTO TAB ── */
+  .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 10px 0 4px; }
+  .photo-grid a { display: block; aspect-ratio: 1; overflow: hidden; border-radius: 6px; background: var(--line); }
+  .photo-grid img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 0.2s; }
+  .photo-grid img.loading { opacity: 0; }
+  .photo-grid img.loaded  { opacity: 1; }
+  .photo-attribution { font-size: 10px; color: var(--stone); text-align: right; padding: 2px 0 6px; }
+
   .tab-placeholder {
     text-align: center; padding: 22px 0 10px;
     font-size: 13px; color: var(--stone); line-height: 1.7;
@@ -1839,6 +1847,13 @@ function render() {
           const shopId = card.dataset.shopId;
           if (shopId) refreshQueueSection(shopId);
         }
+        // 切到照片時 lazy load
+        if (target === 'photos') {
+          const shopId = card.dataset.shopId;
+          const shop   = ALL_DATA.find(s => s['ID'] === shopId);
+          const photoPanel = detail.querySelector('[data-tab-panel="photos"]');
+          if (shop && photoPanel) loadShopPhotos(shop, photoPanel);
+        }
       });
     });
   });
@@ -2458,6 +2473,66 @@ async function penalizeTrustScore(delta) {
       trustScore: firebase.firestore.FieldValue.increment(delta)
     });
   } catch(e) {}
+}
+
+// ── Places API（照片）──────────────────────────────────────────────────────
+const PLACES_KEY  = 'AIzaSyBek6fDRbXZhxenlSgwR1DLaVRJjrxYUOU';
+const photoCache  = {}; // shopId → { urls: [], attribution: string } | 'loading' | null
+
+async function loadShopPhotos(shop, panel) {
+  const shopId = shop['ID'];
+
+  // 已快取
+  if (photoCache[shopId] && photoCache[shopId] !== 'loading') {
+    renderPhotoPanel(photoCache[shopId], panel);
+    return;
+  }
+  if (photoCache[shopId] === 'loading') return;
+
+  photoCache[shopId] = 'loading';
+  panel.innerHTML = '<p class="tab-placeholder" style="padding:20px 0">載入中…</p>';
+
+  try {
+    const query = [shop['店名'], shop['地址']].filter(Boolean).join(' ');
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': PLACES_KEY,
+        'X-Goog-FieldMask': 'places.photos',
+      },
+      body: JSON.stringify({ textQuery: query, languageCode: 'zh-TW' }),
+    });
+    const json = await res.json();
+    const photos = json.places?.[0]?.photos?.slice(0, 3) ?? [];
+
+    const urls = photos.map(p =>
+      `https://places.googleapis.com/v1/${p.name}/media?maxWidthPx=800&key=${PLACES_KEY}`
+    );
+    const attribution = photos[0]?.authorAttributions?.[0]?.displayName ?? '';
+    photoCache[shopId] = { urls, attribution };
+    renderPhotoPanel(photoCache[shopId], panel);
+  } catch(e) {
+    photoCache[shopId] = null;
+    panel.innerHTML = '<p class="tab-placeholder">照片載入失敗，請稍後再試</p>';
+  }
+}
+
+function renderPhotoPanel({ urls, attribution }, panel) {
+  if (!urls.length) {
+    panel.innerHTML = '<p class="tab-placeholder">Google Maps 尚無此店照片</p>';
+    return;
+  }
+  panel.innerHTML = `
+    <div class="photo-grid">
+      ${urls.map(u => `
+        <a href="${u}" target="_blank" rel="noopener">
+          <img class="loading" src="${u}" alt="店家照片"
+               onload="this.classList.replace('loading','loaded')"
+               onerror="this.closest('a').remove()">
+        </a>`).join('')}
+    </div>
+    <p class="photo-attribution">圖片來源：Google Maps${attribution ? '・' + attribution : ''}</p>`;
 }
 
 // ── Queue ──────────────────────────────────────────────────────────────────
