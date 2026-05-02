@@ -730,33 +730,14 @@
     pointer-events: none;
   }
 
-  /* ── 貼文頁：固定全螢幕覆蓋層，從 #pageStack 獨立 ── */
-  #pageReviews {
-    position: fixed;
-    top: var(--header-h, 56px); left: 0; right: 0; bottom: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    background: var(--bg);
-    padding: 14px 12px 90px; box-sizing: border-box;
-    z-index: 1;
-    transform: translateX(100%);
-    opacity: 0;
-    pointer-events: none;
-    will-change: transform, opacity;
-    transition: transform 0.36s cubic-bezier(0.4,0,0.2,1),
-                opacity   0.36s cubic-bezier(0.4,0,0.2,1);
-  }
-  #pageReviews.page-active {
-    transform: translateX(0);
-    opacity: 1;
-    z-index: 650;
-    pointer-events: auto;
-  }
-  #pageReviews.page-leaving {
-    transform: translateX(100%);
-    opacity: 0;
-    z-index: 650;
-    pointer-events: none;
+  #pageReviews { padding: 14px 12px 90px; box-sizing: border-box; }
+
+  /* 評論合集白底容器 */
+  .rf-page-card {
+    background: var(--white);
+    border-radius: 16px;
+    padding: 14px 12px;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.07);
   }
 
   /* ── REVIEWS FEED ── */
@@ -1574,12 +1555,13 @@
   <div id="mapContainer"></div>
 </div><!-- end #mainContent -->
 
-</div><!-- end #pageStack -->
-
-<div id="pageReviews">
-  <div class="rf-feed-title">📝 評論合集</div>
-  <div class="rf-list-inner" id="rfList"></div>
+<div id="pageReviews" class="page-layer page-right">
+  <div class="rf-page-card">
+    <div class="rf-feed-title">📝 評論合集</div>
+    <div class="rf-list-inner" id="rfList"></div>
+  </div>
 </div>
+</div><!-- end #pageStack -->
 
 <!-- Bottom Navigation Bar -->
 <nav class="bottom-nav" id="bottomNav">
@@ -4292,19 +4274,21 @@ async function loadReviewsFeed(append = false) {
 // ── Bottom Nav ────────────────────────────────────────────────────────────────
 function switchPage(page) {
   _currentPage = page;
+  const finderEl  = document.getElementById('mainContent');
   const reviewsEl = document.getElementById('pageReviews');
 
   if (page === 'finder') {
-    reviewsEl.classList.remove('page-active');
-    reviewsEl.classList.add('page-leaving');
-    reviewsEl.addEventListener('transitionend', () => {
-      reviewsEl.classList.remove('page-leaving');
-    }, { once: true });
+    finderEl.classList.remove('page-left', 'page-right');
+    finderEl.classList.add('page-active');
+    reviewsEl.classList.remove('page-active', 'page-left');
+    reviewsEl.classList.add('page-right');
     document.getElementById('bnavFinder').classList.add('active');
     document.getElementById('bnavPosts').classList.remove('active');
   } else {
-    reviewsEl.classList.remove('page-leaving');
+    reviewsEl.classList.remove('page-left', 'page-right');
     reviewsEl.classList.add('page-active');
+    finderEl.classList.remove('page-active', 'page-right');
+    finderEl.classList.add('page-left');
     document.getElementById('bnavFinder').classList.remove('active');
     document.getElementById('bnavPosts').classList.add('active');
     if (!_rfLoaded) loadReviewsFeed();
