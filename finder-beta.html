@@ -95,7 +95,7 @@
   body.dark .map-ctrl-btn:active { background: #2e2c28; }
   body.dark .map-ctrl-btn.following { background: #1a50a8; border-color: #1a50a8; }
   body.dark .pd-header-info strong { color: #fff; }
-  body.dark .pd-grid-input { color: var(--ink); }
+  body.dark .pd-nick-input { color: var(--ink); }
 
   /* 地圖 tile 反色成深色風格 */
   body.dark #map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.88) saturate(0.7); }
@@ -166,10 +166,7 @@
   .rv-btn-cancel { padding: 9px 20px; background: var(--line); color: var(--stone); border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
   .rv-btn-submit { padding: 9px 22px; background: var(--red); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
   .rv-btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-  .rv-lightbox { position: absolute; inset: 0; background: rgba(0,0,0,0.88); z-index: 10; display: none; align-items: center; justify-content: center; }
-  .rv-lightbox.open { display: flex; }
-  .rv-lightbox img { max-width: 94vw; max-height: 90vh; border-radius: 8px; object-fit: contain; }
-  .rv-lightbox-close { position: absolute; top: 16px; right: 20px; background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; }
+
   body.dark .rv-box { background: #1e150f; }
   body.dark .rv-upload-area:hover, body.dark .rv-upload-area.drag-over { background: #2a1a14; }
   body.dark .rv-textarea { background: #1a100a; }
@@ -719,7 +716,9 @@
   body.finder-hidden .queue-backdrop,
   body.finder-hidden .queue-modal,
   body.finder-hidden .rv-backdrop,
-  body.finder-hidden .rv-modal { display: none !important; }
+  body.finder-hidden .rv-modal,
+  body.finder-hidden .rk-backdrop,
+  body.finder-hidden .rk-modal { display: none !important; }
   /* Departing page: shrinks & fades to the left */
   .page-layer.page-left {
     transform: translateX(-22%) scale(0.96);
@@ -924,48 +923,72 @@
     width: 44px; height: 44px; border-radius: 50%;
     object-fit: cover; border: 2px solid var(--line); flex-shrink: 0;
   }
+  .pd-header-info { flex: 1; min-width: 0; }
   .pd-header-info strong { display: block; font-size: 14px; color: var(--ink); }
-  .pd-header-info span { font-size: 12px; color: var(--stone); }
+  .pd-google-field {
+    display: block; width: 100%; margin-top: 4px;
+    padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px;
+    font-size: 11px; color: var(--stone); background: transparent;
+    cursor: default; outline: none; pointer-events: none;
+    box-sizing: border-box; font-family: inherit;
+  }
 
-  .pd-profile-grid {
-    display: grid; grid-template-columns: 64px 1fr;
-    gap: 10px 10px; padding: 14px 16px;
-    border-bottom: 1px solid var(--line); align-items: center;
+  /* ── Customize section ── */
+  .pd-customize {
+    padding: 14px 16px; background: var(--paper);
+    border-bottom: 1px solid var(--line);
   }
-  .pd-grid-lbl {
-    font-size: 11px; color: var(--stone); font-weight: 500;
-    text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;
+  .pd-customize-row { display: flex; align-items: center; gap: 12px; }
+  .pd-avatar-wrap {
+    position: relative; flex-shrink: 0; cursor: pointer;
+    width: 44px; height: 44px;
   }
-  .pd-grid-input {
-    width: 100%; padding: 7px 10px; border: 1.5px solid var(--line);
-    border-radius: 8px; font-size: 14px; font-family: 'Noto Sans TC', sans-serif;
+  .pd-avatar-wrap .pd-header-avatar { width: 44px; height: 44px; }
+  .pd-camera-btn {
+    position: absolute; bottom: 0; right: 0;
+    width: 18px; height: 18px;
+    background: rgba(0,0,0,0.62); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; pointer-events: none; line-height: 1;
+  }
+  .pd-customize-info { flex: 1; min-width: 0; }
+  #pdDisplayName {
+    display: block; background: none; border: none;
+    font-size: 14px; font-weight: 600; color: var(--ink);
+    cursor: pointer; padding: 0; text-align: left;
+    font-family: inherit; line-height: 1.4;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #pdDisplayName:hover { color: var(--red); }
+  .pd-nick-field {
+    display: block; width: 100%; margin-top: 4px;
+    padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px;
+    font-size: 11px; color: var(--stone); background: transparent;
+    cursor: default; outline: none; pointer-events: none;
+    box-sizing: border-box; font-family: inherit;
+  }
+  /* Nickname edit popup */
+  .pd-nick-popup {
+    margin-top: 10px; padding: 12px;
+    background: var(--white); border: 1px solid var(--line); border-radius: 10px;
+  }
+  .pd-nick-input {
+    width: 100%; padding: 8px 10px; margin-bottom: 8px;
+    border: 1.5px solid var(--line); border-radius: 8px;
+    font-size: 14px; font-family: inherit;
     background: var(--paper); outline: none; box-sizing: border-box;
   }
-  .pd-grid-input:focus { border-color: var(--red); }
-  .pd-grid-avatar-cell {
-    display: flex; flex-direction: column; align-items: center;
-    gap: 5px; align-self: start;
+  .pd-nick-input:focus { border-color: var(--red); }
+  .pd-nick-popup-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .pd-nick-popup-btns button {
+    padding: 7px 16px; border-radius: 8px; font-size: 13px;
+    cursor: pointer; font-family: inherit; border: 1.5px solid var(--line);
+    background: var(--paper); color: var(--ink);
   }
-  .pd-avatar-big {
-    width: 48px; height: 48px; border-radius: 50%;
-    object-fit: cover; border: 2px solid var(--line); flex-shrink: 0;
+  .pd-nick-popup-btns #saveProfileBtn {
+    background: var(--red); color: #fff; border-color: var(--red);
   }
-  .pd-avatar-btns { display: flex; flex-direction: column; gap: 6px; align-self: start; }
-  .pd-avatar-btn {
-    padding: 6px 10px; border: 1.5px solid var(--line); border-radius: 8px;
-    font-size: 12px; font-family: 'Noto Sans TC', sans-serif;
-    background: var(--white); cursor: pointer; color: var(--ink); text-align: left;
-  }
-  .pd-avatar-btn:hover { background: var(--paper); border-color: var(--stone); }
-
-  .pd-save-btn {
-    display: block; width: calc(100% - 32px); margin: 12px 16px;
-    padding: 10px; background: var(--red); color: white;
-    border: none; border-radius: 10px; font-size: 14px;
-    font-family: 'Noto Sans TC', sans-serif; cursor: pointer; font-weight: 500;
-  }
-  .pd-save-btn:hover { background: var(--red-dark); }
-  .pd-save-btn:disabled { opacity: 0.6; cursor: default; }
+  .pd-nick-popup-btns #saveProfileBtn:disabled { opacity: 0.6; cursor: default; }
 
   .pd-action {
     display: flex; align-items: center; gap: 10px;
@@ -1241,6 +1264,60 @@
     .bnav-svg { width: 20px; height: 20px; }
     .card-list { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px) !important; }
   }
+
+  /* ── Photo Viewer ─────────────────────────────────────────────────────── */
+  #photoViewer {
+    position: fixed; inset: 0; z-index: 2000;
+    background: rgba(0,0,0,0.95);
+    display: none; flex-direction: column;
+  }
+  #photoViewer.open { display: flex; }
+  .pv-header {
+    height: 56px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; padding: 0 56px;
+  }
+  #pvCounter {
+    color: rgba(255,255,255,0.9); font-size: 15px; font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  #pvClose {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    background: rgba(255,255,255,0.12); border: none; color: #fff;
+    font-size: 18px; width: 38px; height: 38px; border-radius: 50%;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s; line-height: 1;
+  }
+  #pvClose:hover { background: rgba(255,255,255,0.28); }
+  .pv-body {
+    flex: 1; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; padding: 0 68px;
+  }
+  #pvImg {
+    max-width: 100%; max-height: 100%;
+    object-fit: contain; border-radius: 6px;
+    user-select: none; pointer-events: none; display: block;
+  }
+  .pv-arrow {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    background: rgba(255,255,255,0.15); border: none; color: #fff;
+    font-size: 32px; width: 48px; height: 48px; border-radius: 50%;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s; padding: 0; line-height: 1;
+  }
+  .pv-arrow:hover { background: rgba(255,255,255,0.3); }
+  #pvPrev { left: 10px; }
+  #pvNext { right: 10px; }
+  .pv-footer {
+    height: 44px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px; color: rgba(255,255,255,0.55); font-size: 13px;
+  }
+  @media (max-width: 599px) {
+    .pv-arrow { display: none; }
+    .pv-body { padding: 0 12px; }
+  }
 </style>
 </head>
 <body>
@@ -1264,31 +1341,37 @@
 
 <!-- Profile Dropdown（點頭像展開） -->
 <div class="profile-dropdown" id="profileDropdown" style="display:none">
+
+  <!-- Google 帳號（唯讀） -->
   <div class="pd-header">
-    <img class="pd-header-avatar" id="pdHeaderAvatar" src="">
+    <img class="pd-header-avatar" id="pdGoogleAvatar" src="">
     <div class="pd-header-info">
-      <strong id="pdDisplayName"></strong>
-      <span id="pdEmail"></span>
+      <strong id="pdGoogleName"></strong>
+      <input class="pd-google-field" id="pdEmail" type="text" readonly placeholder="Google 帳號">
     </div>
   </div>
 
-  <div class="pd-profile-grid">
-    <span class="pd-grid-lbl">顯示名稱</span>
-    <input id="nicknameInput" class="pd-grid-input" type="text" maxlength="20" placeholder="輸入綽號（最多 20 字）">
-
-    <div class="pd-grid-avatar-cell">
-      <span class="pd-grid-lbl">頭像</span>
-      <img class="pd-avatar-big" id="pdAvatarPreview" src="">
+  <!-- 自定義顯示身份 -->
+  <div class="pd-customize">
+    <div class="pd-customize-row">
+      <div class="pd-avatar-wrap" id="pdAvatarWrap">
+        <img class="pd-header-avatar" id="pdHeaderAvatar" src="">
+        <span class="pd-camera-btn">📷</span>
+        <input type="file" id="localAvatarInput" accept="image/*" style="display:none">
+      </div>
+      <div class="pd-customize-info">
+        <button id="pdDisplayName"></button>
+        <input class="pd-nick-field" id="pdNickField" type="text" readonly placeholder="自定義顯示身份">
+      </div>
     </div>
-    <div class="pd-avatar-btns">
-      <button class="pd-avatar-btn" id="rollAvatarBtn">🎲 隨機換頭像</button>
-      <button class="pd-avatar-btn" id="uploadAvatarBtn">📷 上傳照片</button>
-      <input type="file" id="localAvatarInput" accept="image/*" style="display:none">
-      <button class="pd-avatar-btn" id="resetAvatarBtn">↩ 還原 Google 預設</button>
+    <div class="pd-nick-popup" id="pdNickPopup" style="display:none">
+      <input id="nicknameInput" class="pd-nick-input" type="text" maxlength="20" placeholder="輸入綽號（最多 20 字）">
+      <div class="pd-nick-popup-btns">
+        <button id="pdNickCancelBtn">取消</button>
+        <button id="saveProfileBtn">儲存</button>
+      </div>
     </div>
   </div>
-
-  <button class="pd-save-btn" id="saveProfileBtn">儲存</button>
 
   <div class="pd-actions">
     <button class="pd-action" id="darkModeBtn">🌙 深色模式<span class="dark-toggle" id="darkToggle"></span></button>
@@ -1397,20 +1480,12 @@
 
   <div class="card-list" id="cardList"></div>
   <div id="mapContainer"></div>
-  <div class="rv-lightbox" id="rvLightbox">
-    <button class="rv-lightbox-close" id="rvLightboxClose">✕</button>
-    <img id="rvLightboxImg" src="" alt="">
-  </div>
 </div><!-- end #mainContent -->
 
 <div id="pageReviews" class="page-layer page-right">
   <div class="rf-page-card">
     <div class="rf-feed-title">📝 評論合集</div>
     <div class="rf-list-inner" id="rfList"></div>
-  </div>
-  <div class="rv-lightbox" id="rvLightboxFeed">
-    <button class="rv-lightbox-close" id="rvLightboxFeedClose">✕</button>
-    <img id="rvLightboxFeedImg" src="" alt="">
   </div>
 </div>
 
@@ -1563,6 +1638,23 @@
       <button class="rv-btn-cancel" id="rvCancelBtn">取消</button>
       <button class="rv-btn-submit" id="rvSubmitBtn" disabled>送出評論</button>
     </div>
+  </div>
+</div>
+
+<!-- Photo Viewer -->
+<div id="photoViewer">
+  <div class="pv-header">
+    <span id="pvCounter">1/1</span>
+    <button id="pvClose">✕</button>
+  </div>
+  <div class="pv-body">
+    <button class="pv-arrow" id="pvPrev">&#8249;</button>
+    <img id="pvImg" src="" alt="">
+    <button class="pv-arrow" id="pvNext">&#8250;</button>
+  </div>
+  <div class="pv-footer">
+    <span id="pvFooterDate"></span>
+    <span id="pvFooterAuthor"></span>
   </div>
 </div>
 
@@ -2660,17 +2752,12 @@ const profileDropdown  = document.getElementById('profileDropdown');
 const pdHeaderAvatar   = document.getElementById('pdHeaderAvatar');
 const pdDisplayName    = document.getElementById('pdDisplayName');
 const pdEmail          = document.getElementById('pdEmail');
-const pdAvatarPreview  = document.getElementById('pdAvatarPreview');
 const nicknameInput    = document.getElementById('nicknameInput');
 const saveProfileBtn   = document.getElementById('saveProfileBtn');
-const rollAvatarBtn    = document.getElementById('rollAvatarBtn');
-const resetAvatarBtn   = document.getElementById('resetAvatarBtn');
-const uploadAvatarBtn  = document.getElementById('uploadAvatarBtn');
 const localAvatarInput = document.getElementById('localAvatarInput');
 
-let _googlePhotoURL = '';   // 保存 Google 原始頭像
-let _pendingAvatar  = null; // 暫存尚未儲存的頭像選擇（null = 未修改）
-let _localAvatarUid = null; // 登入使用者 uid，供 localStorage key 使用
+let _googlePhotoURL = '';
+let _localAvatarUid = null;
 
 function localAvatarKey(uid) { return 'avatarCache_' + uid; }
 
@@ -2678,12 +2765,10 @@ function getAvatarUrl(userData, googlePhotoURL) {
   return userData?.avatarUrl || googlePhotoURL || 'assets/icons/03.png';
 }
 
-// 套用頭像到所有 UI（優先用 localStorage URL cache 避免閃爍）
 function applyAvatarUrl(url) {
   if (!url) return;
-  userAvatar.src      = url;
-  pdHeaderAvatar.src  = url;
-  pdAvatarPreview.src = url;
+  userAvatar.src     = url;
+  pdHeaderAvatar.src = url;
 }
 function applyLocalAvatarCache(uid) {
   const cached = uid && localStorage.getItem(localAvatarKey(uid));
@@ -2691,114 +2776,89 @@ function applyLocalAvatarCache(uid) {
   return false;
 }
 
-function dicebearUrl(seed) {
-  return `https://api.dicebear.com/9.x/thumbs/svg?seed=${seed}`;
-}
-
 function closeProfileDropdown() {
   profileDropdown.style.display = 'none';
-  _pendingAvatar = null;
+  document.getElementById('pdNickPopup').style.display = 'none';
 }
 
-// 點頭像 toggle profile dropdown，關閉 drawer
 userAvatar.addEventListener('click', e => {
   e.stopPropagation();
   const isOpen = profileDropdown.style.display !== 'none';
   if (isOpen) {
     closeProfileDropdown();
   } else {
-    // 關閉 drawer 若開著
     document.getElementById('drawer').style.display = 'none';
     document.getElementById('drawerBackdrop').style.display = 'none';
     profileDropdown.style.display = 'block';
-    _pendingAvatar = null;
   }
 });
 
-// 點頁面其他地方關閉 profile dropdown
 document.addEventListener('click', e => {
   if (!profileDropdown.contains(e.target) && e.target !== userAvatar) {
     closeProfileDropdown();
   }
 });
 
-// 🎲 隨機 DiceBear
-rollAvatarBtn.addEventListener('click', () => {
-  const seed = Math.random().toString(36).slice(2, 10);
-  _pendingAvatar = dicebearUrl(seed);
-  pdAvatarPreview.src = _pendingAvatar;
-});
+// 📷 頭像區塊點擊 → 開啟檔案選取
+document.getElementById('pdAvatarWrap').addEventListener('click', () => localAvatarInput.click());
 
-// ↩ 還原 Google 預設（清除 Storage 頭像 + Firestore avatarUrl）
-resetAvatarBtn.addEventListener('click', async () => {
-  _pendingAvatar = _googlePhotoURL || '';
-  pdAvatarPreview.src = _pendingAvatar || 'assets/icons/03.png';
-  if (_localAvatarUid) {
-    localStorage.removeItem(localAvatarKey(_localAvatarUid));
-    try {
-      await db.collection('users').doc(_localAvatarUid).update({ avatarUrl: firebase.firestore.FieldValue.delete() });
-      storage.ref(`avatars/${_localAvatarUid}.webp`).delete().catch(() => {});
-    } catch {}
-  }
-});
-
-// 📷 上傳照片 → Storage `avatars/{uid}.webp` → Firestore avatarUrl → localStorage cache
-uploadAvatarBtn.addEventListener('click', () => localAvatarInput.click());
 localAvatarInput.addEventListener('change', async () => {
   const file = localAvatarInput.files[0];
   if (!file || !auth.currentUser) return;
   localAvatarInput.value = '';
-  uploadAvatarBtn.textContent = '壓縮中…';
-  uploadAvatarBtn.disabled = true;
+  showStampToast('壓縮中…');
   try {
-    const uid = auth.currentUser.uid;
-    // 1. 壓縮
+    const uid  = auth.currentUser.uid;
     const blob = await compressImage(file, { maxPx: 400, maxKB: 100 });
-    uploadAvatarBtn.textContent = '上傳中…';
-    // 2. 上傳 Storage（覆蓋同路徑，自動取代舊頭像）
     const snap = await storage.ref(`avatars/${uid}.webp`).put(blob, { contentType: 'image/webp' });
     const url  = await snap.ref.getDownloadURL();
-    // 3. 存 Firestore
     await db.collection('users').doc(uid).update({ avatarUrl: url });
-    // 4. 更新 UI
     applyAvatarUrl(url);
-    _pendingAvatar = null;
-    // 5. localStorage URL cache（下次登入快速顯示）
     try { localStorage.setItem(localAvatarKey(uid), url); } catch {}
     showStampToast('✅ 頭像已更新！');
   } catch (err) {
     console.error('頭像上傳失敗', err);
     showStampToast('❌ 頭像上傳失敗');
   }
-  uploadAvatarBtn.textContent = '📷 上傳照片';
-  uploadAvatarBtn.disabled = false;
 });
 
-// 💾 儲存
+// 📝 顯示身份按鈕 → 開關綽號編輯 popup
+pdDisplayName.addEventListener('click', e => {
+  e.stopPropagation();
+  const popup  = document.getElementById('pdNickPopup');
+  const isOpen = popup.style.display !== 'none';
+  popup.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    nicknameInput.value = document.getElementById('pdNickField').value;
+    nicknameInput.focus();
+  }
+});
+
+document.getElementById('pdNickCancelBtn').addEventListener('click', () => {
+  document.getElementById('pdNickPopup').style.display = 'none';
+});
+
+// 💾 儲存綽號
 saveProfileBtn.addEventListener('click', async () => {
   const user = auth.currentUser;
   if (!user) return;
   saveProfileBtn.disabled = true;
   saveProfileBtn.textContent = '儲存中…';
   try {
-    const updates = { nickname: nicknameInput.value.trim() };
-    if (_pendingAvatar !== null) updates.avatarUrl = _pendingAvatar;
-    await db.collection('users').doc(user.uid).update(updates);
-    // 更新 header 頭像
-    const finalAvatar = _pendingAvatar ?? userAvatar.src;
-    userAvatar.src       = finalAvatar;
-    pdHeaderAvatar.src   = finalAvatar;
-    pdDisplayName.textContent = updates.nickname || user.displayName || '';
-    _pendingAvatar = null;
-    closeProfileDropdown();
+    const nickname = nicknameInput.value.trim();
+    await db.collection('users').doc(user.uid).update({ nickname });
+    pdDisplayName.textContent = nickname || user.displayName || '';
+    document.getElementById('pdNickField').value = nickname;
+    document.getElementById('pdNickPopup').style.display = 'none';
+    showStampToast('✅ 已儲存！');
   } catch (e) {
     console.error('儲存失敗', e);
+    showStampToast('❌ 儲存失敗');
   }
   saveProfileBtn.disabled = false;
   saveProfileBtn.textContent = '儲存';
 });
 
-// 登出
 logoutBtn.addEventListener('click', () => {
   closeProfileDropdown();
   auth.signOut();
@@ -3736,9 +3796,14 @@ auth.onAuthStateChanged(async user => {
       const avatar = getAvatarUrl(userData, user.photoURL);
       applyAvatarUrl(avatar);
       applyLocalAvatarCache(user.uid); // 若有快取 URL 先顯示（避免閃爍）
-      pdDisplayName.textContent = userData.nickname || user.displayName || '';
-      pdEmail.textContent       = user.email || '';
-      nicknameInput.value       = userData.nickname || '';
+      // Google 帳號區（唯讀）
+      document.getElementById('pdGoogleAvatar').src        = user.photoURL || 'assets/icons/03.png';
+      document.getElementById('pdGoogleName').textContent  = user.displayName || '';
+      pdEmail.value = user.email || '';
+      // 自定義顯示身份區
+      pdDisplayName.textContent                            = userData.nickname || user.displayName || '';
+      document.getElementById('pdNickField').value        = userData.nickname || '';
+      nicknameInput.value                                  = userData.nickname || '';
       adminLink.style.display   = userData.role === 'admin' ? 'flex' : 'none';
       isWarned = userData.role === 'warned';
       currentUserRole = userData.role || 'viewer';
@@ -3945,7 +4010,7 @@ async function loadReviews(shopId, panel, append = false) {
             ? `<img class="review-avatar" src="${d.avatarUrl}" alt="">`
             : `<div class="review-avatar-placeholder">👤</div>`}
           <div class="review-meta">
-            <div class="review-name">${d.displayName || '匿名'}</div>
+            <div class="review-name" data-uid="${d.uid}">${d.displayName || '匿名'}</div>
             <div class="review-date">${dateStr}</div>
           </div>
           <div>
@@ -3976,10 +4041,19 @@ async function loadReviews(shopId, panel, append = false) {
       });
     });
 
-    // 照片 lightbox
-    list.querySelectorAll('.review-photo-thumb').forEach(img => {
-      img.addEventListener('click', () => openLightbox(img.dataset.original));
+    // 照片瀏覽
+    list.querySelectorAll('.review-photos').forEach(row => {
+      const thumbs = [...row.querySelectorAll('.review-photo-thumb')];
+      const urls   = thumbs.map(i => i.dataset.original);
+      const item   = row.closest('.review-item');
+      const uid    = item?.querySelector('.review-name')?.dataset.uid || '';
+      const date   = item?.querySelector('.review-date')?.textContent  || '';
+      const name   = item?.querySelector('.review-name')?.textContent  || '';
+      thumbs.forEach((img, idx) => {
+        img.addEventListener('click', () => openPhotoViewer(urls, idx, { date, uid, authorName: name }));
+      });
     });
+    updateDisplayNames(list);
 
     // 載入更多
     const existing = panel.querySelector('.review-load-more');
@@ -3996,19 +4070,90 @@ async function loadReviews(shopId, panel, append = false) {
   }
 }
 
-// ── Lightbox ──────────────────────────────────────────────────────────────────
-function openLightbox(url) {
-  const id = _currentPage === 'reviews' ? 'rvLightboxFeed' : 'rvLightbox';
-  document.getElementById(id + 'Img').src = url;
-  document.getElementById(id).classList.add('open');
+// ── User display cache（UID → { name, avatarUrl }）────────────────────────────
+const _userDisplayCache = new Map();
+async function getUserDisplay(uid) {
+  if (_userDisplayCache.has(uid)) return _userDisplayCache.get(uid);
+  try {
+    const snap = await db.collection('users').doc(uid).get();
+    const d    = snap.data() || {};
+    const result = {
+      name:      d.nickname || d.displayName || '匿名',
+      avatarUrl: d.avatarUrl || d.photoURL   || '',
+    };
+    _userDisplayCache.set(uid, result);
+    return result;
+  } catch {
+    const fallback = { name: '匿名', avatarUrl: '' };
+    _userDisplayCache.set(uid, fallback);
+    return fallback;
+  }
 }
-['rvLightbox', 'rvLightboxFeed'].forEach(id => {
-  document.getElementById(id + 'Close').addEventListener('click', () => {
-    document.getElementById(id).classList.remove('open');
+
+// 渲染後非同步更新容器內所有 [data-uid] 名稱元素
+async function updateDisplayNames(container) {
+  const els  = [...container.querySelectorAll('[data-uid]')];
+  if (!els.length) return;
+  const uids = [...new Set(els.map(e => e.dataset.uid))];
+  await Promise.all(uids.map(uid => getUserDisplay(uid)));
+  els.forEach(el => {
+    const u = _userDisplayCache.get(el.dataset.uid);
+    if (u) el.textContent = u.name;
   });
-  document.getElementById(id).addEventListener('click', e => {
-    if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
-  });
+}
+
+// ── Photo Viewer ──────────────────────────────────────────────────────────────
+let _pvUrls = [];
+let _pvIdx  = 0;
+let _pvMeta = {};
+
+function openPhotoViewer(urls, startIdx, meta) {
+  _pvUrls = Array.isArray(urls) ? urls : [urls];
+  _pvIdx  = Math.max(0, Math.min(startIdx || 0, _pvUrls.length - 1));
+  _pvMeta = meta || {};
+  _renderPV();
+  document.getElementById('photoViewer').classList.add('open');
+}
+function closePhotoViewer() {
+  document.getElementById('photoViewer').classList.remove('open');
+  document.getElementById('pvImg').src = '';
+}
+function _renderPV() {
+  const single = _pvUrls.length <= 1;
+  document.getElementById('pvImg').src = _pvUrls[_pvIdx];
+  document.getElementById('pvCounter').textContent       = `${_pvIdx + 1} / ${_pvUrls.length}`;
+  document.getElementById('pvCounter').style.visibility  = single ? 'hidden' : '';
+  document.getElementById('pvPrev').style.display        = single ? 'none' : '';
+  document.getElementById('pvNext').style.display        = single ? 'none' : '';
+  document.getElementById('pvFooterDate').textContent    = _pvMeta.date   || '';
+  document.getElementById('pvFooterAuthor').textContent  = _pvMeta.authorName ? `by ${_pvMeta.authorName}` : '';
+  if (_pvMeta.uid) {
+    getUserDisplay(_pvMeta.uid).then(u => {
+      document.getElementById('pvFooterAuthor').textContent = `by ${u.name}`;
+    });
+  }
+}
+function _pvPrev() { _pvIdx = (_pvIdx - 1 + _pvUrls.length) % _pvUrls.length; _renderPV(); }
+function _pvNext() { _pvIdx = (_pvIdx + 1) % _pvUrls.length; _renderPV(); }
+
+document.getElementById('pvClose').addEventListener('click', closePhotoViewer);
+document.getElementById('pvPrev').addEventListener('click', _pvPrev);
+document.getElementById('pvNext').addEventListener('click', _pvNext);
+
+let _pvTouchX = 0;
+document.getElementById('photoViewer').addEventListener('touchstart', e => {
+  _pvTouchX = e.touches[0].clientX;
+}, { passive: true });
+document.getElementById('photoViewer').addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - _pvTouchX;
+  if (Math.abs(dx) > 40) dx < 0 ? _pvNext() : _pvPrev();
+}, { passive: true });
+
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('photoViewer').classList.contains('open')) return;
+  if      (e.key === 'ArrowLeft')  _pvPrev();
+  else if (e.key === 'ArrowRight') _pvNext();
+  else if (e.key === 'Escape')     closePhotoViewer();
 });
 
 // ── Review Modal ──────────────────────────────────────────────────────────────
@@ -4247,7 +4392,7 @@ async function loadReviewsFeed(append = false) {
             ? `<img class="rf-avatar" src="${d.avatarUrl}" alt="">`
             : `<div class="rf-avatar-ph">👤</div>`}
           <div class="rf-user-info">
-            <span class="rf-username">${d.displayName || '匿名'}</span>
+            <span class="rf-username" data-uid="${d.uid}">${d.displayName || '匿名'}</span>
             <span class="rf-shopname">📍 ${d.shopName || ''}</span>
           </div>
           <div class="rf-right">
@@ -4259,11 +4404,17 @@ async function loadReviewsFeed(append = false) {
         ${photosHtml ? `<div class="rf-photos">${photosHtml}</div>` : ''}
         <span class="rf-unread-dot"></span>`;
 
-      card.querySelectorAll('.rf-thumb').forEach(img =>
-        img.addEventListener('click', () => openLightbox(img.dataset.original))
-      );
+      const rfThumbs = [...card.querySelectorAll('.rf-thumb')];
+      const rfUrls   = rfThumbs.map(i => i.dataset.original);
+      const rfUid    = d.uid || '';
+      const rfDate   = dateStr;
+      const rfName   = d.displayName || '匿名';
+      rfThumbs.forEach((img, idx) => {
+        img.addEventListener('click', () => openPhotoViewer(rfUrls, idx, { date: rfDate, uid: rfUid, authorName: rfName }));
+      });
       list.appendChild(card);
     });
+    updateDisplayNames(list);
 
     // 載入更多
     const old = list.querySelector('.rf-load-more');
