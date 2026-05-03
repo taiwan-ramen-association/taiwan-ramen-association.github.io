@@ -736,7 +736,7 @@
 
   #pageReviews { padding: 14px 12px 90px; box-sizing: border-box; }
 
-  /* 評論合集白底容器 */
+  /* 評論白底容器 */
   .rf-page-card {
     background: var(--paper);
     border-radius: 16px;
@@ -1484,7 +1484,7 @@
 
 <div id="pageReviews" class="page-layer page-right">
   <div class="rf-page-card">
-    <div class="rf-feed-title">📝 評論合集</div>
+    <div class="rf-feed-title">📝 評論</div>
     <div class="rf-list-inner" id="rfList"></div>
   </div>
 </div>
@@ -4282,7 +4282,7 @@ document.getElementById('rvSubmitBtn').addEventListener('click', async () => {
     showStampToast('✅ 評論已送出！');
     closeReviewModal();
 
-    // 重置評論合集（下次切換時重新載入）
+    // 重置評論（下次切換時重新載入）
     _rfLoaded = false;
     _rfLastDoc = null;
 
