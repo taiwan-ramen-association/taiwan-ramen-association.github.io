@@ -736,7 +736,7 @@
 
   #pageReviews { padding: 14px 12px 90px; box-sizing: border-box; }
 
-  /* 評論白底容器 */
+  /* 貼文白底容器 */
   .rf-page-card {
     background: var(--paper);
     border-radius: 16px;
@@ -1484,7 +1484,7 @@
 
 <div id="pageReviews" class="page-layer page-right">
   <div class="rf-page-card">
-    <div class="rf-feed-title">📝 評論</div>
+    <div class="rf-feed-title">📝 貼文</div>
     <div class="rf-list-inner" id="rfList"></div>
   </div>
 </div>
@@ -2354,7 +2354,7 @@ function render() {
           const photoPanel = detail.querySelector('[data-tab-panel="photos"]');
           if (shop && photoPanel) loadShopPhotos(shop, photoPanel);
         }
-        // 切到評論時 lazy load
+        // 切到貼文時 lazy load
         if (target === 'reviews') {
           const shopId = card.dataset.shopId;
           const rvPanel = detail.querySelector('[data-tab-panel="reviews"]');
