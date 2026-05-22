@@ -379,14 +379,9 @@ function closePrivacyModal() {
 }
 function doGoogleSignIn() {
   closePrivacyModal();
-  // PWA standalone 模式（已加到桌面）popup 會被擋或開到外部瀏覽器，直接用 redirect
-  const isStandalone =
-    window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true; // iOS Safari
-  if (isStandalone) {
-    auth.signInWithRedirect(provider).catch(e => console.error('redirect 登入失敗', e));
-    return;
-  }
+  // iOS PWA (standalone) 用 signInWithRedirect 會離開 PWA context 導致登入失敗
+  // 統一用 signInWithPopup；iOS 16.4+ PWA 以 sheet 形式開啟，不會離開 PWA
+  // popup 被擋（極少數情況）才 fallback 到 redirect
   auth.signInWithPopup(provider).catch(err => {
     if (err.code === 'auth/popup-blocked') {
       auth.signInWithRedirect(provider).catch(e => console.error('redirect 登入失敗', e));

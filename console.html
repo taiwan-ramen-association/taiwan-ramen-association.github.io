@@ -76,7 +76,15 @@ const loginBtn = document.getElementById('loginBtn');
 const retryBtn = document.getElementById('retryBtn');
 
 loginBtn.addEventListener('click', () => {
-  _auth.signInWithPopup(_provider).catch(console.error);
+  _auth.signInWithPopup(_provider).catch(err => {
+    if (err.code === 'auth/popup-blocked') _auth.signInWithRedirect(_provider);
+    else if (err.code !== 'auth/popup-closed-by-user') console.error(err);
+  });
+});
+
+// redirect fallback 回來後完成登入
+_auth.getRedirectResult().catch(err => {
+  if (err.code && err.code !== 'auth/no-auth-event') console.error('redirect 結果處理失敗', err);
 });
 
 retryBtn.addEventListener('click', () => {
