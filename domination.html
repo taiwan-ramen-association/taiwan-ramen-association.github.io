@@ -154,22 +154,59 @@ header a:hover { opacity: 1; }
 @media (pointer: fine) { #infoPanel { display: none !important; } }
 @media (pointer: coarse) { #tooltip { display: none !important; } }
 
-/* ── 制霸排名 ────────────────────────────────────────────────────────────── */
-.ranking-wrap {
-  background: var(--white); border: 1px solid var(--line);
-  border-radius: 14px; padding: 16px 20px; margin-top: 14px;
+/* ── 制霸排行榜 Modal ────────────────────────────────────────────────────────── */
+.rank-open-btn {
+  background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35);
+  color: var(--white); font-size: 12px; padding: 6px 12px; border-radius: 6px;
+  cursor: pointer; font-family: inherit; white-space: nowrap; line-height: 1;
 }
-.ranking-header {
-  display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px;
+.rank-open-btn:hover { background: rgba(255,255,255,0.3); }
+.rank-modal-backdrop {
+  position: fixed; inset: 0; z-index: 800;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: flex-end; justify-content: center;
 }
-.ranking-title { font-size: 15px; font-weight: 700; color: var(--ink); }
-.ranking-sub { font-size: 11px; color: var(--stone); }
+@media (min-width: 560px) { .rank-modal-backdrop { align-items: center; } }
+.rank-modal {
+  background: var(--white); width: 100%; max-width: 480px;
+  border-radius: 18px 18px 0 0;
+  max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;
+}
+@media (min-width: 560px) { .rank-modal { border-radius: 14px; max-height: 80vh; } }
+.rank-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+}
+.rank-modal-title { font-size: 15px; font-weight: 700; }
+.rank-modal-close {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--line); border: none; cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; color: var(--stone);
+}
+.rank-mtabs {
+  display: flex; border-bottom: 1px solid var(--line); flex-shrink: 0;
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.rank-mtabs::-webkit-scrollbar { display: none; }
+.rank-mtab {
+  flex: 1; min-width: 72px; padding: 10px 6px; border: none; background: none;
+  font-size: 12px; color: var(--stone); cursor: pointer; white-space: nowrap;
+  border-bottom: 2px solid transparent; font-family: inherit; transition: color 0.15s;
+}
+.rank-mtab.active { color: var(--red); border-bottom-color: var(--red); font-weight: 600; }
+.rank-panel { display: none; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
+.rank-panel.active { display: flex; }
+.rank-panel-desc {
+  font-size: 12px; color: var(--stone); padding: 9px 20px;
+  flex-shrink: 0; background: #fdf9f5; border-bottom: 1px solid var(--line);
+}
+.rank-list { overflow-y: auto; flex: 1; padding: 0 4px; }
 .ranking-loading, .ranking-empty {
   text-align: center; padding: 28px 16px; color: var(--stone); font-size: 13px;
 }
 .rank-row {
   display: flex; align-items: center; gap: 12px;
-  padding: 10px 8px; border-radius: 8px; margin: 0 -8px;
+  padding: 10px 8px; border-radius: 8px; margin: 0 -4px;
   transition: background 0.12s;
 }
 .rank-row:hover { background: rgba(0,0,0,0.03); }
@@ -200,7 +237,10 @@ header a:hover { opacity: 1; }
 
 <header>
   <h1>🗺️ 拉麵制霸地圖</h1>
-  <a href="finder.html">← 回搜尋器</a>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="rank-open-btn" id="rankOpenBtn">🏆 排行榜</button>
+    <a href="finder.html">← 回搜尋器</a>
+  </div>
 </header>
 
 <div id="gate">
@@ -244,13 +284,37 @@ header a:hover { opacity: 1; }
     <div class="legend-item"><div class="legend-swatch" style="background:#fff0f0;border:1px solid #ddd"></div>未踩點</div>
   </div>
 
-  <!-- 制霸排名 -->
-  <div class="ranking-wrap" id="rankingWrap" style="display:none">
-    <div class="ranking-header">
-      <span class="ranking-title">🏆 制霸排名</span>
-      <span class="ranking-sub">公開踩點進度的用戶</span>
+</div>
+
+<!-- ── 制霸排行榜 Modal ──────────────────────────────────────────────────────── -->
+<div id="rankModal" class="rank-modal-backdrop" style="display:none">
+  <div class="rank-modal">
+    <div class="rank-modal-head">
+      <span class="rank-modal-title">🏆 制霸排行榜</span>
+      <button class="rank-modal-close" id="rankModalClose">✕</button>
     </div>
-    <div id="rankingList"><div class="ranking-loading">載入排名中…</div></div>
+    <div class="rank-mtabs">
+      <button class="rank-mtab active" data-tab="shops">已踩點店家</button>
+      <button class="rank-mtab" data-tab="towns">已涉足鄉鎮</button>
+      <button class="rank-mtab" data-tab="full">完全制霸</button>
+      <button class="rank-mtab" data-tab="score">制霸總分</button>
+    </div>
+    <div class="rank-panel active" data-panel="shops">
+      <div class="rank-panel-desc">曾在任一拉麵店踩點 1 次以上，即列入計算，以踩點店家總數排名</div>
+      <div class="rank-list" id="rankList-shops"></div>
+    </div>
+    <div class="rank-panel" data-panel="towns">
+      <div class="rank-panel-desc">在某鄉鎮踩過至少一間拉麵店，即算「涉足」，以涉足鄉鎮數排名</div>
+      <div class="rank-list" id="rankList-towns"></div>
+    </div>
+    <div class="rank-panel" data-panel="full">
+      <div class="rank-panel-desc">某鄉鎮內所有現存拉麵店皆已踩點，即算「完全制霸」，以制霸鄉鎮數排名</div>
+      <div class="rank-list" id="rankList-full"></div>
+    </div>
+    <div class="rank-panel" data-panel="score">
+      <div class="rank-panel-desc">每間店最高累積 10 分，多次回訪持續增加，以制霸總分排名</div>
+      <div class="rank-list" id="rankList-score"></div>
+    </div>
   </div>
 </div>
 
@@ -269,6 +333,9 @@ header a:hover { opacity: 1; }
 </div>
 
 <script>
+// ── 狀態 ─────────────────────────────────────────────────────────────────────
+let _currentUid = null;
+
 // ── GeoJSON 快取設定 ──────────────────────────────────────────────────────────
 // 需要強制使用者重新下載地圖資料時（行政區劃修正等），改版號即可清除舊快取
 const GEO_CACHE_NAME = 'dom-geo-v2';
@@ -469,8 +536,8 @@ auth.onAuthStateChanged(async user => {
 
   gate.style.display = 'none';
   app.style.display  = 'block';
+  _currentUid = user.uid;
   await loadAll(user.uid);
-  loadRanking(user.uid); // 排行榜：獨立載入，不阻塞地圖
 });
 
 
@@ -557,6 +624,8 @@ async function loadAll(uid) {
     renderMap(geoRes, shopsByTown, visits, townStats, stats => {
       document.getElementById('statTowns').textContent = stats.visitedTowns;
       document.getElementById('statFull').textContent  = stats.fullTowns + '/' + totalTownsWithShops;
+      // 將統計寫入 userProfiles（供排行榜查詢）
+      _writeDomStats(uid, stampedShops, stats.visitedTowns, stats.fullTowns, Math.round(totalScore * 10) / 10);
     });
 
     setProgress(100, '完成！');
@@ -710,37 +779,56 @@ function renderMap(geo, shopsByTown, visits, townStats, cb) {
 }
 
 
-// ── 制霸排名 ──────────────────────────────────────────────────────────────────
+// ── 制霸排行榜 Modal ──────────────────────────────────────────────────────────
 function _escR(s) {
   return String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
   );
 }
 
-async function loadRanking(currentUid) {
-  const wrap = document.getElementById('rankingWrap');
-  const list = document.getElementById('rankingList');
-  wrap.style.display = 'block';
+// 寫入 4 個統計欄位（loadAll 完成後呼叫）
+async function _writeDomStats(uid, conqueredCount, visitedTownsCount, fullTownsCount, totalScore) {
+  try {
+    await db.collection('userProfiles').doc(uid).set(
+      { conqueredCount, visitedTownsCount, fullTownsCount, totalScore },
+      { merge: true }
+    );
+  } catch (e) { console.warn('寫入制霸統計失敗', e); }
+}
 
+// Tab 設定
+const _RANK_TABS = {
+  shops: { field: 'conqueredCount',    unit: '間',  },
+  towns: { field: 'visitedTownsCount', unit: '鄉鎮' },
+  full:  { field: 'fullTownsCount',    unit: '鄉鎮' },
+  score: { field: 'totalScore',        unit: '分'   },
+};
+const _tabLoaded = {};
+
+// 讀取單一 tab 的排名
+async function _loadRankTab(tabKey) {
+  const listEl = document.getElementById('rankList-' + tabKey);
+  const { field, unit } = _RANK_TABS[tabKey];
+  listEl.innerHTML = '<div class="ranking-loading">載入中…</div>';
   try {
     const snap = await db.collection('userProfiles')
       .where('dominationPublic', '==', true)
-      .orderBy('conqueredCount', 'desc')
+      .orderBy(field, 'desc')
       .limit(50)
       .get();
 
     if (snap.empty) {
-      list.innerHTML = '<div class="ranking-empty">目前還沒有用戶公開制霸排名<br><small>在個人頁設定中開啟「公開制霸排名」即可出現在這裡</small></div>';
+      listEl.innerHTML = '<div class="ranking-empty">目前還沒有人公開制霸排名<br><small>在個人頁設定中開啟「公開制霸排名」即可顯示於此</small></div>';
       return;
     }
 
     const MEDALS = ['🥇', '🥈', '🥉'];
-    list.innerHTML = snap.docs.map((doc, i) => {
+    listEl.innerHTML = snap.docs.map((doc, i) => {
       const d      = doc.data();
       const uid    = doc.id;
-      const isSelf = uid === currentUid;
+      const isSelf = uid === _currentUid;
       const rank   = i + 1;
-      const count  = d.conqueredCount ?? 0;
+      const val    = d[field] ?? 0;
       const name   = _escR(d.nickname || d.displayName || '匿名用戶');
       const avatar = _escR(d.avatarUrl || d.photoURL || 'assets/icons/03.png');
       const numHtml = rank <= 3
@@ -753,15 +841,41 @@ async function loadRanking(currentUid) {
           <div class="rank-info">
             <a class="rank-name" href="profile.html?uid=${_escR(uid)}">${name}${isSelf ? '<span class="rank-you">（你）</span>' : ''}</a>
           </div>
-          <div class="rank-count">${count}<span class="rank-count-unit">間</span></div>
+          <div class="rank-count">${val}<span class="rank-count-unit">${unit}</span></div>
         </div>`;
     }).join('');
-
   } catch (e) {
     console.error('排名載入失敗', e);
-    list.innerHTML = `<div class="ranking-empty">排名載入失敗：${_escR(e.message)}</div>`;
+    listEl.innerHTML = `<div class="ranking-empty">載入失敗：${_escR(e.message)}</div>`;
   }
 }
+
+// 開 / 關 modal
+function _openRankModal() {
+  document.getElementById('rankModal').style.display = 'flex';
+  // 預載預設 tab（shops）
+  if (!_tabLoaded.shops) { _tabLoaded.shops = true; _loadRankTab('shops'); }
+}
+function _closeRankModal() {
+  document.getElementById('rankModal').style.display = 'none';
+}
+
+// 按鈕 / 關閉 / 背景點擊
+document.getElementById('rankOpenBtn').addEventListener('click', _openRankModal);
+document.getElementById('rankModalClose').addEventListener('click', _closeRankModal);
+document.getElementById('rankModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('rankModal')) _closeRankModal();
+});
+
+// Tab 切換
+document.querySelectorAll('.rank-mtab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const key = tab.dataset.tab;
+    document.querySelectorAll('.rank-mtab').forEach(t => t.classList.toggle('active', t.dataset.tab === key));
+    document.querySelectorAll('.rank-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === key));
+    if (!_tabLoaded[key]) { _tabLoaded[key] = true; _loadRankTab(key); }
+  });
+});
 </script>
 </body>
 </html>
