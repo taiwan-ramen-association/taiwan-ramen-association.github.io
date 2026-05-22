@@ -374,30 +374,15 @@ function bindSettingsModal(uid, profile) {
           { dominationPublic: newVal },
           { merge: true }
         );
-        // 首次開啟 → 補齊所有排行榜欄位
-        if (newVal) {
-          // visitedTownsCount / fullTownsCount / totalScore 由 domination.html 跑完後覆蓋
-          // 先寫 0 佔位，確保用戶能出現在各排行榜 tab（欄位不存在會被 orderBy 排除）
-          const placeholders = {};
-          if (profile.visitedTownsCount == null) placeholders.visitedTownsCount = 0;
-          if (profile.fullTownsCount    == null) placeholders.fullTownsCount    = 0;
-          if (profile.totalScore        == null) placeholders.totalScore        = 0;
-
-          if (profile.conqueredCount == null) {
-            // conqueredCount 需從 userVisits 算出
-            db.collection('userVisits').doc(uid).get().then(snap => {
-              const visits = snap.exists ? (snap.data().visits || {}) : {};
-              const cnt = Object.values(visits).filter(v => v != null && (v >= 1 || v === 20)).length;
-              db.collection('userProfiles').doc(uid).set(
-                { conqueredCount: cnt, ...placeholders }, { merge: true }
-              ).catch(() => {});
-              profile.conqueredCount = cnt;
-            }).catch(() => {});
-          } else if (Object.keys(placeholders).length) {
-            // conqueredCount 已有，只補其他缺欄位
-            db.collection('userProfiles').doc(uid).set(placeholders, { merge: true }).catch(() => {});
-          }
-          Object.assign(profile, placeholders);
+        // 首次開啟且 conqueredCount 尚未初始化 → 從 userVisits 補算
+        // visitedTownsCount / fullTownsCount / totalScore 由 domination.html 跑完後寫入
+        if (newVal && profile.conqueredCount == null) {
+          db.collection('userVisits').doc(uid).get().then(snap => {
+            const visits = snap.exists ? (snap.data().visits || {}) : {};
+            const cnt = Object.values(visits).filter(v => v != null && (v >= 1 || v === 20)).length;
+            db.collection('userProfiles').doc(uid).set({ conqueredCount: cnt }, { merge: true }).catch(() => {});
+            profile.conqueredCount = cnt;
+          }).catch(() => {});
         }
       } catch (e) {
         alert('儲存失敗：' + e.message);
