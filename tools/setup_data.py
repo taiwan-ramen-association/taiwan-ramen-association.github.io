@@ -691,11 +691,11 @@ def step_normalize_map_urls(mode='new_only'):
             url = url.split('?')[0]
 
             # 3. 修正 /@lat,lng,Xz/ → 使用 data.json 座標 + 固定 17z
-            if re.search(r'/@[-\d.]+,[-\d.]+,\d+z/', url):
+            if re.search(r'/@[-\d.]+,[-\d.]+,[\d.]+z/', url):
                 if lat and lng:
-                    url = re.sub(r'/@[-\d.]+,[-\d.]+,\d+z/', f'/@{lat},{lng},17z/', url)
+                    url = re.sub(r'/@[-\d.]+,[-\d.]+,[\d.]+z/', f'/@{lat},{lng},17z/', url)
                 else:
-                    url = re.sub(r'(/@[-\d.]+,[-\d.]+,)\d+z/', r'\g<1>17z/', url)
+                    url = re.sub(r'(/@[-\d.]+,[-\d.]+,)[\d.]+z/', r'\g<1>17z/', url)
 
             row['Map'] = url
             print(f'  [{i+1}/{total}] ✅ {name}')
