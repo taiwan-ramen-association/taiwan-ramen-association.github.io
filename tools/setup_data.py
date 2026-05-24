@@ -798,7 +798,7 @@ def show_menu():
     print('╠' + '═' * 52 + '╣')
     print('║  A  【拉取最新】git pull{:<28}║'.format(''))
     print('║  B  【開始編輯】JSON → Excel，開啟檔案{:<12}║'.format(''))
-    print('║  C  【完成編輯】Excel → JSON → 正規化 → Excel{:<6}║'.format(''))
+    print('║  C  【完成編輯】正規化 → Excel（無xlsx直接跑）{:<5}║'.format(''))
     print('║  D  【推上遠端】git push data.json + 計數器{:<8}║'.format(''))
     print('║  ' + '─' * 49 + '║')
     print('║  0  進階單步執行（含 10 Map標準化 / 11 全掃描）{:<4}║'.format(''))
@@ -829,12 +829,21 @@ def run_path_a():
     else:
         print('  ❌ git pull 失敗')
 
+def open_file(path):
+    """跨平台開啟檔案"""
+    if sys.platform == 'win32':
+        subprocess.Popen(['cmd', '/c', 'start', '', path])
+    elif sys.platform == 'darwin':
+        subprocess.Popen(['open', path])
+    else:
+        subprocess.Popen(['xdg-open', path])
+
 def run_path_b():
     print('\n▶ B【開始編輯】JSON → Excel → 開啟檔案')
     ok = step_json_to_excel()
     if ok:
         print('\n  📂 開啟 Excel...')
-        subprocess.Popen(['cmd', '/c', 'start', '', xlsx_path])
+        open_file(xlsx_path)
 
 def run_path_d():
     print('\n▶ D【推上遠端】git push data.json + id_counters.json')
@@ -881,9 +890,12 @@ def run_path_d():
         print(f'  ❌ push 失敗：{result.stderr.strip()}')
 
 def run_path_c():
-    print('\n▶ C【完成編輯】Excel → JSON → 正規化 → Excel')
-    if not step_excel_to_json():
-        return
+    print('\n▶ C【完成編輯】正規化 → Excel')
+    if os.path.exists(xlsx_path):
+        if not step_excel_to_json():
+            return
+    else:
+        print('  ℹ  找不到 data.xlsx，直接對 data.json 執行正規化')
     step_assign_ids()
     step_fill_city_district()
     step_normalize_hours()
