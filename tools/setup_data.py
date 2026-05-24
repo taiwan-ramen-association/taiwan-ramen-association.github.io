@@ -7,6 +7,7 @@ B  完成編輯：Excel → JSON → 正規化 → 寫回 Excel
 import csv
 import json
 import os
+import random
 import re
 import subprocess
 import sys
@@ -636,6 +637,89 @@ def step_json_to_excel():
     return True
 
 # ════════════════════════════════════════════════════════════════════════════════
+# STEP 10 / 11：Map 連結標準化
+# ════════════════════════════════════════════════════════════════════════════════
+def step_normalize_map_urls(mode='new_only'):
+    """
+    mode='new_only' : 只處理仍是 maps.app.goo.gl 的短連結（C 流程自動呼叫）
+    mode='all'      : 重新處理所有有 Map 值的店家
+    """
+    if mode == 'new_only':
+        section(10, 'Map 連結標準化（僅短連結）')
+    else:
+        section(11, 'Map 連結全部重新掃描')
+
+    rows = load_data()
+
+    if mode == 'new_only':
+        targets = [r for r in rows if 'maps.app.goo.gl' in r.get('Map', '')]
+    else:
+        targets = [r for r in rows if r.get('Map', '').startswith('http')]
+
+    total = len(targets)
+    if total == 0:
+        print('  ✅ 無需處理')
+        return 0
+
+    avg_sec = 6  # (2+10)/2
+    est_min = total * avg_sec // 60
+    est_sec = total * avg_sec % 60
+    print(f'  待處理：{total} 筆，間隔 2～10 秒隨機，預計約 {est_min} 分 {est_sec} 秒')
+    if total > 20:
+        confirm = input('  確認開始？(Enter / y 繼續，其他取消)：').strip().lower()
+        if confirm not in ('', 'y'):
+            print('  已取消')
+            return 0
+
+    UA  = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    ok  = 0
+    fail = 0
+
+    for i, row in enumerate(targets):
+        name = row.get('店名', '')
+        url  = row.get('Map', '')
+        lat  = row.get('lat')
+        lng  = row.get('lng')
+
+        try:
+            # 1. 展開短連結
+            if 'maps.app.goo.gl' in url:
+                r   = requests.head(url, headers=UA, allow_redirects=True, timeout=10)
+                url = r.url
+
+            # 2. 移除 query string（g_ep / skid 等動態參數）
+            url = url.split('?')[0]
+
+            # 3. 修正 /@lat,lng,Xz/ → 使用 data.json 座標 + 固定 17z
+            if re.search(r'/@[-\d.]+,[-\d.]+,\d+z/', url):
+                if lat and lng:
+                    url = re.sub(r'/@[-\d.]+,[-\d.]+,\d+z/', f'/@{lat},{lng},17z/', url)
+                else:
+                    url = re.sub(r'(/@[-\d.]+,[-\d.]+,)\d+z/', r'\g<1>17z/', url)
+
+            row['Map'] = url
+            print(f'  [{i+1}/{total}] ✅ {name}')
+            ok += 1
+
+        except Exception as e:
+            print(f'  [{i+1}/{total}] ❌ {name}：{e}')
+            fail += 1
+
+        if i < total - 1:
+            delay = random.uniform(2, 10)
+            time.sleep(delay)
+
+    save_data(rows)
+    print(f'\n  ✅ 完成：成功 {ok} 筆 / 失敗 {fail} 筆')
+    return ok
+
+def step_normalize_map_new():
+    step_normalize_map_urls(mode='new_only')
+
+def step_normalize_map_all():
+    step_normalize_map_urls(mode='all')
+
+# ════════════════════════════════════════════════════════════════════════════════
 # STEP 8：依縣市排序
 # ════════════════════════════════════════════════════════════════════════════════
 CITY_ORDER = [
@@ -701,8 +785,10 @@ STEPS = [
     (5, '正規化星期排序',                        step_normalize_days),
     (6, '正規化開幕日 / 歇業日（→ YYYY-MM-DD）', step_normalize_dates),
     (7, '分配店家 ID',                           step_assign_ids),
-    (8, '依縣市排序（六都優先，再由北到南）',    step_sort),
-    (9, '自動更新歇業狀態',                      step_auto_close),
+    (8,  '依縣市排序（六都優先，再由北到南）',    step_sort),
+    (9,  '自動更新歇業狀態',                      step_auto_close),
+    (10, 'Map 連結標準化（僅短連結）',             step_normalize_map_new),
+    (11, 'Map 連結全部重新掃描',                  step_normalize_map_all),
 ]
 
 def show_menu():
@@ -715,7 +801,7 @@ def show_menu():
     print('║  C  【完成編輯】Excel → JSON → 正規化 → Excel{:<6}║'.format(''))
     print('║  D  【推上遠端】git push data.json + 計數器{:<8}║'.format(''))
     print('║  ' + '─' * 49 + '║')
-    print('║  0  進階單步執行{:<35}║'.format(''))
+    print('║  0  進階單步執行（含 10 Map標準化 / 11 全掃描）{:<4}║'.format(''))
     print('║  ' + '─' * 49 + '║')
     print('║  q  離開{:<43}║'.format(''))
     print('╚' + '═' * 52 + '╝')
@@ -805,6 +891,7 @@ def run_path_c():
     step_normalize_dates()
     step_auto_close()
     step_sort()
+    step_normalize_map_urls(mode='new_only')
     step_json_to_excel()
     print()
     print('═' * 54)
