@@ -229,6 +229,7 @@ document.getElementById('betaLoginBtn').addEventListener('click', () => openPriv
 
 // ── 8. onAuthStateChanged ────────────────────────────────────────────────────
 auth.onAuthStateChanged(async user => {
+  console.log('[auth] onAuthStateChanged fired, user:', user ? user.email : null);
   try {
     if (user) {
       _googlePhotoURL = user.photoURL || '';
@@ -379,16 +380,20 @@ function closePrivacyModal() {
 }
 function doGoogleSignIn() {
   closePrivacyModal();
-  // iOS PWA (standalone) 用 signInWithRedirect 會離開 PWA context 導致登入失敗
-  // 統一用 signInWithPopup；iOS 16.4+ PWA 以 sheet 形式開啟，不會離開 PWA
-  // popup 被擋（極少數情況）才 fallback 到 redirect
-  auth.signInWithPopup(provider).catch(err => {
-    if (err.code === 'auth/popup-blocked') {
-      auth.signInWithRedirect(provider).catch(e => console.error('redirect 登入失敗', e));
-    } else if (err.code !== 'auth/popup-closed-by-user') {
-      console.error('登入失敗', err);
-    }
-  });
+  console.log('[auth] doGoogleSignIn called');
+  auth.signInWithPopup(provider)
+    .then(result => {
+      console.log('[auth] signInWithPopup OK', result?.user?.email);
+    })
+    .catch(err => {
+      console.error('[auth] signInWithPopup error:', err.code, err.message);
+      if (err.code === 'auth/popup-blocked') {
+        console.warn('[auth] popup blocked → redirect fallback');
+        auth.signInWithRedirect(provider).catch(e => console.error('[auth] redirect failed', e));
+      } else if (err.code !== 'auth/popup-closed-by-user') {
+        console.error('[auth] 登入失敗', err);
+      }
+    });
 }
 document.getElementById('privacyGoogleBtn').addEventListener('click', doGoogleSignIn);
 document.getElementById('privacySkipBtn').addEventListener('click', closePrivacyModal);
