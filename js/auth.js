@@ -232,6 +232,7 @@ auth.onAuthStateChanged(async user => {
   console.log('[auth] onAuthStateChanged fired, user:', user ? user.email : null);
   try {
     if (user) {
+      console.log('[auth] step 1: userRef.set');
       _googlePhotoURL = user.photoURL || '';
       loginBtn.style.display = 'none';
       userAvatar.style.display = 'block';
@@ -243,9 +244,10 @@ auth.onAuthStateChanged(async user => {
         photoURL:    user.photoURL || '',
         lastLogin:   firebase.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
-
+      console.log('[auth] step 2: userRef.get');
       const snap     = await userRef.get();
       const userData = snap.data();
+      console.log('[auth] step 3: userData.role =', userData?.role);
 
       // 第一次登入：設定基本欄位 + 自動分配 memberNo
       if (!userData.role) {
@@ -323,10 +325,14 @@ auth.onAuthStateChanged(async user => {
       // 載入收藏清單 + 踩點記錄
       const favIds = userData.favorites || [];
       favSet = new Set(favIds);
+      console.log('[auth] step 4: loadStamps');
       await loadStamps(user.uid);
+      console.log('[auth] step 5: applyFeatureFlags');
       await _ffReady;
       applyFeatureFlags();
+      console.log('[auth] step 6: render');
       render();
+      console.log('[auth] step 7: done');
       checkUnreadBadge();
       _onDataLoaded(() => _onBdAnimDone(() => { if (!localStorage.getItem('onboarding_done_' + user.uid)) openOnboardingModal(); }));
     } else {
@@ -365,7 +371,7 @@ auth.onAuthStateChanged(async user => {
       }
     }
   } catch (err) {
-    console.error('auth state 處理失敗', err);
+    console.error('[auth] 處理失敗:', err.message, err.stack || '');
     loginBtn.style.display   = 'flex';
     userAvatar.style.display = 'none';
   }
