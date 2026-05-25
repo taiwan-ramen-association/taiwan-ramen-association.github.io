@@ -378,67 +378,11 @@ function openPrivacyModal() {
 function closePrivacyModal() {
   document.getElementById('privacyModal').classList.remove('open');
 }
-// iOS PWA 登入輔助：同步開 auth-helper.html（普通 Safari tab），
-// 在那裡完成 redirect 後透過 BroadcastChannel 把 credential 傳回 PWA，
-// 再用 signInWithCredential 完成登入，避免 popup 被 iOS 擋掉的問題。
-function _doHelperAuth() {
-  console.log('[auth] _doHelperAuth: opening auth-helper.html');
-  const chName    = 'firebase-auth-' + Date.now();
-  const helperUrl = 'auth-helper.html?ch=' + encodeURIComponent(chName);
-  const popup     = window.open(helperUrl, 'authHelper', 'width=500,height=650');
-  if (!popup || popup.closed) {
-    console.error('[auth] helper window blocked');
-    showStampToast('無法開啟登入視窗，請使用 Safari 瀏覽器登入');
-    return;
-  }
-
-  // BroadcastChannel：helper 頁完成後廣播 credential
-  const bc = new BroadcastChannel(chName);
-  bc.onmessage = e => {
-    bc.close();
-    _handleHelperMsg(e.data);
-  };
-  // opener.postMessage fallback（部分瀏覽器 BroadcastChannel 跨 tab 可能受限）
-  window.addEventListener('message', function onMsg(e) {
-    if (e.origin !== location.origin) return;
-    if (e.data?.type === 'AUTH_RESULT' || e.data?.type === 'AUTH_ERROR') {
-      window.removeEventListener('message', onMsg);
-      bc.close();
-      _handleHelperMsg(e.data);
-    }
-  });
-}
-
-function _handleHelperMsg(data) {
-  if (data?.type === 'AUTH_RESULT') {
-    console.log('[auth] received credential from helper');
-    const credential = firebase.auth.GoogleAuthProvider.credential(
-      data.idToken, data.accessToken
-    );
-    auth.signInWithCredential(credential)
-      .then(r => console.log('[auth] signInWithCredential OK', r.user?.email))
-      .catch(e => {
-        console.error('[auth] signInWithCredential error', e);
-        showStampToast('登入失敗：' + e.message);
-      });
-  } else if (data?.type === 'AUTH_ERROR') {
-    console.error('[auth] helper error:', data.error);
-    if (data.error !== 'credential_expired') showStampToast('登入失敗，請重試');
-  }
-}
-
 function doGoogleSignIn() {
   closePrivacyModal();
   console.log('[auth] doGoogleSignIn called');
-
-  // iOS PWA (standalone) 下 signInWithPopup 會被 Safari 擋（async 破壞 user gesture 時間窗口）
-  // 直接走 auth-helper 模式，同步開新視窗繞過此限制
-  const isIOSPWA = /iPhone|iPad|iPod/.test(navigator.userAgent) && window.navigator.standalone === true;
-  if (isIOSPWA) {
-    _doHelperAuth();
-    return;
-  }
-
+  // popup 優先；iOS PWA 環境 popup 會被擋，catch 後 fallback 到 redirect
+  // getRedirectResult()（頁面底部）負責接回 redirect 的結果
   auth.signInWithPopup(provider)
     .then(result => {
       console.log('[auth] signInWithPopup OK', result?.user?.email);
@@ -446,8 +390,8 @@ function doGoogleSignIn() {
     .catch(err => {
       console.error('[auth] signInWithPopup error:', err.code, err.message);
       if (err.code === 'auth/popup-blocked') {
-        console.warn('[auth] popup blocked → helper auth fallback');
-        _doHelperAuth();
+        console.log('[auth] popup blocked → signInWithRedirect');
+        auth.signInWithRedirect(provider).catch(e => console.error('[auth] redirect failed', e));
       } else if (err.code !== 'auth/popup-closed-by-user') {
         console.error('[auth] 登入失敗', err);
       }

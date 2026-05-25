@@ -75,47 +75,13 @@ const gateMsg  = document.getElementById('gateMsg');
 const loginBtn = document.getElementById('loginBtn');
 const retryBtn = document.getElementById('retryBtn');
 
-function _consoleHelperAuth() {
-  const chName    = 'firebase-console-auth-' + Date.now();
-  const helperUrl = 'auth-helper.html?ch=' + encodeURIComponent(chName);
-  const popup     = window.open(helperUrl, 'authHelper', 'width=500,height=650');
-  if (!popup || popup.closed) {
-    gateMsg.textContent = '無法開啟登入視窗，請使用 Safari 瀏覽器開啟此頁面';
-    return;
-  }
-  const bc = new BroadcastChannel(chName);
-  bc.onmessage = e => {
-    bc.close();
-    if (e.data?.type === 'AUTH_RESULT') {
-      const cred = firebase.auth.GoogleAuthProvider.credential(e.data.idToken, e.data.accessToken);
-      _auth.signInWithCredential(cred).catch(err => { gateMsg.textContent = '登入失敗：' + err.message; });
-    } else if (e.data?.type === 'AUTH_ERROR') {
-      gateMsg.textContent = '登入失敗，請重試';
-    }
-  };
-  window.addEventListener('message', function onMsg(e) {
-    if (e.origin !== location.origin) return;
-    if (e.data?.type === 'AUTH_RESULT' || e.data?.type === 'AUTH_ERROR') {
-      window.removeEventListener('message', onMsg);
-      bc.close();
-      if (e.data.type === 'AUTH_RESULT') {
-        const cred = firebase.auth.GoogleAuthProvider.credential(e.data.idToken, e.data.accessToken);
-        _auth.signInWithCredential(cred).catch(err => { gateMsg.textContent = '登入失敗：' + err.message; });
-      }
-    }
-  });
-}
-
 loginBtn.addEventListener('click', () => {
-  const isIOSPWA = /iPhone|iPad|iPod/.test(navigator.userAgent) && window.navigator.standalone === true;
-  if (isIOSPWA) { _consoleHelperAuth(); return; }
   _auth.signInWithPopup(_provider).catch(err => {
-    if (err.code === 'auth/popup-blocked') _consoleHelperAuth();
+    if (err.code === 'auth/popup-blocked') _auth.signInWithRedirect(_provider);
     else if (err.code !== 'auth/popup-closed-by-user') console.error(err);
   });
 });
 
-// getRedirectResult：僅在非 iOS PWA 環境下有意義
 _auth.getRedirectResult().catch(err => {
   if (err.code && err.code !== 'auth/no-auth-event') console.error('redirect 結果處理失敗', err);
 });
