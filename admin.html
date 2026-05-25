@@ -79,14 +79,49 @@ function goConsole(reason) {
 // ── L2：Auth 逾時保護（8 秒內 onAuthStateChanged 未觸發）─────────────────
 const _authTimeout = setTimeout(() => goConsole('L2 auth timeout'), 8000);
 
+function _adminHelperAuth() {
+  const chName    = 'firebase-admin-auth-' + Date.now();
+  const helperUrl = 'auth-helper.html?ch=' + encodeURIComponent(chName);
+  const popup     = window.open(helperUrl, 'authHelper', 'width=500,height=650');
+  if (!popup || popup.closed) {
+    gateMsg.textContent = '無法開啟登入視窗，請使用 Safari 瀏覽器開啟此頁面';
+    return;
+  }
+  const bc = new BroadcastChannel(chName);
+  bc.onmessage = e => {
+    bc.close();
+    if (e.data?.type === 'AUTH_RESULT') {
+      const cred = firebase.auth.GoogleAuthProvider.credential(e.data.idToken, e.data.accessToken);
+      _auth.signInWithCredential(cred).catch(err => {
+        gateMsg.textContent = '登入失敗：' + err.message;
+      });
+    } else if (e.data?.type === 'AUTH_ERROR') {
+      gateMsg.textContent = '登入失敗，請重試';
+    }
+  };
+  window.addEventListener('message', function onMsg(e) {
+    if (e.origin !== location.origin) return;
+    if (e.data?.type === 'AUTH_RESULT' || e.data?.type === 'AUTH_ERROR') {
+      window.removeEventListener('message', onMsg);
+      bc.close();
+      if (e.data.type === 'AUTH_RESULT') {
+        const cred = firebase.auth.GoogleAuthProvider.credential(e.data.idToken, e.data.accessToken);
+        _auth.signInWithCredential(cred).catch(err => { gateMsg.textContent = '登入失敗：' + err.message; });
+      }
+    }
+  });
+}
+
 document.getElementById('loginBtn').addEventListener('click', () => {
+  const isIOSPWA = /iPhone|iPad|iPod/.test(navigator.userAgent) && window.navigator.standalone === true;
+  if (isIOSPWA) { _adminHelperAuth(); return; }
   _auth.signInWithPopup(_provider).catch(err => {
-    if (err.code === 'auth/popup-blocked') _auth.signInWithRedirect(_provider);
+    if (err.code === 'auth/popup-blocked') _adminHelperAuth();
     else if (err.code !== 'auth/popup-closed-by-user') console.error(err);
   });
 });
 
-// redirect fallback 回來後完成登入（iOS redirect fallback 用）
+// getRedirectResult：僅在非 iOS PWA 環境下有意義（不 signOut 避免誤踢用戶）
 _auth.getRedirectResult().catch(err => {
   if (err.code && err.code !== 'auth/no-auth-event') console.error('redirect 結果處理失敗', err);
 });

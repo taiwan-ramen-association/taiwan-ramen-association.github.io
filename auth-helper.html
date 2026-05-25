@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登入中…</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, sans-serif;
+  background: #faf7f2; color: #1a1209;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 100vh; text-align: center; padding: 24px; gap: 12px;
+}
+p { color: #8a7d6e; font-size: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<p id="msg">正在跳轉至 Google 登入…</p>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBdN0AYZMM2AU66QcH4BVNJHx1plwQBBYc",
+  authDomain: "taiwan-ramen-association.firebaseapp.com",
+  projectId: "taiwan-ramen-association",
+  storageBucket: "taiwan-ramen-association.firebasestorage.app",
+  messagingSenderId: "66234065738",
+  appId: "1:66234065738:web:eb9fc4348a942da66ad7b3"
+};
+firebase.initializeApp(firebaseConfig);
+const auth    = firebase.auth();
+const provider = new firebase.auth.GoogleAuthProvider();
+const msg     = document.getElementById('msg');
+
+// BroadcastChannel 頻道名由呼叫方透過 URL 參數傳入，確保每次唯一
+const chName = new URLSearchParams(location.search).get('ch') || 'firebase-auth';
+
+function broadcast(data) {
+  try {
+    const bc = new BroadcastChannel(chName);
+    bc.postMessage(data);
+    bc.close();
+  } catch(e) {}
+  // 同時嘗試 opener.postMessage（若 opener 仍存在）
+  try { window.opener?.postMessage(data, location.origin); } catch(e) {}
+}
+
+auth.getRedirectResult().then(result => {
+  if (result && result.credential) {
+    msg.textContent = '登入成功，正在返回…';
+    broadcast({
+      type:        'AUTH_RESULT',
+      idToken:     result.credential.idToken,
+      accessToken: result.credential.accessToken
+    });
+    setTimeout(() => window.close(), 500);
+  } else if (result && result.user && !result.credential) {
+    // credential 已消耗（重整頁面）→ 告知失敗，請重試
+    msg.textContent = '請關閉此頁面後重新登入';
+    broadcast({ type: 'AUTH_ERROR', error: 'credential_expired' });
+    setTimeout(() => window.close(), 2000);
+  } else {
+    // 尚未登入，跳轉 Google OAuth
+    auth.signInWithRedirect(provider);
+  }
+}).catch(err => {
+  msg.textContent = '登入失敗：' + err.message;
+  broadcast({ type: 'AUTH_ERROR', error: err.message });
+  setTimeout(() => window.close(), 2500);
+});
+</script>
+</body>
+</html>
