@@ -402,13 +402,13 @@ document.getElementById('privacySkipBtn').addEventListener('click', closePrivacy
 
 loginBtn.addEventListener('click', () => openPrivacyModal());
 
-auth.getRedirectResult().catch(err => {
-  if (err.code && err.code !== 'auth/no-auth-event') {
-    // 不 signOut：iOS PWA 上 getRedirectResult 可能拋出環境不支援的錯誤，
-    // 若呼叫 signOut 會把剛以 popup 登入的用戶強制登出
-    console.error('getRedirectResult 失敗（忽略）', err.code, err.message);
-  }
-});
+auth.getRedirectResult()
+  .then(result => {
+    console.log('[auth] getRedirectResult resolved, user:', result?.user?.email || null);
+  })
+  .catch(err => {
+    console.error('[auth] getRedirectResult error:', err.code, err.message);
+  });
 
 // featureFlags 立即開始從 Firestore 載入，onAuthStateChanged 的兩個分支都會 await 此 Promise
 // 確保 applyFeatureFlags() 永遠用 Firestore 值，不用 code 預設值，杜絕 UI 閃爍
