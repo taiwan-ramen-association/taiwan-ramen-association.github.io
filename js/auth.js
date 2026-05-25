@@ -397,8 +397,9 @@ loginBtn.addEventListener('click', () => openPrivacyModal());
 
 auth.getRedirectResult().catch(err => {
   if (err.code && err.code !== 'auth/no-auth-event') {
-    console.error('redirect 登入失敗', err);
-    auth.signOut();
+    // 不 signOut：iOS PWA 上 getRedirectResult 可能拋出環境不支援的錯誤，
+    // 若呼叫 signOut 會把剛以 popup 登入的用戶強制登出
+    console.error('getRedirectResult 失敗（忽略）', err.code, err.message);
   }
 });
 
