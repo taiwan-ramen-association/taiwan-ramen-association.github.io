@@ -1,5 +1,6 @@
 # 本機工具產生的暫存檔
 tools/data.xlsx
+data/data_backup_*.json
 
 # 暫存 log
 tools/*_log.txt
