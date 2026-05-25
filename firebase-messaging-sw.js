@@ -1,11 +1,11 @@
-// Firebase Messaging 專用 Service Worker
+﻿// Firebase Messaging 專用 Service Worker
 // 此檔案必須放在根目錄，FCM 會自動尋找此路徑
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
   apiKey:            "AIzaSyBdN0AYZMM2AU66QcH4BVNJHx1plwQBBYc",
-  authDomain:        "taiwan-ramen-association.firebaseapp.com",
+  authDomain:        "taiwan-ramen-association.web.app",
   projectId:         "taiwan-ramen-association",
   storageBucket:     "taiwan-ramen-association.firebasestorage.app",
   messagingSenderId: "66234065738",

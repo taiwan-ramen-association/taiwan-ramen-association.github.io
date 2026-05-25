@@ -16,5 +16,21 @@
   },
   "storage": {
     "rules": "ramen-finder-notes/storage.rules"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "ramen-finder-notes/**",
+      "functions/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/finder.html"
+      }
+    ]
   }
 }

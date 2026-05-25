@@ -1,4 +1,4 @@
-// ── auth.js ──────────────────────────────────────────────────────────────────
+﻿// ── auth.js ──────────────────────────────────────────────────────────────────
 // Firebase 初始化、登入/登出、Profile dropdown、Feature Flags、Beta Gate
 // 依賴全域（其他 JS 模組）：
 //   showStampToast, loadStamps（stamps.js）
@@ -30,7 +30,7 @@ const GATE_SHOW_LOGIN_BTN    = IS_BETA;  // 未登入時是否顯示登入按鈕
 // ── 1. Firebase Init ─────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyBdN0AYZMM2AU66QcH4BVNJHx1plwQBBYc",
-  authDomain: "taiwan-ramen-association.firebaseapp.com",
+  authDomain: "taiwan-ramen-association.web.app",
   projectId: "taiwan-ramen-association",
   storageBucket: "taiwan-ramen-association.firebasestorage.app",
   messagingSenderId: "66234065738",
