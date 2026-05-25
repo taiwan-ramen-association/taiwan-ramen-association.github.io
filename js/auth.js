@@ -229,10 +229,8 @@ document.getElementById('betaLoginBtn').addEventListener('click', () => openPriv
 
 // ── 8. onAuthStateChanged ────────────────────────────────────────────────────
 auth.onAuthStateChanged(async user => {
-  console.log('[auth] onAuthStateChanged fired, user:', user ? user.email : null);
   try {
     if (user) {
-      console.log('[auth] step 1: userRef.set');
       _googlePhotoURL = user.photoURL || '';
       loginBtn.style.display = 'none';
       userAvatar.style.display = 'block';
@@ -244,10 +242,8 @@ auth.onAuthStateChanged(async user => {
         photoURL:    user.photoURL || '',
         lastLogin:   firebase.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
-      console.log('[auth] step 2: userRef.get');
       const snap     = await userRef.get();
       const userData = snap.data();
-      console.log('[auth] step 3: userData.role =', userData?.role);
 
       // 第一次登入：設定基本欄位 + 自動分配 memberNo
       if (!userData.role) {
@@ -325,14 +321,10 @@ auth.onAuthStateChanged(async user => {
       // 載入收藏清單 + 踩點記錄
       const favIds = userData.favorites || [];
       favSet = new Set(favIds);
-      console.log('[auth] step 4: loadStamps');
       await loadStamps(user.uid);
-      console.log('[auth] step 5: applyFeatureFlags');
       await _ffReady;
       applyFeatureFlags();
-      console.log('[auth] step 6: render');
       render();
-      console.log('[auth] step 7: done');
       checkUnreadBadge();
       _onDataLoaded(() => _onBdAnimDone(() => { if (!localStorage.getItem('onboarding_done_' + user.uid)) openOnboardingModal(); }));
     } else {
@@ -386,17 +378,11 @@ function closePrivacyModal() {
 }
 function doGoogleSignIn() {
   closePrivacyModal();
-  console.log('[auth] doGoogleSignIn called');
-  // popup 優先；iOS PWA 環境 popup 會被擋，catch 後 fallback 到 redirect
+  // popup 優先；popup 被擋才 fallback 到 redirect
   // getRedirectResult()（頁面底部）負責接回 redirect 的結果
   auth.signInWithPopup(provider)
-    .then(result => {
-      console.log('[auth] signInWithPopup OK', result?.user?.email);
-    })
     .catch(err => {
-      console.error('[auth] signInWithPopup error:', err.code, err.message);
       if (err.code === 'auth/popup-blocked') {
-        console.log('[auth] popup blocked → signInWithRedirect');
         auth.signInWithRedirect(provider).catch(e => console.error('[auth] redirect failed', e));
       } else if (err.code !== 'auth/popup-closed-by-user') {
         console.error('[auth] 登入失敗', err);
@@ -409,11 +395,8 @@ document.getElementById('privacySkipBtn').addEventListener('click', closePrivacy
 loginBtn.addEventListener('click', () => openPrivacyModal());
 
 auth.getRedirectResult()
-  .then(result => {
-    console.log('[auth] getRedirectResult resolved, user:', result?.user?.email || null);
-  })
   .catch(err => {
-    console.error('[auth] getRedirectResult error:', err.code, err.message);
+    if (err.code && err.code !== 'auth/no-auth-event') console.error('[auth] getRedirectResult error:', err.code, err.message);
   });
 
 // featureFlags 立即開始從 Firestore 載入，onAuthStateChanged 的兩個分支都會 await 此 Promise
