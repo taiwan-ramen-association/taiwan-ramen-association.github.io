@@ -3186,6 +3186,7 @@ async function submitIrReport() {
     });
     closeIrModal();
     showStampToast('✅ 問題已回報，感謝你的協助！');
+    if (typeof gtag !== 'undefined') gtag('event', 'issue_report', { shop_id: _irShopId || '', shop_name: _irShopName || '', category: cat });
   } catch (e) {
     showStampToast('❌ 送出失敗，請稍後再試');
     console.error('submitIrReport 失敗', e);

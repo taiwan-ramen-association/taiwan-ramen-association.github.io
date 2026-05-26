@@ -196,6 +196,12 @@ function applyFeatureFlags() {
   if (domLink) {
     domLink.style.display = canView('domination') ? '' : 'none';
     domLink.classList.toggle('ff-locked', canView('domination') && !canUse('domination'));
+    if (!domLink._ga4bound) {
+      domLink._ga4bound = true;
+      domLink.addEventListener('click', () => {
+        if (typeof gtag !== 'undefined') gtag('event', 'domination_open');
+      });
+    }
   }
 
   // 排行榜（初始 display:none）

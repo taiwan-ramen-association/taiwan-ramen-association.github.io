@@ -27,6 +27,10 @@ function lsRemovePhoto(shopId) {
 async function loadShopPhotos(shop, panel, isRetry = false) {
   const shopId = shop['ID'];
 
+  if (!isRetry && typeof gtag !== 'undefined') {
+    gtag('event', 'photo_view', { shop_id: shopId, shop_name: shop['店名'] || '' });
+  }
+
   // 1. 記憶體快取
   if (photoCache[shopId] && photoCache[shopId] !== 'loading') {
     renderPhotoPanel(photoCache[shopId], panel, isRetry ? null : shop);

@@ -61,9 +61,11 @@ async function toggleFav(shopId) {
   if (favSet.has(shopId)) {
     favSet.delete(shopId);
     await ref.update({ favorites: firebase.firestore.FieldValue.arrayRemove(shopId) });
+    if (typeof gtag !== 'undefined') gtag('event', 'fav_toggle', { shop_id: shopId, action: 'remove' });
   } else {
     favSet.add(shopId);
     await ref.update({ favorites: firebase.firestore.FieldValue.arrayUnion(shopId) });
+    if (typeof gtag !== 'undefined') gtag('event', 'fav_toggle', { shop_id: shopId, action: 'add' });
   }
 }
 
@@ -171,6 +173,7 @@ document.getElementById('smConfirmBtn').addEventListener('click', async () => {
       ? `吃過${_stampCount >= 10 ? '10+' : _stampCount}次`
       : STATUS_LABELS[_stampStatus];
     showStampToast(`✓ 踩點：${lbl}`);
+    if (typeof gtag !== 'undefined') gtag('event', 'stamp_shop', { shop_id: shopId, shop_name: _stampShopName });
   } catch (e) { showStampToast('踩點失敗：' + e.message); }
 });
 

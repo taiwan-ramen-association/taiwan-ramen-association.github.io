@@ -208,6 +208,7 @@ document.getElementById('mnuSubmitBtn').addEventListener('click', async () => {
 
     delete menuCache[_mnuShopId];
     showStampToast('✅ 菜單照片已上傳');
+    if (typeof gtag !== 'undefined') gtag('event', 'menu_upload', { shop_id: _mnuShopId, shop_name: _mnuShopName });
     closeMenuModal();
 
     // 重新載入該 shop 的菜單 panel（同 review 做法）
