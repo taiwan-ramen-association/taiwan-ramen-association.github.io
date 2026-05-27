@@ -45,6 +45,26 @@ INDEXES = [
             ]
         }
     },
+    {
+        'collection': 'challengeSubmissions',
+        'body': {
+            'queryScope': 'COLLECTION',
+            'fields': [
+                {'fieldPath': 'uid',       'order': 'ASCENDING'},
+                {'fieldPath': 'createdAt', 'order': 'DESCENDING'},
+            ]
+        }
+    },
+    {
+        'collection': 'challengeSubmissions',
+        'body': {
+            'queryScope': 'COLLECTION',
+            'fields': [
+                {'fieldPath': 'status',    'order': 'ASCENDING'},
+                {'fieldPath': 'createdAt', 'order': 'DESCENDING'},
+            ]
+        }
+    },
 ]
 
 # ── 先查詢現有 indexes，避免重複建立 ───────────────────────────────────────────
