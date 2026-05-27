@@ -1,8 +1,8 @@
 // ── profile.js ─────────────────────────────────────────────────────────────
-// 個人頁主邏輯：載入 profile、4 個 tab 內容、隱私設定
+// 個人頁主邏輯：載入 profile、5 個 tab 內容（評論/踩點/菜單/地圖/挑戰）、隱私設定
 // 依賴全域（profile.html 提供）：
 //   auth, db, firebase, targetUid, viewerUid, isSelf
-//   showState(id), openPv(url)
+//   showState(id), openPv(url), canView(feature), currentUserRole
 
 // ── 共用：跳脫 HTML ────────────────────────────────────────────────────────
 function pfEscape(s) {
@@ -51,12 +51,19 @@ async function initProfile(viewerUid, targetUid, isSelf, currentUser) {
   showState('profileContent');
   renderHeader(profileDoc, isSelf);
 
-  // 4. 非本人 → 隱藏「踩點」「地圖」tab 與 踩點 stat（userVisits 私人，僅本人可讀）
+  // 4. 非本人 → 隱藏「踩點」「地圖」「挑戰」tab 與 踩點 stat
+  //    （userVisits / challengeSubmissions / userChallengeProgress 皆為私人，僅本人可讀）
   if (!isSelf) {
     document.querySelector('.tab-btn[data-tab="visits"]')?.style.setProperty('display', 'none');
     document.querySelector('.tab-btn[data-tab="map"]')?.style.setProperty('display', 'none');
+    document.querySelector('.tab-btn[data-tab="challenges"]')?.style.setProperty('display', 'none');
     const visitStat = document.getElementById('statVisits')?.closest('.stat');
     if (visitStat) visitStat.style.display = 'none';
+  } else {
+    // 本人 + canView('challengesNav') → 顯示挑戰 tab
+    if (typeof canView === 'function' && canView('challengesNav')) {
+      document.getElementById('pfChallengesTabBtn')?.style.setProperty('display', '');
+    }
   }
 
   // 5. 統計數字
@@ -142,7 +149,7 @@ async function loadStats(uid, isSelf) {
 }
 
 // ── Tab 切換 ────────────────────────────────────────────────────────────────
-const _tabLoaded = { reviews: false, visits: false, menus: false, map: false };
+const _tabLoaded = { reviews: false, visits: false, menus: false, map: false, challenges: false };
 
 function bindTabSwitching(uid) {
   _tabLoaded.reviews = true; // 已預載
@@ -158,6 +165,7 @@ function bindTabSwitching(uid) {
         if (tab === 'visits') loadVisitsTab(uid);
         else if (tab === 'menus') loadMenusTab(uid);
         else if (tab === 'map')  loadMapTab(uid);
+        else if (tab === 'challenges') loadChallengesTab(uid);
       }
     });
   });
@@ -483,4 +491,129 @@ function bindSettingsModal(uid, profile) {
     }
     toggle.disabled = false;
   });
+}
+
+// ── Tab 5：挑戰 ────────────────────────────────────────────────────────────
+async function loadChallengesTab(uid) {
+  const pane = document.getElementById('challengesTabPane');
+  if (!pane) return;
+  pane.innerHTML = '<div class="item-loading">載入中…</div>';
+
+  try {
+    // 平行抓：所有挑戰 + 使用者所有送出紀錄
+    const [chSnap, subSnap] = await Promise.all([
+      db.collection('challenges').limit(50).get(),
+      db.collection('challengeSubmissions')
+        .where('uid', '==', uid)
+        .orderBy('createdAt', 'desc')
+        .limit(100)
+        .get(),
+    ]);
+
+    const challenges  = chSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const submissions = subSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (!challenges.length) {
+      pane.innerHTML = '<div class="item-empty">目前沒有挑戰活動</div>';
+      return;
+    }
+
+    // 依日期由新到舊排（用 period.end 字串排序即可，因為都是 YYYY-MM-DD）
+    challenges.sort((a, b) => (b.period?.end || '').localeCompare(a.period?.end || ''));
+
+    // 用戶進度（每個 challenge 抓一個 doc）
+    const progress = {};
+    await Promise.all(challenges.map(async c => {
+      try {
+        const doc = await db.collection('userChallengeProgress')
+          .doc(uid).collection('challenges').doc(c.id).get();
+        progress[c.id] = doc.exists ? doc.data() : { completedTaskIds: [] };
+      } catch (e) {
+        progress[c.id] = { completedTaskIds: [] };
+      }
+    }));
+
+    // 按 challenge 分組 submissions
+    const subsByChallenge = {};
+    submissions.forEach(s => {
+      (subsByChallenge[s.challengeId] = subsByChallenge[s.challengeId] || []).push(s);
+    });
+
+    pane.innerHTML = challenges
+      .map(c => renderProfileChallengeCard(c, progress[c.id], subsByChallenge[c.id] || []))
+      .join('');
+
+    // 展開／收合
+    pane.querySelectorAll('.pfch-card-header').forEach(h => {
+      h.addEventListener('click', () => h.parentElement.classList.toggle('expanded'));
+    });
+    // 縮圖點擊放大
+    pane.querySelectorAll('.pfch-sub-thumb').forEach(thumb => {
+      thumb.addEventListener('click', () => {
+        const url = thumb.dataset.url;
+        if (url && typeof openPv === 'function') openPv(url);
+      });
+    });
+  } catch (e) {
+    console.error('[profile] loadChallengesTab 失敗', e);
+    pane.innerHTML = `<div class="item-empty">載入失敗：${pfEscape(e.message)}</div>`;
+  }
+}
+
+function renderProfileChallengeCard(challenge, progressDoc, submissions) {
+  const completed = (progressDoc?.completedTaskIds) || [];
+  const allTasks  = (challenge.groups || []).flatMap(g => g.tasks || []);
+  const total     = allTasks.length;
+  const done      = allTasks.filter(t => completed.includes(t.id)).length;
+  const pct       = total ? Math.round(done / total * 100) : 0;
+
+  const period    = challenge.period || {};
+  const periodStr = period.start && period.end ? `${period.start} ~ ${period.end}` : '';
+
+  const tasksHtml = (challenge.groups || []).map(g => `
+    <div class="pfch-group">
+      <div class="pfch-group-title">${pfEscape(g.title || '')}</div>
+      ${(g.tasks || []).map(t => {
+        const dn = completed.includes(t.id);
+        return `<div class="pfch-task ${dn ? 'done' : ''}">
+          <span>${dn ? '✅' : '⬜'}</span>
+          <span>${pfEscape(t.title || '')}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  `).join('');
+
+  const statusMap = { pending: '⏳', approved: '✅', rejected: '❌' };
+  const subsHtml = submissions.length ? `
+    <div class="pfch-subs">
+      <div class="pfch-subs-title">送出紀錄（${submissions.length} 筆）</div>
+      <div class="pfch-subs-grid">
+        ${submissions.map(s => `
+          <div class="pfch-sub-thumb" data-url="${pfEscape(s.photoUrl || '')}">
+            <img src="${pfEscape(s.photoUrl || '')}" alt="" loading="lazy">
+            <div class="pfch-sub-status ${pfEscape(s.status || '')}">${statusMap[s.status] || s.status || ''}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    <div class="pfch-card">
+      <div class="pfch-card-header">
+        <div class="pfch-title-row">
+          <span class="pfch-title">${pfEscape(challenge.title || '')}</span>
+          ${periodStr ? `<span class="pfch-period">${pfEscape(periodStr)}</span>` : ''}
+        </div>
+        <div class="pfch-progress-row">
+          <div class="pfch-progress-bar"><div class="pfch-progress-fill" style="width:${pct}%"></div></div>
+          <span class="pfch-progress-text">${done}/${total}　${pct}%</span>
+        </div>
+      </div>
+      <div class="pfch-detail">
+        ${tasksHtml}
+        ${subsHtml}
+      </div>
+    </div>
+  `;
 }

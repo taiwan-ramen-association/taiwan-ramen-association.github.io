@@ -997,6 +997,53 @@
   /* modals 全屏蓋過 nav bar（z-index 1010+），切頁時不需隱藏 */
   /* challenges-page modals（目前無，預留） */
   /* body.challenges-hidden .xxx { display: none !important; } */
+
+  /* ── 挑戰任務頁 ─────────────────────────────────────────────────── */
+  .ch-empty { color: var(--stone); font-size: 13px; text-align: center; padding: 40px 0; }
+  .ch-card {
+    background: var(--white); border-radius: 10px; padding: 16px; margin-bottom: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .ch-card-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; gap: 8px; flex-wrap: wrap; }
+  .ch-title  { font-size: 16px; font-weight: 600; color: var(--ink); }
+  .ch-period { font-size: 12px; color: var(--muted); }
+  .ch-progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .ch-progress-bar { flex: 1; height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .ch-progress-fill { height: 100%; background: var(--red); transition: width 0.3s ease; }
+  .ch-progress-text { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .ch-submit-btn {
+    width: 100%; padding: 10px; background: var(--red); color: var(--white); border: none;
+    border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; margin-bottom: 14px;
+  }
+  .ch-submit-btn:active { opacity: 0.85; }
+  .ch-groups { display: flex; flex-direction: column; gap: 12px; }
+  .ch-group  { border-top: 1px solid var(--line); padding-top: 10px; }
+  .ch-group-title { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .ch-task-list { display: flex; flex-direction: column; gap: 4px; }
+  .ch-task { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 13px; color: var(--ink); }
+  .ch-task.done { color: var(--muted); }
+  .ch-task.done .ch-task-title { text-decoration: line-through; }
+  .ch-task-check { font-size: 14px; }
+  .ch-task-title { flex: 1; }
+  .ch-task-tw { font-size: 11px; color: var(--stone); }
+
+  /* ── 挑戰送出 modal 內的店家 autocomplete ────────────────────────── */
+  .ch-shop-wrap { position: relative; }
+  .ch-shop-input, .ch-text-input {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+    font-size: 14px; box-sizing: border-box; background: var(--white); color: var(--ink);
+  }
+  .ch-shop-ac {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 10; display: none;
+    background: var(--white); border: 1px solid var(--line); border-radius: 6px;
+    margin-top: 4px; max-height: 240px; overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .ch-ac-item { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid var(--line); }
+  .ch-ac-item:last-child { border-bottom: none; }
+  .ch-ac-item:hover, .ch-ac-item.ch-ac-active { background: var(--paper); }
+  .ch-ac-name { font-size: 14px; color: var(--ink); }
+  .ch-ac-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
   /* Departing page: shrinks & fades to the left */
   .page-layer.page-left {
     transform: translateX(-22%) scale(0.96);
@@ -1825,7 +1872,52 @@
   <div class="rf-page-card">
     <div class="rf-feed-title">🚩 挑戰任務</div>
     <div class="rf-list-inner" id="challengesList">
-      <p style="color:var(--stone);font-size:13px;text-align:center;padding:40px 0">挑戰任務功能即將上線，敬請期待！</p>
+      <p class="ch-empty">載入中…</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Challenge Submit Modal ─────────────────────────────────────────── -->
+<div class="rv-backdrop" id="chSubmitBackdrop"></div>
+<div class="rv-modal" id="chSubmitModal">
+  <div class="rv-box">
+    <div class="rv-header">
+      <span class="rv-title" id="chSubmitTitle">📷 送出紀錄</span>
+      <button class="rv-close" id="chCloseBtn">✕</button>
+    </div>
+    <div class="rv-body">
+      <div>
+        <span class="rv-label">店家 <span style="color:var(--red)">*</span></span>
+        <div class="ch-shop-wrap">
+          <input type="text" class="ch-shop-input" id="chShopInput" placeholder="輸入店名搜尋…" autocomplete="off">
+          <div class="ch-shop-ac" id="chShopAc"></div>
+        </div>
+      </div>
+      <div>
+        <span class="rv-label">照片 <span style="color:var(--red)">*</span></span>
+        <div class="rv-upload-area" id="chUploadArea">
+          <input type="file" id="chFileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">
+          📷 點擊上傳照片
+        </div>
+        <div class="rv-preview-grid" id="chPreview" style="margin-top:10px"></div>
+      </div>
+      <div>
+        <span class="rv-label">用餐時間 <span style="color:var(--red)">*</span></span>
+        <input type="datetime-local" class="rv-date-input" id="chDiningTime" required>
+      </div>
+      <div>
+        <span class="rv-label">品項名稱 <span style="color:var(--red)">*</span></span>
+        <input type="text" class="ch-text-input" id="chItemName" placeholder="例：濃厚豚骨拉麵" maxlength="100">
+      </div>
+      <div>
+        <span class="rv-label">價格</span>
+        <input type="number" class="ch-text-input" id="chPrice" placeholder="例：380" min="0" max="9999">
+      </div>
+      <div class="rv-progress" id="chProgress"></div>
+    </div>
+    <div class="rv-footer">
+      <button class="rv-btn-cancel" id="chCancelBtn">取消</button>
+      <button class="rv-btn-submit" id="chSubmitBtn" disabled>送出</button>
     </div>
   </div>
 </div>
@@ -2275,6 +2367,8 @@
   </div>
 </div>
 
+<!-- EXIF reader for challenge photo dining time auto-fill -->
+<script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/stamps.js"></script>
 <script src="js/photos.js"></script>
@@ -2283,6 +2377,7 @@
 <script src="js/map.js"></script>
 <script src="js/reviews.js"></script>
 <script src="js/card.js"></script>
+<script src="js/challenges.js"></script>
 <script>
 // ── Config ─────────────────────────────────────────────────────────────────
 // 讀同一個 repo 下的 data.json（由 GitHub Actions 自動同步自 Google Sheets）
@@ -3648,6 +3743,7 @@ function switchPage(page) {
     reviewsEl.classList.add('page-left');
     challengesEl.classList.add('page-active');
     document.getElementById('bnavChallenges').classList.add('active');
+    if (typeof loadChallengesPage === 'function' && !_chPageLoaded) loadChallengesPage();
   }
 }
 

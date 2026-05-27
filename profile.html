@@ -162,6 +162,54 @@
 
     #mapTabPane { height: 460px; border-radius: 10px; overflow: hidden; }
 
+    /* ── 挑戰任務 tab ── */
+    .pfch-card {
+      border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px;
+      background: var(--white); overflow: hidden;
+    }
+    .pfch-card-header {
+      padding: 14px; cursor: pointer; user-select: none;
+      transition: background 0.15s;
+    }
+    .pfch-card-header:hover { background: var(--paper); }
+    .pfch-card-header::after {
+      content: '▶'; float: right; font-size: 10px; color: var(--stone);
+      transition: transform 0.2s; margin-top: 2px;
+    }
+    .pfch-card.expanded .pfch-card-header::after { transform: rotate(90deg); }
+    .pfch-title-row {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+      flex-wrap: wrap; margin-bottom: 8px;
+    }
+    .pfch-title { font-size: 15px; font-weight: 600; color: var(--ink); }
+    .pfch-period { font-size: 11px; color: var(--stone); }
+    .pfch-progress-row { display: flex; align-items: center; gap: 10px; }
+    .pfch-progress-bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+    .pfch-progress-fill { height: 100%; background: var(--red); transition: width 0.3s; }
+    .pfch-progress-text { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .pfch-detail { display: none; padding: 0 14px 14px; border-top: 1px solid var(--line); }
+    .pfch-card.expanded .pfch-detail { display: block; }
+    .pfch-group { margin-top: 12px; }
+    .pfch-group-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+    .pfch-task { font-size: 12px; color: var(--ink); padding: 2px 0; display: flex; gap: 4px; }
+    .pfch-task.done { color: var(--muted); text-decoration: line-through; }
+    .pfch-subs { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+    .pfch-subs-title { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .pfch-subs-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    }
+    .pfch-sub-thumb {
+      aspect-ratio: 1; border-radius: 6px; overflow: hidden; position: relative; cursor: pointer;
+    }
+    .pfch-sub-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .pfch-sub-status {
+      position: absolute; bottom: 2px; right: 2px;
+      font-size: 9px; padding: 1px 4px; border-radius: 3px;
+      background: rgba(0,0,0,0.6); color: white;
+    }
+    .pfch-sub-status.approved { background: rgba(40,167,69,0.85); }
+    .pfch-sub-status.rejected { background: rgba(200,39,45,0.85); }
+
     /* ── Settings modal ── */
     .settings-modal {
       position: fixed; inset: 0; background: rgba(0,0,0,0.45);
@@ -257,6 +305,7 @@
         <button class="tab-btn" data-tab="visits">👣 踩點</button>
         <button class="tab-btn" data-tab="menus">🍜 菜單</button>
         <button class="tab-btn" data-tab="map">🗺 地圖</button>
+        <button class="tab-btn" data-tab="challenges" id="pfChallengesTabBtn" style="display:none">🏆 挑戰</button>
       </div>
 
       <div class="tab-content">
@@ -264,6 +313,7 @@
         <div class="tab-pane" id="visitsTabPane" data-pane="visits"></div>
         <div class="tab-pane" id="menusTabPane" data-pane="menus"></div>
         <div class="tab-pane" id="mapTabPane" data-pane="map"></div>
+        <div class="tab-pane" id="challengesTabPane" data-pane="challenges"></div>
       </div>
     </div>
 
@@ -364,8 +414,44 @@
       });
     }
 
+    // ── Role / featureFlags（仿 shop.html）─────────────────────────────────
+    var currentUserRole = '';
+    const _ROLE_LEVEL = { all: 0, viewer: 1, member: 2, director: 3, admin: 4 };
+    const _MEMBER_ROLES = ['member_individual','member_group','member_sponsor','member_honorary'];
+    function _getRoleLevel(role) {
+      if (role === 'admin')                 return 4;
+      if (role === 'director')              return 3;
+      if (_MEMBER_ROLES.includes(role))     return 2;
+      if (role === 'viewer' || role === 'store') return 1;
+      return 0;
+    }
+    var featureFlags = {
+      challengesNav: { vis: 'admin', perm: 'admin' },  // 預設 admin，由 Firestore 覆寫
+    };
+    function canView(feature) {
+      const flag = featureFlags[feature];
+      if (!flag) return true;
+      const req = _ROLE_LEVEL[flag.vis] ?? 1;
+      return _getRoleLevel(currentUserRole) >= req;
+    }
+    function canUse(feature) {
+      const flag = featureFlags[feature];
+      if (!flag) return true;
+      const req = _ROLE_LEVEL[flag.perm] ?? 1;
+      return _getRoleLevel(currentUserRole) >= req;
+    }
+    async function loadFeatureFlags() {
+      try {
+        const snap = await db.collection('meta').doc('featureFlags').get();
+        if (snap.exists) {
+          const d = snap.data();
+          if (d.challengesNav) featureFlags.challengesNav = d.challengesNav;
+        }
+      } catch (e) { /* 用預設值 */ }
+    }
+
     // ── Auth state ──────────────────────────────────────────────────────────
-    auth.onAuthStateChanged(user => {
+    auth.onAuthStateChanged(async user => {
       if (!user) {
         // 未登入且帶有他人 uid 參數 → 非正常入口，導回 finder
         if (targetUid) { location.replace('finder.html'); return; }
@@ -375,6 +461,14 @@
       viewerUid = user.uid;
       if (!targetUid) targetUid = viewerUid;
       isSelf = (targetUid === viewerUid);
+
+      // 載入用戶角色 + featureFlags，再呼叫 initProfile
+      try {
+        const userSnap = await db.collection('users').doc(user.uid).get();
+        currentUserRole = userSnap.exists ? (userSnap.data().role || 'viewer') : 'viewer';
+      } catch (e) { currentUserRole = 'viewer'; }
+      await loadFeatureFlags();
+
       // 呼叫 profile.js 入口（傳入 user 供 isSelf 時顯示 Google 帳號資訊）
       if (typeof initProfile === 'function') initProfile(viewerUid, targetUid, isSelf, user);
       else console.error('profile.js 未載入');
