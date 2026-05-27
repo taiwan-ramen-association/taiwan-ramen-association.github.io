@@ -162,6 +162,10 @@
 
     #mapTabPane { height: 460px; border-radius: 10px; overflow: hidden; }
 
+    /* ── ff-locked（同 finder：看得到但鎖起來） ── */
+    .tab-btn.ff-locked { opacity: 0.5; }
+    .tab-btn.ff-locked::after { content: ' 🔒'; font-size: 10px; }
+
     /* ── 挑戰任務 tab ── */
     .pfch-card {
       border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px;

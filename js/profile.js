@@ -61,8 +61,15 @@ async function initProfile(viewerUid, targetUid, isSelf, currentUser) {
     if (visitStat) visitStat.style.display = 'none';
   } else {
     // 本人 + canView('challengesNav') → 顯示挑戰 tab
+    // canView 通過但 canUse 不過 → 加 ff-locked 樣式（與 nav bar 一致）
     if (typeof canView === 'function' && canView('challengesNav')) {
-      document.getElementById('pfChallengesTabBtn')?.style.setProperty('display', '');
+      const tabBtn = document.getElementById('pfChallengesTabBtn');
+      if (tabBtn) {
+        tabBtn.style.setProperty('display', '');
+        if (typeof canUse === 'function' && !canUse('challengesNav')) {
+          tabBtn.classList.add('ff-locked');
+        }
+      }
     }
   }
 
@@ -497,6 +504,13 @@ function bindSettingsModal(uid, profile) {
 async function loadChallengesTab(uid) {
   const pane = document.getElementById('challengesTabPane');
   if (!pane) return;
+
+  // 權限不足 → 顯示尚未開放，不查 Firestore
+  if (typeof canUse === 'function' && !canUse('challengesNav')) {
+    pane.innerHTML = '<div class="item-empty">🔒 此功能尚未開放</div>';
+    return;
+  }
+
   pane.innerHTML = '<div class="item-loading">載入中…</div>';
 
   try {
