@@ -9,6 +9,7 @@ import json
 import os
 import random
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -733,19 +734,49 @@ CITY_ORDER = [
 ]
 CITY_RANK = {city: i for i, city in enumerate(CITY_ORDER)}
 
-def step_sort():
-    section(8, '依縣市排序（六都優先，再由北到南）')
+# 純地理由北到南（單步選用）
+CITY_ORDER_GEO = [
+    '基隆市', '臺北市', '新北市', '桃園市',
+    '新竹市', '新竹縣', '苗栗縣', '臺中市',
+    '彰化縣', '南投縣', '雲林縣', '嘉義市', '嘉義縣',
+    '臺南市', '高雄市', '屏東縣',
+    '宜蘭縣', '花蓮縣', '臺東縣',
+    '澎湖縣', '金門縣', '連江縣',
+]
+CITY_RANK_GEO = {city: i for i, city in enumerate(CITY_ORDER_GEO)}
+
+def step_sort(mode='priority'):
+    """
+    mode='priority' : 六都優先，再由北到南（C 路徑預設）
+    mode='geo'      : 純地理由北到南（單步選用）
+    """
+    if mode == 'geo':
+        section(8, '依縣市排序（純地理由北到南）')
+        rank = CITY_RANK_GEO
+    else:
+        section(8, '依縣市排序（六都優先，再由北到南）')
+        rank = CITY_RANK
+
     rows = load_data()
 
     def sort_key(row):
         city = str(row.get('縣市', '')).strip().replace('台', '臺')
         dist = str(row.get('鄉鎮市區', '')).strip()
         addr = str(row.get('地址', '')).strip()
-        return (CITY_RANK.get(city, 99), city, dist, addr)
+        return (rank.get(city, 99), city, dist, addr)
 
     rows.sort(key=sort_key)
     save_data(rows)
     print(f'  ✅ 完成：已排序 {len(rows)} 筆')
+
+
+def step_sort_interactive():
+    """單步選單用：讓使用者選擇排序模式"""
+    print('\n  排序模式：')
+    print('    1. 六都優先，再由北到南（預設）')
+    print('    2. 純地理由北到南（忽略六都優先）')
+    m = input('  請選擇 1 或 2（直接 Enter = 1）：').strip() or '1'
+    step_sort(mode='geo' if m == '2' else 'priority')
 
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 9：自動更新歇業狀態
@@ -785,7 +816,7 @@ STEPS = [
     (5, '正規化星期排序',                        step_normalize_days),
     (6, '正規化開幕日 / 歇業日（→ YYYY-MM-DD）', step_normalize_dates),
     (7, '分配店家 ID',                           step_assign_ids),
-    (8,  '依縣市排序（六都優先，再由北到南）',    step_sort),
+    (8,  '依縣市排序',                             step_sort_interactive),
     (9,  '自動更新歇業狀態',                      step_auto_close),
     (10, 'Map 連結標準化（僅短連結）',             step_normalize_map_new),
     (11, 'Map 連結全部重新掃描',                  step_normalize_map_all),
@@ -889,15 +920,138 @@ def run_path_d():
     else:
         print(f'  ❌ push 失敗：{result.stderr.strip()}')
 
+# ════════════════════════════════════════════════════════════════════════════════
+# C 路徑輔助：備份 + ID 驗證
+# ════════════════════════════════════════════════════════════════════════════════
+def _backup_data():
+    """備份 data.json → data/data_backup_YYYYMMDD_HHMMSS.json"""
+    import datetime as _dt2
+    ts          = _dt2.datetime.now().strftime('%Y%m%d_%H%M%S')
+    backup_path = os.path.join(root_dir, 'data', f'data_backup_{ts}.json')
+    shutil.copy2(json_path, backup_path)
+    print(f'  💾 備份完成：data/data_backup_{ts}.json')
+    return backup_path
+
+
+def step_validate_ids(old_row_count):
+    """
+    驗證 ID 完整性（在 excel_to_json 之後、assign_ids 之前執行）：
+      1. 新舊行數差異
+      2. 重複 ID 偵測
+      3. 各縣市 ID 序列是否連續（無跳號）
+      4. 與 id_counters 比對
+    回傳 has_critical (bool) — True 表示發現重複或跳號
+    """
+    section('V', 'ID 驗證（行數 / 重複 / 序列完整性 / 計數器）')
+
+    rows     = load_data()
+    counters = _load_counters()
+
+    new_row_count = len(rows)
+    diff          = new_row_count - old_row_count
+
+    # 1. 行數比對
+    if diff == 0:
+        print(f'  📊 總行數：{new_row_count} 筆（與舊資料相同）')
+    elif diff > 0:
+        print(f'  📊 總行數：{new_row_count} 筆（較舊資料 +{diff} 筆，有新增）')
+    else:
+        print(f'  ⚠  總行數：{new_row_count} 筆（較舊資料 {diff} 筆，有資料減少！）')
+
+    # 2. 收集各縣市 ID
+    city_ids    = {}    # letter → sorted list of int
+    id_to_names = {}    # id_str → [shop_name, ...]
+
+    for row in rows:
+        eid = str(row.get('ID', '')).strip()
+        if ID_RE.match(eid):
+            letter = eid[0]
+            num    = int(eid[1:])
+            city_ids.setdefault(letter, []).append(num)
+            id_to_names.setdefault(eid, []).append(row.get('店名', '（未知）'))
+
+    has_critical = False
+
+    # 3. 重複 ID 偵測
+    duplicates = {eid: names for eid, names in id_to_names.items() if len(names) > 1}
+    if duplicates:
+        has_critical = True
+        print(f'\n  ❌ 發現重複 ID（{len(duplicates)} 組）：')
+        for eid, names in sorted(duplicates.items()):
+            print(f'      {eid}：{" / ".join(names)}')
+    else:
+        print(f'  ✅ 無重複 ID')
+
+    # 4. 各縣市序列完整性 + id_counters 比對
+    print(f'\n  各縣市 ID 驗證：')
+    for letter in sorted(city_ids.keys()):
+        nums         = sorted(city_ids[letter])
+        actual_count = len(nums)
+        max_num      = nums[-1]
+        counter_val  = counters.get(letter, 0)
+        city_name    = CODE_TO_CITY.get(letter, letter)
+
+        # 跳號：期望 1~max_num 的完整集合
+        missing         = sorted(set(range(1, max_num + 1)) - set(nums))
+        counter_mismatch = counter_val != max_num
+
+        if missing or counter_mismatch:
+            has_critical = True
+            parts = []
+            if missing:
+                miss_strs = [f'{letter}{n:05d}' for n in missing[:10]]
+                more_note = f'...等共 {len(missing)} 個' if len(missing) > 10 else ''
+                parts.append(f'缺號：{", ".join(miss_strs)}{more_note}')
+            if counter_mismatch:
+                parts.append(f'計數器={counter_val} 與最大 ID {letter}{max_num:05d} 不符')
+            print(f'  ❌ {letter} {city_name}：{actual_count} 筆，'
+                  f'最大={letter}{max_num:05d}，{"；".join(parts)}')
+        else:
+            print(f'  ✅ {letter} {city_name}：{actual_count} 筆，'
+                  f'{letter}00001~{letter}{max_num:05d} 連續，計數器={counter_val}')
+
+    # 5. ID 空白（新增待分配）
+    blank_rows = [r for r in rows if not ID_RE.match(str(r.get('ID', '')).strip())]
+    if blank_rows:
+        print(f'\n  📋 ID 空白（待 assign_ids 分配）：{len(blank_rows)} 筆')
+        for r in blank_rows:
+            print(f'      → {r.get("店名", "（未知）")} / {r.get("地址", "")}')
+
+    if has_critical:
+        print(f'\n  ⚠  偵測到嚴重問題（重複 ID、跳號或計數器不符），流程已暫停，請手動確認。')
+    else:
+        print(f'\n  ✅ ID 驗證通過')
+
+    return has_critical
+
+
 def run_path_c():
     print('\n▶ C【完成編輯】正規化 → Excel')
+
+    # ── 1. 備份 data.json ───────────────────────────────────────────────────
+    backup_path    = _backup_data()
+    old_row_count  = len(load_data())
+
+    # ── 2. Excel → JSON ────────────────────────────────────────────────────
     if os.path.exists(xlsx_path):
         if not step_excel_to_json():
+            print('  ❌ Excel 讀取失敗，備份保留，請檢查後重試。')
             return
     else:
         print('  ℹ  找不到 data.xlsx，直接對 data.json 執行正規化')
+
+    # ── 3. ID 驗證 ─────────────────────────────────────────────────────────
+    has_critical = step_validate_ids(old_row_count)
+
+    if has_critical:
+        print()
+        print(f'  備份保留於：data/{os.path.basename(backup_path)}')
+        print('  請手動修正問題後，重新執行 C。')
+        return
+
+    # ── 4. 正規化流程 ───────────────────────────────────────────────────────
+    step_fill_city_district()   # 先補縣市，assign_ids 才能正確判斷城市代碼
     step_assign_ids()
-    step_fill_city_district()
     step_normalize_hours()
     step_normalize_days()
     step_normalize_dates()
@@ -905,6 +1059,14 @@ def run_path_c():
     step_sort()
     step_normalize_map_urls(mode='new_only')
     step_json_to_excel()
+
+    # ── 5. 無嚴重問題 → 刪備份 ─────────────────────────────────────────────
+    try:
+        os.remove(backup_path)
+        print(f'  🗑  備份已自動刪除（{os.path.basename(backup_path)}）')
+    except Exception as e:
+        print(f'  ⚠  備份刪除失敗：{e}')
+
     print()
     print('═' * 54)
     print('  ✅ 完成！data.json 與 data.xlsx 均已更新')
