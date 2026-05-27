@@ -871,6 +871,7 @@ def open_file(path):
 
 def run_path_b():
     print('\n▶ B【開始編輯】JSON → Excel → 開啟檔案')
+    _backup_data()   # 編輯前先備份，C 路徑成功後自動刪除
     ok = step_json_to_excel()
     if ok:
         print('\n  📂 開啟 Excel...')
@@ -924,13 +925,28 @@ def run_path_d():
 # C 路徑輔助：備份 + ID 驗證
 # ════════════════════════════════════════════════════════════════════════════════
 def _backup_data():
-    """備份 data.json → data/data_backup_YYYYMMDD_HHMMSS.json"""
+    """備份 data.json → data/data_backup_YYYYMMDD_HHMMSS.json（B 路徑於開始編輯前呼叫）"""
     import datetime as _dt2
     ts          = _dt2.datetime.now().strftime('%Y%m%d_%H%M%S')
     backup_path = os.path.join(root_dir, 'data', f'data_backup_{ts}.json')
     shutil.copy2(json_path, backup_path)
     print(f'  💾 備份完成：data/data_backup_{ts}.json')
     return backup_path
+
+
+def _delete_backups():
+    """刪除 data/ 下所有 data_backup_*.json（C 路徑成功後呼叫）"""
+    import glob as _glob
+    pattern = os.path.join(root_dir, 'data', 'data_backup_*.json')
+    files   = _glob.glob(pattern)
+    if not files:
+        return
+    for f in files:
+        try:
+            os.remove(f)
+            print(f'  🗑  備份已自動刪除（{os.path.basename(f)}）')
+        except Exception as e:
+            print(f'  ⚠  備份刪除失敗：{e}')
 
 
 def step_validate_ids(old_row_count):
@@ -1028,14 +1044,13 @@ def step_validate_ids(old_row_count):
 def run_path_c():
     print('\n▶ C【完成編輯】正規化 → Excel')
 
-    # ── 1. 備份 data.json ───────────────────────────────────────────────────
-    backup_path    = _backup_data()
-    old_row_count  = len(load_data())
+    # ── 1. 記錄舊行數（excel_to_json 前）──────────────────────────────────
+    old_row_count = len(load_data())
 
     # ── 2. Excel → JSON ────────────────────────────────────────────────────
     if os.path.exists(xlsx_path):
         if not step_excel_to_json():
-            print('  ❌ Excel 讀取失敗，備份保留，請檢查後重試。')
+            print('  ❌ Excel 讀取失敗，請檢查後重試。備份（B 路徑建立）保留中。')
             return
     else:
         print('  ℹ  找不到 data.xlsx，直接對 data.json 執行正規化')
@@ -1045,8 +1060,7 @@ def run_path_c():
 
     if has_critical:
         print()
-        print(f'  備份保留於：data/{os.path.basename(backup_path)}')
-        print('  請手動修正問題後，重新執行 C。')
+        print('  備份（B 路徑建立）保留中，請手動修正問題後重新執行 C。')
         return
 
     # ── 4. 正規化流程 ───────────────────────────────────────────────────────
@@ -1060,12 +1074,8 @@ def run_path_c():
     step_normalize_map_urls(mode='new_only')
     step_json_to_excel()
 
-    # ── 5. 無嚴重問題 → 刪備份 ─────────────────────────────────────────────
-    try:
-        os.remove(backup_path)
-        print(f'  🗑  備份已自動刪除（{os.path.basename(backup_path)}）')
-    except Exception as e:
-        print(f'  ⚠  備份刪除失敗：{e}')
+    # ── 5. 成功 → 刪除 B 路徑建立的備份 ────────────────────────────────────
+    _delete_backups()
 
     print()
     print('═' * 54)
