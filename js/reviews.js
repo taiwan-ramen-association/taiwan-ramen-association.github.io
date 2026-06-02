@@ -144,14 +144,14 @@ async function loadReviews(shopId, panel, append = false) {
       const stars = '★'.repeat(d.rating || 0) + '☆'.repeat(5 - (d.rating || 0));
       const canDel = uid === d.uid || isAdmin;
       const photosHtml = (d.photos || []).map(p =>
-        `<img class="review-photo-thumb" src="${p.thumb}" data-original="${p.original}" alt="">`
+        `<img class="review-photo-thumb" src="${escapeHtml(p.thumb)}" data-original="${escapeHtml(p.original)}" alt="">`
       ).join('');
       const item = document.createElement('div');
       item.className = 'review-item';
       item.innerHTML = `
         <div class="review-item-header">
           ${d.avatarUrl
-            ? `<img class="review-avatar" src="${d.avatarUrl}" data-uid="${d.uid}" alt="">`
+            ? `<img class="review-avatar" src="${escapeHtml(d.avatarUrl)}" data-uid="${d.uid}" alt="">`
             : `<div class="review-avatar-placeholder" data-uid="${d.uid}">👤</div>`}
           <div class="review-meta">
             <div class="review-name" data-uid="${d.uid}">${escapeHtml(d.displayName || '匿名')}</div>
@@ -163,7 +163,7 @@ async function loadReviews(shopId, panel, append = false) {
           </div>
         </div>
         ${d.text ? `<div class="review-text">${escapeHtml(d.text)}</div>` : ''}
-        ${d.photos?.length ? `<div class="review-photos" data-photo-date="${d.photoDate || ''}">${photosHtml}</div>` : ''}`;
+        ${d.photos?.length ? `<div class="review-photos" data-photo-date="${escapeHtml(d.photoDate || '')}">${photosHtml}</div>` : ''}`;
 
       // 留言區
       const commentsEl = document.createElement('div');
@@ -554,7 +554,7 @@ async function loadReviewsFeedPage(page = 1) {
         : '';
       const stars = '★'.repeat(d.rating || 0) + '☆'.repeat(5 - (d.rating || 0));
       const photosHtml = (d.photos || []).slice(0, 5).map(p =>
-        `<img class="rf-thumb" src="${p.thumb}" data-original="${p.original}" alt="" loading="lazy">`
+        `<img class="rf-thumb" src="${escapeHtml(p.thumb)}" data-original="${escapeHtml(p.original)}" alt="" loading="lazy">`
       ).join('');
 
       const card = document.createElement('div');
@@ -563,7 +563,7 @@ async function loadReviewsFeedPage(page = 1) {
       card.innerHTML = `
         <div class="rf-card-header">
           ${d.avatarUrl
-            ? `<img class="rf-avatar" src="${d.avatarUrl}" data-uid="${d.uid}" alt="">`
+            ? `<img class="rf-avatar" src="${escapeHtml(d.avatarUrl)}" data-uid="${d.uid}" alt="">`
             : `<div class="rf-avatar-ph" data-uid="${d.uid}">👤</div>`}
           <div class="rf-user-info">
             <span class="rf-username" data-uid="${d.uid}">${escapeHtml(d.displayName || '匿名')}</span>
@@ -575,7 +575,7 @@ async function loadReviewsFeedPage(page = 1) {
           </div>
         </div>
         ${d.text ? `<div class="rf-text">${escapeHtml(d.text)}</div>` : ''}
-        ${photosHtml ? `<div class="rf-photos" data-photo-date="${d.photoDate || ''}">${photosHtml}</div>` : ''}
+        ${photosHtml ? `<div class="rf-photos" data-photo-date="${escapeHtml(d.photoDate || '')}">${photosHtml}</div>` : ''}
         <span class="rf-unread-dot"></span>`;
 
       const rfThumbs    = [...card.querySelectorAll('.rf-thumb')];

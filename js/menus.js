@@ -65,8 +65,8 @@ async function loadShopMenu(shop, panel, append = false) {
       const d = doc.data();
       const thumb = document.createElement('div');
       thumb.className = 'mnu-thumb';
-      thumb.innerHTML = `<img src="${d.photo?.thumb || d.photo?.original}" alt="菜單" loading="lazy">
-        ${d.photoDate ? `<span class="mnu-date-badge">${d.photoDate}</span>` : ''}`;
+      thumb.innerHTML = `<img src="${escapeHtml(d.photo?.thumb || d.photo?.original || '')}" alt="菜單" loading="lazy">
+        ${d.photoDate ? `<span class="mnu-date-badge">${escapeHtml(d.photoDate)}</span>` : ''}`;
       thumb.addEventListener('click', () =>
         openPhotoViewer(allMnuUrls, idx, { date: d.photoDate || '', uid: d.uid || '', authorName: d.displayName || '匿名' })
       );
@@ -261,7 +261,7 @@ async function loadMenusFeedPage(page = 1) {
       card.className = 'mnu-card';
       card.dataset.docid = doc.id;
       card.innerHTML = `
-        <img class="mnu-photo" src="${d.photo?.thumb || d.photo?.original || ''}" data-original="${d.photo?.original || ''}" alt="" loading="lazy">
+        <img class="mnu-photo" src="${escapeHtml(d.photo?.thumb || d.photo?.original || '')}" data-original="${escapeHtml(d.photo?.original || '')}" alt="" loading="lazy">
         <div class="mnu-info">
           <span class="mnu-shop">📍 ${escapeHtml(d.shopName || '')}</span>
           <span class="mnu-date">${escapeHtml(d.photoDate || dateStr)}</span>
