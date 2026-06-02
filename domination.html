@@ -294,7 +294,7 @@ header a:hover { opacity: 1; }
     </div>
     <div class="rank-mtabs">
       <button class="rank-mtab active" data-tab="shops">已踩點店家</button>
-      <button class="rank-mtab" data-tab="full">完全制霸</button>
+      <button class="rank-mtab" data-tab="full">制霸進度</button>
       <button class="rank-mtab" data-tab="score">制霸總分</button>
     </div>
     <div class="rank-panel active" data-panel="shops">
@@ -302,7 +302,7 @@ header a:hover { opacity: 1; }
       <div class="rank-list" id="rankList-shops"></div>
     </div>
     <div class="rank-panel" data-panel="full">
-      <div class="rank-panel-desc">某鄉鎮內所有現存拉麵店皆已踩點，即算「完全制霸」，以制霸鄉鎮數排名</div>
+      <div class="rank-panel-desc">在某鄉鎮踩過至少一間拉麵店（含已關閉），且該區有現存拉麵店，即算「涉足」，以涉足鄉鎮數排名</div>
       <div class="rank-list" id="rankList-full"></div>
     </div>
     <div class="rank-panel" data-panel="score">
@@ -822,7 +822,7 @@ async function _writeDomStats(uid, conqueredCount, visitedTownsCount, fullTownsC
 // Tab 設定
 const _RANK_TABS = {
   shops: { field: 'conqueredCount',    unit: '間',  },
-  full:  { field: 'fullTownsCount',    unit: '鄉鎮' },
+  full:  { field: 'visitedTownsCount', unit: '鄉鎮' },
   score: { field: 'totalScore',        unit: '分'   },
 };
 const _tabLoaded = {};
