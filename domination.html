@@ -265,8 +265,7 @@ header a:hover { opacity: 1; }
   <div class="stats-bar" id="statsBar" style="display:none">
     <div class="stat-card"><div class="val" id="statScore">0</div><div class="lbl">制霸總分</div></div>
     <div class="stat-card"><div class="val" id="statShops">0</div><div class="lbl">已踩點店家</div></div>
-    <div class="stat-card"><div class="val" id="statTowns">0</div><div class="lbl">已涉足鄉鎮</div></div>
-    <div class="stat-card"><div class="val" id="statFull">0</div><div class="lbl">完全制霸</div></div>
+    <div class="stat-card"><div class="val" id="statFull">0</div><div class="lbl">制霸進度</div></div>
   </div>
 
   <div id="mapWrap" style="display:none">
@@ -295,17 +294,12 @@ header a:hover { opacity: 1; }
     </div>
     <div class="rank-mtabs">
       <button class="rank-mtab active" data-tab="shops">已踩點店家</button>
-      <button class="rank-mtab" data-tab="towns">已涉足鄉鎮</button>
       <button class="rank-mtab" data-tab="full">完全制霸</button>
       <button class="rank-mtab" data-tab="score">制霸總分</button>
     </div>
     <div class="rank-panel active" data-panel="shops">
       <div class="rank-panel-desc">曾在任一拉麵店踩點 1 次以上，即列入計算，以踩點店家總數排名</div>
       <div class="rank-list" id="rankList-shops"></div>
-    </div>
-    <div class="rank-panel" data-panel="towns">
-      <div class="rank-panel-desc">在某鄉鎮踩過至少一間拉麵店，即算「涉足」，以涉足鄉鎮數排名</div>
-      <div class="rank-list" id="rankList-towns"></div>
     </div>
     <div class="rank-panel" data-panel="full">
       <div class="rank-panel-desc">某鄉鎮內所有現存拉麵店皆已踩點，即算「完全制霸」，以制霸鄉鎮數排名</div>
@@ -650,8 +644,7 @@ async function loadAll(uid) {
 
     // ===== 畫地圖 =====
     renderMap(geoRes, shopsByTown, visits, townStats, stats => {
-      document.getElementById('statTowns').textContent = stats.visitedTowns;
-      document.getElementById('statFull').textContent  = stats.fullTowns + '/' + totalTownsWithShops;
+      document.getElementById('statFull').textContent  = stats.visitedTowns + '/' + totalTownsWithShops;
       // 將統計寫入 userProfiles（供排行榜查詢）
       _writeDomStats(uid, stampedShops, stats.visitedTowns, stats.fullTowns, Math.round(totalScore * 10) / 10);
     });
@@ -829,7 +822,6 @@ async function _writeDomStats(uid, conqueredCount, visitedTownsCount, fullTownsC
 // Tab 設定
 const _RANK_TABS = {
   shops: { field: 'conqueredCount',    unit: '間',  },
-  towns: { field: 'visitedTownsCount', unit: '鄉鎮' },
   full:  { field: 'fullTownsCount',    unit: '鄉鎮' },
   score: { field: 'totalScore',        unit: '分'   },
 };

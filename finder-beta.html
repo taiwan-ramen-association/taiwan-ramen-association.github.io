@@ -1931,16 +1931,6 @@
     <div class="sm-title" id="smTitle"></div>
     <button class="sm-reset-btn" id="smResetBtn">↺ 重置踩點</button>
   </div>
-  <div class="sm-option" data-status="none">
-    <div class="sm-option-icon">🙅</div>
-    <div class="sm-option-label">沒去過</div>
-    <div class="sm-option-radio"></div>
-  </div>
-  <div class="sm-option" data-status="pass">
-    <div class="sm-option-icon">🚶</div>
-    <div class="sm-option-label">路過</div>
-    <div class="sm-option-radio"></div>
-  </div>
   <div class="sm-option" data-status="once">
     <div class="sm-option-icon">🍜</div>
     <div class="sm-option-label">吃過1次</div>
@@ -2258,6 +2248,10 @@
           <span>顯示非現存店家</span>
           <span class="ios-sw"><input type="checkbox" id="sfShowNonActive"><span class="ios-knob"></span></span>
         </label>
+        <label class="sf-toggle-row" id="sfShowUnvisitedRow" style="display:none">
+          <span>只看未踩點店家</span>
+          <span class="ios-sw"><input type="checkbox" id="sfShowUnvisited"><span class="ios-knob"></span></span>
+        </label>
         <label class="sf-toggle-row">
           <span>以地圖顯示</span>
           <span class="ios-sw"><input type="checkbox" id="sfShowMap"><span class="ios-knob"></span></span>
@@ -2399,6 +2393,7 @@ let locMode          = 'none';      // 'none' | 'device' | 'custom'
 let customLocLabel   = '';          // 指定位置的地名
 let showFavOnly      = false;
 let showNonActive    = false;
+let showUnvisited    = false;
 const BD_SKIP_KEY    = 'tw-ramen-bd-skip';
 
 function serverNow() { return new Date(Date.now() + serverTimeOffset); }

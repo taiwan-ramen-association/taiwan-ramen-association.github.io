@@ -11,27 +11,26 @@
 //   toggleFav, showStampToast, valToStatus, getStampVal
 
 // ── Global state ─────────────────────────────────────────────────────────────
-// Encoding: 0=沒去過, 0.2=路過, 1=吃過1次, 2-10=吃過N次, 20=從業過
+// Encoding: 1=吃過1次, 2-10=吃過N次, 20=從業過（0/0.2 為舊資料，視為未踩點）
 var stampMap  = {};   // shopId → numeric score value
 var reviewMap = {};   // shopId → string
 var favSet    = new Set();  // 儲存 shop ID，由 Firestore 載入
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const STATUS_TO_VAL = { none: 0, pass: 0.2, once: 1, work: 20 };
-const STATUS_LABELS = { none:'沒去過', pass:'路過', once:'吃過1次', work:'從業過' };
+const STATUS_TO_VAL = { once: 1, work: 20 };
+const STATUS_LABELS = { once:'吃過1次', work:'從業過' };
 const COUNT_SUBS = ['','','好評常客！','熱愛此店！','忠實顧客！','拉麵信徒！','絕對常客！','高度上癮！','難以自拔！','快要從業了！','傳說中的常客！'];
 
 // ── Private state ─────────────────────────────────────────────────────────────
 let _stampShopId   = null;
 let _stampShopName = '';
-let _stampStatus   = 'once'; // 'none'|'pass'|'once'|'many'|'work'
+let _stampStatus   = 'once'; // 'once'|'many'|'work'
 let _stampCount    = 2;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function valToStatus(val) {
   if (val == null) return null;
-  if (val === 0)             return 'none';
-  if (val === 0.2)           return 'pass';
+  if (val === 0 || val === 0.2) return null; // 舊資料，視為未踩點
   if (val === 1)             return 'once';
   if (val >= 2 && val <= 10) return 'many';
   if (val === 20)            return 'work';

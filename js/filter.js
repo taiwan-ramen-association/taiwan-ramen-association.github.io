@@ -1,8 +1,8 @@
 // ── filter.js ────────────────────────────────────────────────────────────────
 // 搜尋篩選模組：Filter 邏輯、Search Filter Modal、Autocomplete
 // 依賴全域變數（finder.html 主 script 提供）：
-//   ALL_DATA, NON_ACTIVE_DATA, favSet
-//   showNonActive, showFavOnly, selectedCities, selectedTypes,
+//   ALL_DATA, NON_ACTIVE_DATA, favSet, stampMap
+//   showNonActive, showFavOnly, showUnvisited, selectedCities, selectedTypes,
 //   selectedDays, mealTime, isNowOpen, locEnabled, locRadius,
 //   userLat, userLng, currentView
 // 依賴全域函式：
@@ -34,7 +34,8 @@ function getFiltered() {
   const nonActiveQuery = query === '非營業' || query === '非現存';
   const source = (showNonActive || nonActiveQuery) ? [...ALL_DATA, ...NON_ACTIVE_DATA] : ALL_DATA;
   const result = source.filter(shop => {
-    if (showFavOnly && !favSet.has(shop['ID'])) return false;
+    if (showFavOnly   && !favSet.has(shop['ID'])) return false;
+    if (showUnvisited && (stampMap[shop['ID']] ?? 0) >= 1) return false;
 
     // 地區（多選 OR）
     if (selectedCities.size && !selectedCities.has(shop['縣市'])) return false;
@@ -179,6 +180,8 @@ function syncSfModal() {
   }
   const sfNonActive = document.getElementById('sfShowNonActive');
   if (sfNonActive) sfNonActive.checked = showNonActive;
+  const sfUnvisited = document.getElementById('sfShowUnvisited');
+  if (sfUnvisited) sfUnvisited.checked = showUnvisited;
   const sfMap = document.getElementById('sfShowMap');
   if (sfMap) sfMap.checked = (currentView === 'map');
 }
@@ -207,6 +210,8 @@ function applySfFilters() {
     showNonActive = sfNonActive.checked;
     if (showNonActive) { selectedDays.clear(); mealTime = ''; isNowOpen = false; }
   }
+  const sfUnvisited = document.getElementById('sfShowUnvisited');
+  if (sfUnvisited) showUnvisited = sfUnvisited.checked;
   let viewSwitched = false;
   const sfMap = document.getElementById('sfShowMap');
   if (sfMap) {
@@ -225,8 +230,9 @@ function clearSfFilters() {
   selectedDays.clear();
   mealTime     = '';
   isNowOpen    = false;
-  showNonActive = false;
-  showFavOnly   = false;
+  showNonActive  = false;
+  showFavOnly    = false;
+  showUnvisited  = false;
   document.querySelectorAll('.sf-chip.active').forEach(c => c.classList.remove('active'));
   document.querySelectorAll('#sfDayChips .sf-chip').forEach(c => { c.disabled = false; });
   const mt = document.getElementById('sfMealTime');
@@ -235,6 +241,8 @@ function clearSfFilters() {
   if (nowOpenBtn) nowOpenBtn.classList.remove('active');
   const sfNonActive = document.getElementById('sfShowNonActive');
   if (sfNonActive) sfNonActive.checked = false;
+  const sfUnvisited = document.getElementById('sfShowUnvisited');
+  if (sfUnvisited) sfUnvisited.checked = false;
   const inp = document.getElementById('searchInput');
   if (inp) inp.value = '';
   // 清除定位
@@ -276,6 +284,7 @@ function updateSfTrigger() {
     tags.push(locTag + (locRadius >= 1000 ? ' ' + locRadius/1000 + 'km' : locRadius ? ' ' + locRadius + 'm' : ''));
   }
   if (showNonActive)                    tags.push('含非現存');
+  if (showUnvisited)                    tags.push('未踩點');
 
   let count = 0;
   if (query)                            count++;
@@ -285,6 +294,7 @@ function updateSfTrigger() {
   if (selectedTypes.size)              count++;
   if (locEnabled && userLat !== null)  count++;
   if (showNonActive)                   count++;
+  if (showUnvisited)                   count++;
 
   if (tags.length) {
     if (badge)    { badge.textContent = count; badge.style.display = ''; }

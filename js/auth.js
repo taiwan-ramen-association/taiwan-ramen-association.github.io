@@ -216,6 +216,10 @@ function applyFeatureFlags() {
   const sfNonActiveRow = document.getElementById('sfNonActiveRow');
   if (sfNonActiveRow) sfNonActiveRow.style.display = canView('nonActiveShops') ? '' : 'none';
 
+  // 未踩點 toggle（登入後才顯示）
+  const sfUnvisitedRow = document.getElementById('sfShowUnvisitedRow');
+  if (sfUnvisitedRow) sfUnvisitedRow.style.display = '';
+
   // ── 漢堡選單 ──────────────────────────────────────────────────────────────
   // 新手導覽（初始 display:none）
   const resetOnboardBtn = document.getElementById('resetOnboardBtn');
@@ -343,7 +347,10 @@ auth.onAuthStateChanged(async user => {
       _localAvatarUid = null;
       favSet = new Set();
       stampMap = {}; reviewMap = {};
-      showFavOnly = false;
+      showFavOnly   = false;
+      showUnvisited = false;
+      const _sfUnvisitedRow = document.getElementById('sfShowUnvisitedRow');
+      if (_sfUnvisitedRow) _sfUnvisitedRow.style.display = 'none';
       document.getElementById('mainContent').classList.remove('fav-mode');
       if (_currentPage === 'favorites') switchPage('finder');
       closeProfileDropdown();
