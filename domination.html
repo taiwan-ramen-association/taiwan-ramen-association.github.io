@@ -338,9 +338,11 @@ let _currentUid = null;
 
 // ── GeoJSON 快取設定 ──────────────────────────────────────────────────────────
 // 需要強制使用者重新下載地圖資料時（行政區劃修正等），改版號即可清除舊快取
-const GEO_CACHE_NAME = 'dom-geo-v2';
+const GEO_CACHE_NAME = 'dom-geo-v3';            // 換現代圖資，升版號清舊快取
 const GEO_URLS = [
-  'https://cdn.jsdelivr.net/gh/g0v/twgeojson@master/json/twTown2010.geo.json',
+  // 現代鄉鎮市區（內政部圖資，2010 後；含正確「那瑪夏區」）
+  'https://cdn.jsdelivr.net/gh/ronnywang/twgeojson@master/twtown2010.4.json',
+  // fallback：舊圖資（1982），normGeo 補救舊名
   'https://cdn.jsdelivr.net/gh/g0v/twgeojson@master/json/twTown1982.geo.json',
 ];
 
@@ -357,19 +359,35 @@ function setProgress(pct, text) {
 function addProgress(delta, text) { setProgress(_prog + delta, text); }
 
 // ── GeoJSON 取得（快取優先，串流追蹤進度）────────────────────────────────────
+// 不同圖資來源欄位名不同：ronnywang 用 town/county，g0v 1982 用 TOWNNAME/COUNTYNAME。
+// 統一成 COUNTYNAME/TOWNNAME，並過濾「(海)」海域多邊形（非行政區）。
+function normalizeGeo(geo) {
+  if (!geo || !Array.isArray(geo.features)) return geo;
+  geo.features = geo.features.filter(f => {
+    const t = f.properties.TOWNNAME || f.properties.town || '';
+    return !/[（(]海[)）]/.test(t);
+  });
+  for (const f of geo.features) {
+    const p = f.properties;
+    if (p.COUNTYNAME == null) p.COUNTYNAME = p.county;
+    if (p.TOWNNAME  == null) p.TOWNNAME  = p.town;
+  }
+  return geo;
+}
+
 async function fetchGeoJSON() {
   const cache = await caches.open(GEO_CACHE_NAME);
 
   // ① 快取命中 → 直接回傳，加上等同串流的進度量
   for (const url of GEO_URLS) {
     const hit = await cache.match(url);
-    if (hit) { addProgress(60, '讀取快取地圖資料…'); return hit.json(); }
+    if (hit) { addProgress(60, '讀取快取地圖資料…'); return normalizeGeo(await hit.json()); }
   }
 
   // ② 依序嘗試 CDN，串流讀取並追蹤進度
   let lastErr;
   for (const url of GEO_URLS) {
-    try { return await _streamGeo(url, cache); }
+    try { return normalizeGeo(await _streamGeo(url, cache)); }
     catch (e) { lastErr = e; }
   }
   throw lastErr;
@@ -451,6 +469,13 @@ const _COUNTY_RENAME = {
   '高雄縣': '高雄市',
 };
 
+// ── 行政區「全名」改制（字根改變，無法由 districts.json 字根推導）──────────
+// 高雄縣三民鄉 2008 更名那瑪夏鄉、2010 改制那瑪夏區；現用 1982 圖資仍標「三民鄉」，
+// 字根「三民」會被 baseMap 誤對到高雄市「三民區」，故明確改寫，與市區三民區分離。
+const _TOWN_RENAME = {
+  '高雄縣_三民鄉': '那瑪夏區',
+};
+
 // 由 districts.json 建立的查詢結構：{ county → { set, baseMap } }
 // set：現行名稱 Set（快速確認是否已是正確名稱）
 // baseMap：字根 → 現行名稱（用於舊名推導，不限定改成「區」）
@@ -472,8 +497,11 @@ function initDistrictSets(districtsData) {
 function normGeo(countyRaw, townRaw) {
   let county = norm(countyRaw);
   let town   = norm(townRaw);
+  // 全名改制優先（字根會誤判者，如三民鄉→那瑪夏區）
+  const full = _TOWN_RENAME[county + '_' + town];
   // 縣市改名
   county = _COUNTY_RENAME[county] || county;
+  if (full) return county + '_' + full;
   // 行政區改名：若現行名稱 Set 中找不到，以字根在 baseMap 中查新名
   // 例：湖口鄉→湖口鎮、龍潭鄉→龍潭區、板橋市→板橋區
   const info = _districtSets[county];
