@@ -698,8 +698,9 @@ function renderMap(geo, shopsByTown, visits, townStats, cb) {
       const key = normGeo(d.properties.COUNTYNAME, d.properties.TOWNNAME);
       const { count, visitedCount } = townStats(key);
       const pct = count > 0 ? Math.round(visitedCount / count * 100) : 0;
+      const _sep = key.indexOf('_');
       document.getElementById('ttName').textContent =
-        d.properties.COUNTYNAME + ' ' + d.properties.TOWNNAME;
+        key.slice(0, _sep) + ' ' + key.slice(_sep + 1);
       document.getElementById('ttShops').textContent =
         count > 0 ? `拉麵店 ${count} 間` : '本區無拉麵店資料';
       document.getElementById('ttScore').textContent =
@@ -715,7 +716,8 @@ function renderMap(geo, shopsByTown, visits, townStats, cb) {
       const key = normGeo(d.properties.COUNTYNAME, d.properties.TOWNNAME);
       const stats = townStats(key);
       if (isMobile) {
-        showPanel(d.properties.COUNTYNAME, d.properties.TOWNNAME, stats);
+        const _sep2 = key.indexOf('_');
+        showPanel(key.slice(0, _sep2), key.slice(_sep2 + 1), stats);
         const now = Date.now();
         if (_lastTapKey === key && now - _lastTapTime < 450) zoomToFeature(d);
         _lastTapKey = key; _lastTapTime = now;
