@@ -246,6 +246,8 @@
       admin: 4, director: 3,
       member_individual: 2, member_group: 2, member_sponsor: 2, member_honorary: 2,
       store: 1, viewer: 1,
+      // shopRewards.rewards.forRole 的設定值（admin 後台用 all / viewer / member）
+      all: 0, member: 2,
     };
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -268,6 +270,14 @@
       return String(s ?? '').replace(/[&<>"']/g, c =>
         ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])
       );
+    }
+
+    // 本地日期 key（YYYY-MM-DD）：即時兌換獎勵每人每店每天 1 份的去重依據
+    function _localDateKey() {
+      const d = new Date();
+      return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
     }
 
     // ── Auth ──────────────────────────────────────────────────────────────────
@@ -419,8 +429,12 @@
             return now >= from && (!until || now <= until);
           });
 
+        // 即時兌換獎勵：是否今日已兌換（doc id = shopId_uid_YYYY-MM-DD）
+        const instantId = _storeShopId + '_' + uid + '_' + _localDateKey();
+        const instantDoneToday = couponsSnap.docs.some(d => d.id === instantId);
+
         const shopRewards = srSnap.exists ? srSnap.data() : null;
-        openCustomerPanel(uid, profile, coupons, shopRewards);
+        openCustomerPanel(uid, profile, coupons, shopRewards, instantDoneToday);
 
       } catch (e) {
         console.error('[scan] 查詢失敗', e);
@@ -429,7 +443,7 @@
     }
 
     // ── 顧客面板 ──────────────────────────────────────────────────────────────
-    function openCustomerPanel(uid, profile, coupons, shopRewards) {
+    function openCustomerPanel(uid, profile, coupons, shopRewards, instantDoneToday) {
       _currentUid = uid;
 
       // ⚠️ role 讀自 userProfiles（需 admin 同步，或 Phase 4 後自動寫入）
@@ -483,7 +497,9 @@
 
       // Path B：即時兌換獎勵
       html += `<div class="cp-section-title">即時兌換獎勵</div>`;
-      if (matchedRewards.length) {
+      if (instantDoneToday) {
+        html += `<div class="cp-empty">✅ 此顧客今日已兌換即時獎勵</div>`;
+      } else if (matchedRewards.length) {
         html += matchedRewards.map((r, i) => {
           const forBadge = ROLE_BADGE[r.forRole] || { label: r.forRole || '' };
           return `
@@ -518,8 +534,12 @@
             setTimeout(closeCustomerPanel, 1400);
           } catch (e) {
             console.error('[scan] 核銷失敗', e);
-            showToast('核銷失敗：' + (e.code === 'permission-denied' ? '權限不足（請確認 operators 設定）' : '請重試'), 'error');
-            allBtns.forEach(b => { b.disabled = false; });
+            const msg = e.code === 'today-redeemed'   ? '⚠ 此顧客今日已兌換過'
+                      : e.code === 'permission-denied' ? '權限不足（請確認 operators 設定 / 是否已兌換）'
+                      : '請重試';
+            showToast('核銷失敗：' + msg, 'error');
+            if (e.code === 'today-redeemed') setTimeout(closeCustomerPanel, 1400);
+            else allBtns.forEach(b => { b.disabled = false; });
           }
         });
       });
@@ -575,8 +595,16 @@
     }
 
     // Path B：直接建立 redeemed 記錄（即時兌換）
+    // 固定 doc id = shopId_uid_YYYY-MM-DD → 同顧客同店同天只能兌換 1 份（防重複核銷）
     async function _redeemPathB(customerUid, reward) {
-      await db.collection('redemptions').add({
+      const docId = _storeShopId + '_' + customerUid + '_' + _localDateKey();
+      const ref   = db.collection('redemptions').doc(docId);
+      const snap  = await ref.get();
+      if (snap.exists) {
+        const err = new Error('今日已兌換'); err.code = 'today-redeemed';
+        throw err;
+      }
+      await ref.set({
         uid:        customerUid,
         shopId:     _storeShopId,
         type:       'coupon',

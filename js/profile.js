@@ -84,6 +84,8 @@ async function initProfile(viewerUid, targetUid, isSelf, currentUser) {
   if (isSelf) {
     renderSelfActions(currentUser);
     bindSettingsModal(targetUid, profileDoc);
+    // 自助領券：登入後自動派發（背景執行，不阻塞畫面）
+    runSelfServeDispatch(viewerUid, currentUser);
   }
 }
 
@@ -743,7 +745,7 @@ async function loadCoupons(uid) {
         statusLabel = '可使用'; statusCls = 'mc-status-active';
       }
 
-      const shopName = pfEscape(shopNames[c.shopId] || c.shopId || '店家');
+      const shopName = pfEscape(c.shopName || shopNames[c.shopId] || c.shopId || '店家');
       const typeLabel = c.type === 'ticket' ? '🎫 入場券' : '🎟 兌換券';
       const validStr = c.status === 'redeemed' ? '' :
         until ? `有效至 ${until.toLocaleDateString('zh-TW')}` : '永久有效';
@@ -762,6 +764,74 @@ async function loadCoupons(uid) {
   } catch (e) {
     console.error('[profile] loadCoupons 失敗', e);
     list.innerHTML = '<div class="item-empty" style="padding:16px 0;font-size:13px">載入失敗</div>';
+  }
+}
+
+// member 以上（與 firestore.rules taskAllows 的 roleLevel>=2 對齊）
+function _pfIsMemberRole(role) {
+  return ['member_individual', 'member_group', 'member_sponsor',
+          'member_honorary', 'director', 'admin'].includes(role);
+}
+
+// 自助領券：登入後自動檢查 distributionTasks（on_login / first_register）並建立 issued 券
+// 對應 firestore.rules redemptions create 路徑 C（doc ID 固定為 {taskId}_{uid}，防重複）
+async function runSelfServeDispatch(uid, currentUser) {
+  try {
+    const snap = await db.collection('distributionTasks')
+      .where('status', '==', 'active')
+      .get();
+    if (snap.empty) return;
+
+    const now = new Date();
+    const creationStr = currentUser && currentUser.metadata && currentUser.metadata.creationTime;
+    const created = creationStr ? new Date(creationStr) : null;
+
+    for (const doc of snap.docs) {
+      const t = doc.data();
+      const trig = t.triggerType;
+      if (trig !== 'on_login' && trig !== 'first_register') continue;
+
+      // 對象：member 任務僅會員以上可領（與規則一致，先 client 過濾避免無謂寫入）
+      if (t.targetRole === 'member' && !_pfIsMemberRole(currentUserRole)) continue;
+
+      // 派發窗口（claim window）
+      const dFrom  = t.dispatchFrom?.toDate?.();
+      const dUntil = t.dispatchUntil?.toDate?.();
+      if (dFrom && now < dFrom) continue;
+      if (dUntil && now > dUntil) continue;
+
+      // 新註冊：帳號建立時間須落在派發窗口內
+      if (trig === 'first_register' && created) {
+        if (dFrom && created < dFrom) continue;
+        if (dUntil && created > dUntil) continue;
+      }
+
+      const redId = doc.id + '_' + uid;
+      const exist = await db.collection('redemptions').doc(redId).get();
+      if (exist.exists) continue; // 已領過
+
+      try {
+        await db.collection('redemptions').doc(redId).set({
+          uid,
+          shopId:     t.shopId,
+          shopName:   t.shopName || '',
+          type:       t.type || 'coupon',
+          status:     'issued',
+          item:       t.item || '',
+          issuedBy:   uid,
+          issuedAt:   firebase.firestore.FieldValue.serverTimestamp(),
+          validFrom:  t.validFrom,
+          validUntil: t.validUntil || null,
+          taskId:     doc.id,
+          source:     'self',
+        });
+      } catch (e) {
+        // 規則擋下（不符資格 / 競態已存在）→ 靜默略過
+        console.debug('[profile] 自助領券略過', doc.id, e.code || e.message);
+      }
+    }
+  } catch (e) {
+    console.warn('[profile] runSelfServeDispatch 失敗', e);
   }
 }
 
