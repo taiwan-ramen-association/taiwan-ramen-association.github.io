@@ -93,6 +93,16 @@ function renderSelfActions(user) {
   if (!selfActions) return;
   selfActions.style.display = '';
 
+  // 會員卡按鈕
+  const memberCardBtn = document.getElementById('memberCardBtn');
+  if (memberCardBtn) {
+    memberCardBtn.style.display = '';
+    memberCardBtn.addEventListener('click', () => {
+      // viewerUid / currentUserRole 是 profile.html 的全域變數
+      openMemberCardModal(viewerUid, currentUserRole);
+    });
+  }
+
   // 設定按鈕顯示
   const settingsBtn = document.getElementById('settingsBtn');
   if (settingsBtn) settingsBtn.style.display = '';
@@ -571,6 +581,187 @@ async function loadChallengesTab(uid) {
   } catch (e) {
     console.error('[profile] loadChallengesTab 失敗', e);
     pane.innerHTML = `<div class="item-empty">載入失敗：${pfEscape(e.message)}</div>`;
+  }
+}
+
+// ── 會員卡 Modal ─────────────────────────────────────────────────────────────
+const MC_TIMER_SEC = 120; // 2 分鐘
+let _mcTimerInterval  = null;
+let _mcQrGenerated    = false;
+let _mcCouponsLoaded  = false;
+let _mcInitialized    = false;
+
+const _MC_ROLE_BADGE = {
+  admin:             { label: 'ADMIN',   cls: 'admin'    },
+  director:          { label: '理事',    cls: 'director' },
+  member_individual: { label: '個人會員', cls: 'member'  },
+  member_group:      { label: '團體會員', cls: 'member'  },
+  member_sponsor:    { label: '贊助會員', cls: 'member'  },
+  member_honorary:   { label: '榮譽會員', cls: 'member'  },
+  store:             { label: '合作店家', cls: 'store'   },
+  viewer:            { label: '一般用戶', cls: 'viewer'  },
+};
+
+function openMemberCardModal(uid, role) {
+  const modal = document.getElementById('memberCardModal');
+  if (!modal) return;
+
+  // 一次性：綁定關閉事件
+  if (!_mcInitialized) {
+    _mcInitialized = true;
+    document.getElementById('mcCloseBtn')?.addEventListener('click', closeMemberCardModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeMemberCardModal(); });
+    document.getElementById('mcQrWrap')?.addEventListener('click', _mcStartTimer);
+  }
+
+  modal.classList.add('open');
+
+  // 身份徽章
+  const badge = _MC_ROLE_BADGE[role] || { label: role || '一般用戶', cls: 'viewer' };
+  const badgeEl = document.getElementById('mcRoleBadge');
+  if (badgeEl) badgeEl.innerHTML =
+    `<span class="mc-role-chip ${badge.cls}">${badge.label}</span>`;
+
+  // 產生 QR（只建一次）
+  if (!_mcQrGenerated && typeof QRCode !== 'undefined') {
+    _mcQrGenerated = true;
+    const qrEl = document.getElementById('mcQrCanvas');
+    if (qrEl) {
+      new QRCode(qrEl, {
+        text: uid, width: 200, height: 200,
+        colorDark: '#000000', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+  }
+
+  // 重置計時器並顯示 QR
+  _mcStartTimer();
+
+  // 載入券（只載入一次）
+  if (!_mcCouponsLoaded) {
+    _mcCouponsLoaded = true;
+    loadCoupons(uid);
+  }
+
+  // Page Visibility：螢幕解鎖回來 → 重置計時器
+  document.addEventListener('visibilitychange', _mcOnVisibility);
+}
+
+function closeMemberCardModal() {
+  document.getElementById('memberCardModal')?.classList.remove('open');
+  clearInterval(_mcTimerInterval);
+  document.removeEventListener('visibilitychange', _mcOnVisibility);
+}
+
+function _mcOnVisibility() {
+  if (!document.hidden) _mcStartTimer();
+}
+
+function _mcStartTimer() {
+  clearInterval(_mcTimerInterval);
+
+  // 顯示 QR（移除逾時遮罩）
+  document.getElementById('mcQrBlurOverlay')?.classList.remove('show');
+
+  let remaining = MC_TIMER_SEC;
+  const timerText = document.getElementById('mcTimerText');
+  const timerFill = document.getElementById('mcTimerFill');
+
+  const _tick = () => {
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    if (timerText) timerText.textContent =
+      `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    if (timerFill) timerFill.style.width = `${(remaining / MC_TIMER_SEC) * 100}%`;
+  };
+  _tick();
+
+  _mcTimerInterval = setInterval(() => {
+    remaining--;
+    _tick();
+    if (remaining <= 0) {
+      clearInterval(_mcTimerInterval);
+      // 逾時：顯示遮罩
+      document.getElementById('mcQrBlurOverlay')?.classList.add('show');
+    }
+  }, 1000);
+}
+
+// ── 券列表 ──────────────────────────────────────────────────────────────────
+async function loadCoupons(uid) {
+  const list = document.getElementById('mcCouponList');
+  if (!list) return;
+  try {
+    // 不加 orderBy 避免需要複合索引；client side 排序
+    const snap = await db.collection('redemptions')
+      .where('uid', '==', uid)
+      .limit(20)
+      .get();
+
+    if (!snap.docs.length) {
+      list.innerHTML = '<div class="item-empty" style="padding:16px 0;font-size:13px">尚無兌換券</div>';
+      return;
+    }
+
+    const now = new Date();
+    const coupons = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // 排序：可用 → 已過期 → 已核銷（由新到舊）
+    const _statusOrder = c => {
+      if (c.status === 'redeemed') return 2;
+      const until = c.validUntil?.toDate?.();
+      return (until && until < now) ? 1 : 0;
+    };
+    coupons.sort((a, b) => {
+      const so = _statusOrder(a) - _statusOrder(b);
+      if (so !== 0) return so;
+      const ta = a.issuedAt?.toDate?.() || new Date(0);
+      const tb = b.issuedAt?.toDate?.() || new Date(0);
+      return tb - ta;
+    });
+
+    // 讀取店家名稱（shopRewards 是 public read）
+    const shopIds = [...new Set(coupons.map(c => c.shopId).filter(Boolean))];
+    const shopNames = {};
+    await Promise.all(shopIds.map(async shopId => {
+      try {
+        const doc = await db.collection('shopRewards').doc(shopId).get();
+        shopNames[shopId] = doc.exists ? (doc.data().shopName || shopId) : shopId;
+      } catch { shopNames[shopId] = shopId; }
+    }));
+
+    list.innerHTML = coupons.map(c => {
+      const until = c.validUntil?.toDate?.();
+      const isExpired = until && until < now;
+      let statusLabel, statusCls;
+      if (c.status === 'redeemed') {
+        statusLabel = '已核銷'; statusCls = 'mc-status-redeemed';
+      } else if (isExpired) {
+        statusLabel = '已過期'; statusCls = 'mc-status-expired';
+      } else {
+        statusLabel = '可使用'; statusCls = 'mc-status-active';
+      }
+
+      const shopName = pfEscape(shopNames[c.shopId] || c.shopId || '店家');
+      const typeLabel = c.type === 'ticket' ? '🎫 入場券' : '🎟 兌換券';
+      const validStr = c.status === 'redeemed' ? '' :
+        until ? `有效至 ${until.toLocaleDateString('zh-TW')}` : '永久有效';
+
+      return `
+        <div class="mc-coupon-item">
+          <div class="mc-coupon-info">
+            <div class="mc-coupon-shop">${shopName}</div>
+            <div class="mc-coupon-desc">${typeLabel}${c.item ? '・' + pfEscape(c.item) : ''}</div>
+            ${validStr ? `<div class="mc-coupon-valid">${validStr}</div>` : ''}
+          </div>
+          <span class="mc-status-badge ${statusCls}">${statusLabel}</span>
+        </div>`;
+    }).join('');
+
+  } catch (e) {
+    console.error('[profile] loadCoupons 失敗', e);
+    list.innerHTML = '<div class="item-empty" style="padding:16px 0;font-size:13px">載入失敗</div>';
   }
 }
 

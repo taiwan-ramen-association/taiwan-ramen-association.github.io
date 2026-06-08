@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
   <!-- Firebase -->
+  <!-- QR Code 產生器（會員卡用） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -255,6 +257,91 @@
       main { padding: 24px 16px 60px; }
       .stats-row { gap: 24px; }
     }
+
+    /* ── selfActions 橫排 ── */
+    .self-actions { display: flex; gap: 6px; align-items: center; }
+
+    /* ── Member Card Modal ── */
+    .mc-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: none; align-items: flex-start; justify-content: center;
+      z-index: 1000; padding: 20px; overflow-y: auto;
+    }
+    .mc-modal.open { display: flex; }
+    .mc-box {
+      background: var(--white); border-radius: 14px; padding: 24px;
+      width: 100%; max-width: 340px; margin: auto;
+    }
+    .mc-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px;
+    }
+    .mc-header-title { font-size: 16px; font-weight: 600; color: var(--ink); }
+    .mc-close {
+      background: none; border: none; font-size: 20px; cursor: pointer;
+      color: var(--stone); padding: 0 4px; line-height: 1;
+    }
+    .mc-close:hover { color: var(--ink); }
+    /* 身份徽章 */
+    .mc-role-badge { text-align: center; margin-bottom: 16px; }
+    .mc-role-chip {
+      display: inline-block; padding: 4px 16px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; letter-spacing: 1px; color: #fff;
+    }
+    .mc-role-chip.viewer   { background: var(--stone); }
+    .mc-role-chip.store    { background: #5c7cfa; }
+    .mc-role-chip.member   { background: var(--red); }
+    .mc-role-chip.director { background: #4a4a4a; }
+    .mc-role-chip.admin    { background: #1a1a1a; }
+    /* QR 區域 */
+    .mc-qr-section { display: flex; justify-content: center; margin-bottom: 12px; }
+    .mc-qr-wrap {
+      position: relative; cursor: pointer; user-select: none;
+      border-radius: 10px; overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1); line-height: 0;
+    }
+    .mc-qr-blur-overlay {
+      position: absolute; inset: 0; display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(6px); font-size: 13px; color: var(--ink);
+      font-weight: 500; line-height: 1.4;
+    }
+    .mc-qr-blur-overlay.show { display: flex; }
+    /* 倒計時 */
+    .mc-timer-row {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+    }
+    .mc-timer-text {
+      font-size: 12px; color: var(--stone);
+      font-variant-numeric: tabular-nums; flex-shrink: 0; width: 36px;
+    }
+    .mc-timer-bar {
+      flex: 1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden;
+    }
+    .mc-timer-fill {
+      height: 100%; background: var(--red); border-radius: 2px;
+      transition: width 0.9s linear;
+    }
+    /* 券列表 */
+    .mc-coupon-section { border-top: 1px solid var(--line); padding-top: 14px; }
+    .mc-coupon-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+    .mc-coupon-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid var(--line); gap: 8px;
+    }
+    .mc-coupon-item:last-child { border-bottom: none; }
+    .mc-coupon-info { flex: 1; min-width: 0; }
+    .mc-coupon-shop { font-size: 13px; font-weight: 500; color: var(--ink); }
+    .mc-coupon-desc { font-size: 11px; color: var(--stone); margin-top: 2px; }
+    .mc-coupon-valid { font-size: 10px; color: var(--stone); margin-top: 1px; }
+    .mc-status-badge {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px;
+      flex-shrink: 0; font-weight: 500; white-space: nowrap;
+    }
+    .mc-status-active   { background: #e8f5e9; color: #2e7d32; }
+    .mc-status-redeemed { background: var(--line); color: var(--muted); }
+    .mc-status-expired  { background: #fff3e0; color: #e65100; }
   </style>
 </head>
 <body>
@@ -292,8 +379,9 @@
         <img id="profileAvatar" class="profile-avatar" src="" alt="">
         <h1 id="profileNickname" class="profile-nickname"></h1>
         <div id="profileMeta" class="profile-meta"></div>
-        <!-- 本人專用：設定按鈕（profile.js 控制顯示） -->
+        <!-- 本人專用：會員卡 + 設定按鈕（profile.js 控制顯示） -->
         <div id="selfActions" class="self-actions" style="display:none">
+          <button id="memberCardBtn" class="self-btn" style="display:none">🪪 會員卡</button>
           <button id="settingsBtn" class="settings-btn" title="設定" style="display:none">⚙ 設定</button>
         </div>
       </div>
@@ -379,6 +467,34 @@
         </div>
         <div class="settings-footer">
           <button class="settings-close" id="settingsCloseBtn">關閉</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Member Card modal -->
+    <div id="memberCardModal" class="mc-modal">
+      <div class="mc-box">
+        <div class="mc-header">
+          <span class="mc-header-title">🪪 數位會員卡</span>
+          <button id="mcCloseBtn" class="mc-close">✕</button>
+        </div>
+        <div id="mcRoleBadge" class="mc-role-badge"></div>
+        <div class="mc-qr-section">
+          <div id="mcQrWrap" class="mc-qr-wrap">
+            <div id="mcQrCanvas"></div>
+            <div id="mcQrBlurOverlay" class="mc-qr-blur-overlay">
+              <span>⏰ 已逾時</span>
+              <span style="font-size:11px;color:var(--stone)">點擊重新顯示</span>
+            </div>
+          </div>
+        </div>
+        <div class="mc-timer-row">
+          <span id="mcTimerText" class="mc-timer-text">02:00</span>
+          <div class="mc-timer-bar"><div id="mcTimerFill" class="mc-timer-fill" style="width:100%"></div></div>
+        </div>
+        <div class="mc-coupon-section">
+          <div class="mc-coupon-title">我的兌換券</div>
+          <div id="mcCouponList"><div class="item-loading">載入中…</div></div>
         </div>
       </div>
     </div>
