@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="assets/icons/03.png">
+  <title>會員掃描 | 台灣拉麵協會</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <!-- QR Scanner -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    body { min-height: 100vh; background: var(--paper); }
+    main { max-width: 480px; margin: 0 auto; padding: 40px 20px 80px; }
+
+    /* ── State boxes ── */
+    .state-box { text-align: center; padding: 80px 20px; }
+    .state-box h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; color: var(--ink); }
+    .state-box p  { font-size: 14px; color: var(--stone); line-height: 1.7; margin-bottom: 20px; }
+    .state-btn {
+      display: inline-block; padding: 10px 24px; background: var(--red);
+      color: #fff; border: none; border-radius: 8px; font-size: 14px;
+      cursor: pointer; font-family: inherit;
+    }
+
+    /* ── Main screen ── */
+    .scan-main { text-align: center; padding: 40px 0; }
+    .scan-store-name { font-size: 22px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+    .scan-user-info  { font-size: 12px; color: var(--stone); margin-bottom: 40px; }
+    .scan-btn {
+      width: 180px; height: 180px; border-radius: 50%;
+      background: var(--red); color: #fff; border: none;
+      font-size: 42px; cursor: pointer;
+      display: inline-flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 4px 24px rgba(200,39,45,0.3);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .scan-btn:hover  { transform: scale(1.04); box-shadow: 0 6px 28px rgba(200,39,45,0.4); }
+    .scan-btn:active { transform: scale(0.97); }
+    .scan-btn-label  { font-size: 14px; font-weight: 600; }
+
+    /* ── Scanner overlay（全螢幕） ── */
+    .scanner-overlay {
+      position: fixed; inset: 0; background: #000; z-index: 500;
+      display: none; flex-direction: column;
+    }
+    .scanner-overlay.open { display: flex; }
+    .scanner-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; background: rgba(0,0,0,0.75); flex-shrink: 0;
+    }
+    .scanner-title  { font-size: 16px; font-weight: 600; color: #fff; }
+    .scanner-cancel {
+      background: none; border: 1px solid rgba(255,255,255,0.5);
+      color: #fff; border-radius: 8px; padding: 6px 16px;
+      font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+    #scannerContainer { flex: 1; overflow: hidden; position: relative; }
+    /* Override html5-qrcode injection */
+    #scannerContainer video { width: 100% !important; height: 100% !important; object-fit: cover; }
+    #scannerContainer img[alt="Info icon"],
+    #scannerContainer img[alt="Camera based scan"] { display: none !important; }
+
+    /* ── Customer panel（bottom sheet） ── */
+    .cp-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      z-index: 590; display: none;
+    }
+    .cp-backdrop.open { display: block; }
+    .customer-panel {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 600;
+      background: var(--white); border-radius: 18px 18px 0 0;
+      max-height: 86vh; overflow-y: auto;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+      transform: translateY(100%); transition: transform 0.3s ease;
+    }
+    .customer-panel.open { transform: translateY(0); }
+    .cp-handle { width: 36px; height: 4px; background: var(--line); border-radius: 2px; margin: 12px auto 0; }
+    .cp-content { padding: 16px 20px 40px; }
+
+    /* 顧客身份 */
+    .cp-identity {
+      display: flex; align-items: center; gap: 12px;
+      padding-bottom: 14px; border-bottom: 1px solid var(--line); margin-bottom: 12px;
+    }
+    .cp-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: var(--line); flex-shrink: 0; }
+    .cp-name   { font-size: 18px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+    .cp-role-chip {
+      display: inline-block; padding: 3px 10px; border-radius: 12px;
+      font-size: 11px; font-weight: 600; color: #fff;
+    }
+    .cp-role-chip.viewer   { background: var(--stone); }
+    .cp-role-chip.store    { background: #5c7cfa; }
+    .cp-role-chip.member   { background: var(--red); }
+    .cp-role-chip.director { background: #4a4a4a; }
+    .cp-role-chip.admin    { background: #1a1a1a; }
+
+    /* 倒計時 */
+    .cp-timer-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+    .cp-timer-text { font-size: 11px; color: var(--stone); flex-shrink: 0; width: 28px; font-variant-numeric: tabular-nums; }
+    .cp-timer-bar  { flex: 1; height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+    .cp-timer-fill { height: 100%; background: var(--red); border-radius: 2px; transition: width 0.9s linear; }
+
+    /* Section */
+    .cp-section-title {
+      font-size: 11px; font-weight: 600; color: var(--stone);
+      letter-spacing: 1.5px; text-transform: uppercase; margin: 16px 0 8px;
+    }
+
+    /* 券 / 獎勵項目 */
+    .cp-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px;
+      margin-bottom: 8px; gap: 10px;
+    }
+    .cp-item-info { flex: 1; min-width: 0; }
+    .cp-item-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+    .cp-item-sub  { font-size: 11px; color: var(--stone); margin-top: 3px; }
+    .cp-redeem-btn {
+      padding: 8px 18px; background: var(--red); color: #fff;
+      border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit; flex-shrink: 0;
+    }
+    .cp-redeem-btn:disabled { opacity: 0.5; cursor: default; }
+    .cp-empty { text-align: center; padding: 16px 0; font-size: 13px; color: var(--stone); }
+
+    /* Toast */
+    .sc-toast {
+      position: fixed; bottom: 36px; left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: #1a1a1a; color: #fff;
+      padding: 10px 22px; border-radius: 10px;
+      font-size: 14px; font-weight: 500; z-index: 800;
+      opacity: 0; transition: opacity 0.2s, transform 0.2s;
+      white-space: nowrap; pointer-events: none;
+    }
+    .sc-toast.show    { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .sc-toast.success { background: #2e7d32; }
+    .sc-toast.error   { background: #c62828; }
+
+    @media (max-width: 400px) {
+      .scan-btn { width: 156px; height: 156px; font-size: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="index.html" class="nav-logo">台灣<span>拉麵</span>協會</a>
+    <button id="navLogoutBtn" class="nav-back" style="display:none;background:none;border:none;cursor:pointer;font-size:13px;color:var(--stone)">登出</button>
+  </nav>
+
+  <main>
+    <!-- 載入中 -->
+    <div id="scLoading" class="state-box">
+      <p style="color:var(--stone)">載入中…</p>
+    </div>
+
+    <!-- 未登入 -->
+    <div id="scNotLoggedIn" class="state-box" style="display:none">
+      <h2>請先登入</h2>
+      <p>此功能需要具掃描資格的帳號登入</p>
+      <button class="state-btn" id="scLoginBtn">使用 Google 帳號登入</button>
+    </div>
+
+    <!-- 無權限 -->
+    <div id="scNoPerm" class="state-box" style="display:none">
+      <h2>🚫 無權限</h2>
+      <p>此功能僅限具掃描資格的帳號使用<br>（store、團體會員、admin）<br><br>如有問題請聯絡管理員</p>
+    </div>
+
+    <!-- 未設定 shopId -->
+    <div id="scNoShopId" class="state-box" style="display:none">
+      <h2>⚙ 尚未設定店家 ID</h2>
+      <p>請聯絡管理員為此帳號設定對應的店家 ID</p>
+    </div>
+
+    <!-- 主畫面 -->
+    <div id="scMain" class="scan-main" style="display:none">
+      <div class="scan-store-name" id="scStoreName">—</div>
+      <div class="scan-user-info"  id="scUserInfo"></div>
+      <button class="scan-btn" id="scScanBtn">
+        <span>📷</span>
+        <span class="scan-btn-label">開始掃描</span>
+      </button>
+    </div>
+  </main>
+
+  <!-- Scanner overlay -->
+  <div id="scannerOverlay" class="scanner-overlay">
+    <div class="scanner-header">
+      <span class="scanner-title">掃描顧客 QR Code</span>
+      <button class="scanner-cancel" id="scCancelBtn">取消</button>
+    </div>
+    <div id="scannerContainer"></div>
+  </div>
+
+  <!-- Customer panel backdrop -->
+  <div id="cpBackdrop" class="cp-backdrop"></div>
+
+  <!-- Customer panel -->
+  <div id="customerPanel" class="customer-panel">
+    <div class="cp-handle"></div>
+    <div class="cp-content" id="cpContent"></div>
+  </div>
+
+  <!-- Toast -->
+  <div id="scToast" class="sc-toast"></div>
+
+  <script>
+    // ── Firebase init ─────────────────────────────────────────────────────────
+    const firebaseConfig = {
+      apiKey:            'AIzaSyBdN0AYZMM2AU66QcH4BVNJHx1plwQBBYc',
+      authDomain:        'taiwan-ramen-association.web.app',
+      projectId:         'taiwan-ramen-association',
+      storageBucket:     'taiwan-ramen-association.firebasestorage.app',
+      messagingSenderId: '66234065738',
+      appId:             '1:66234065738:web:eb9fc4348a942da66ad7b3',
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
+
+    // ── Constants ─────────────────────────────────────────────────────────────
+    const SCANNER_ROLES    = ['store', 'member_group', 'admin'];
+    const PANEL_TIMEOUT    = 60; // 秒
+
+    const ROLE_BADGE = {
+      admin:             { label: 'ADMIN',    cls: 'admin'    },
+      director:          { label: '理事',     cls: 'director' },
+      member_individual: { label: '個人會員', cls: 'member'   },
+      member_group:      { label: '團體會員', cls: 'member'   },
+      member_sponsor:    { label: '贊助會員', cls: 'member'   },
+      member_honorary:   { label: '榮譽會員', cls: 'member'   },
+      store:             { label: '合作店家', cls: 'store'    },
+      viewer:            { label: '一般用戶', cls: 'viewer'   },
+    };
+    // 角色等級（決定顯示哪些獎勵：<=custLevel 的都顯示）
+    const ROLE_LEVEL = {
+      admin: 4, director: 3,
+      member_individual: 2, member_group: 2, member_sponsor: 2, member_honorary: 2,
+      store: 1, viewer: 1,
+    };
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let _scannerUid   = null;
+    let _storeShopId  = null;
+    let _storeShopName = null;
+    let _html5Qr      = null;
+    let _scanning     = false;
+    let _panelTimer   = null;
+    let _currentUid   = null;
+
+    // ── UI helpers ────────────────────────────────────────────────────────────
+    function showState(id) {
+      ['scLoading','scNotLoggedIn','scNoPerm','scNoShopId','scMain'].forEach(s => {
+        document.getElementById(s).style.display = s === id ? '' : 'none';
+      });
+    }
+
+    function _esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])
+      );
+    }
+
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    auth.onAuthStateChanged(async user => {
+      const logoutBtn = document.getElementById('navLogoutBtn');
+      if (!user) {
+        if (logoutBtn) logoutBtn.style.display = 'none';
+        showState('scNotLoggedIn');
+        return;
+      }
+      if (logoutBtn) logoutBtn.style.display = '';
+      _scannerUid = user.uid;
+
+      let userDoc = {};
+      try {
+        const snap = await db.collection('users').doc(user.uid).get();
+        if (snap.exists) userDoc = snap.data();
+      } catch (e) { console.error('讀取 users 失敗', e); }
+
+      const role    = userDoc.role || 'viewer';
+      const shopId  = userDoc.shopId || null;
+
+      // 角色檢查
+      if (!SCANNER_ROLES.includes(role)) { showState('scNoPerm'); return; }
+
+      // shopId 檢查（admin 可不設，用於測試）
+      if (role !== 'admin' && !shopId) { showState('scNoShopId'); return; }
+
+      _storeShopId = shopId;
+
+      // 讀店家名稱（shopRewards 是 public read）
+      if (shopId) {
+        try {
+          const srSnap = await db.collection('shopRewards').doc(shopId).get();
+          _storeShopName = srSnap.exists ? (srSnap.data().shopName || shopId) : shopId;
+        } catch { _storeShopName = shopId; }
+      } else {
+        _storeShopName = 'Admin 測試模式';
+      }
+
+      const badge = ROLE_BADGE[role] || ROLE_BADGE.viewer;
+      document.getElementById('scStoreName').textContent = _storeShopName;
+      document.getElementById('scUserInfo').textContent  =
+        badge.label + '　' + (user.displayName || user.email || '');
+      showState('scMain');
+    });
+
+    document.getElementById('scLoginBtn').addEventListener('click', () => {
+      auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+        .catch(e => alert('登入失敗：' + e.message));
+    });
+
+    document.getElementById('navLogoutBtn').addEventListener('click', async () => {
+      await auth.signOut().catch(() => {});
+      location.reload();
+    });
+
+    // ── Scanner ───────────────────────────────────────────────────────────────
+    document.getElementById('scScanBtn').addEventListener('click', openScanner);
+    document.getElementById('scCancelBtn').addEventListener('click', closeScanner);
+
+    function openScanner() {
+      document.getElementById('scannerContainer').innerHTML = ''; // 清除前次殘留
+      document.getElementById('scannerOverlay').classList.add('open');
+      _html5Qr = new Html5Qrcode('scannerContainer');
+      _scanning = true;
+
+      _html5Qr.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 240, height: 240 },
+          showTorchButtonIfSupported: false,
+        },
+        async (text) => {
+          // 掃描成功：只處理一次
+          if (!_scanning) return;
+          _scanning = false;
+          await _html5Qr.stop().catch(() => {});
+          _html5Qr = null;
+          document.getElementById('scannerOverlay').classList.remove('open');
+          handleScannedText(text.trim());
+        },
+        () => { /* 掃描持續嘗試中，忽略失敗 */ }
+      ).catch(err => {
+        _scanning = false;
+        _html5Qr  = null;
+        document.getElementById('scannerOverlay').classList.remove('open');
+        console.error('[scan] camera 錯誤:', err);
+        showToast('無法開啟相機，請確認權限', 'error');
+      });
+    }
+
+    function closeScanner() {
+      document.getElementById('scannerOverlay').classList.remove('open');
+      if (_html5Qr && _scanning) {
+        _scanning = false;
+        _html5Qr.stop().catch(() => {});
+        _html5Qr = null;
+      }
+    }
+
+    // ── 掃到 QR 後處理 ─────────────────────────────────────────────────────────
+    async function handleScannedText(uid) {
+      if (!uid) { showToast('無效的 QR 內容', 'error'); return; }
+
+      // 不能掃自己
+      if (uid === _scannerUid) {
+        showToast('⚠ 無法掃描自己的 QR', 'error');
+        return;
+      }
+
+      // Phase 6: 輪替碼 token 解析預留點
+      // const uid = parseToken(text); // TODO
+
+      try {
+        // 平行查詢：userProfiles（顧客資料）+ redemptions（預發券）+ shopRewards（即時獎勵）
+        const queries = [
+          db.collection('userProfiles').doc(uid).get(),
+          _storeShopId
+            ? db.collection('redemptions')
+                .where('uid',     '==', uid)
+                .where('shopId',  '==', _storeShopId)
+                .get()
+                .catch(e => {
+                  // 複合索引未建立時，Firestore 會丟錯並附上建立連結
+                  console.warn('[scan] redemptions 查詢失敗（可能需要建立複合索引 uid+shopId）:', e.message);
+                  return { docs: [] };
+                })
+            : Promise.resolve({ docs: [] }),
+          _storeShopId
+            ? db.collection('shopRewards').doc(_storeShopId).get()
+            : Promise.resolve({ exists: false }),
+        ];
+
+        const [profileSnap, couponsSnap, srSnap] = await Promise.all(queries);
+
+        if (!profileSnap.exists) { showToast('找不到此用戶', 'error'); return; }
+        const profile = profileSnap.data();
+
+        // 過濾：只留 issued + 有效期內的預發券
+        const now = new Date();
+        const coupons = couponsSnap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(c => {
+            if (c.status !== 'issued') return false;
+            const from  = c.validFrom?.toDate?.() || new Date(0);
+            const until = c.validUntil?.toDate?.();
+            return now >= from && (!until || now <= until);
+          });
+
+        const shopRewards = srSnap.exists ? srSnap.data() : null;
+        openCustomerPanel(uid, profile, coupons, shopRewards);
+
+      } catch (e) {
+        console.error('[scan] 查詢失敗', e);
+        showToast('查詢失敗，請重試', 'error');
+      }
+    }
+
+    // ── 顧客面板 ──────────────────────────────────────────────────────────────
+    function openCustomerPanel(uid, profile, coupons, shopRewards) {
+      _currentUid = uid;
+
+      // ⚠️ role 讀自 userProfiles（需 admin 同步，或 Phase 4 後自動寫入）
+      // 若 userProfiles 無 role 欄位，預設 viewer
+      const role   = profile.role || 'viewer';
+      const badge  = ROLE_BADGE[role] || ROLE_BADGE.viewer;
+      const custLevel = ROLE_LEVEL[role] || 0;
+
+      // Path B：依顧客等級篩選即時獎勵（roleLevel <= custLevel 的都顯示）
+      const matchedRewards = (shopRewards?.rewards || [])
+        .filter(r => (ROLE_LEVEL[r.forRole] || 0) <= custLevel);
+
+      // ── 組 HTML ──
+      let html = `
+        <div class="cp-identity">
+          <img class="cp-avatar"
+               src="${_esc(profile.avatarUrl || profile.photoURL || 'assets/icons/03.png')}"
+               onerror="this.src='assets/icons/03.png'">
+          <div>
+            <div class="cp-name">${_esc(profile.nickname || profile.displayName || '匿名用戶')}</div>
+            <span class="cp-role-chip ${badge.cls}">${badge.label}</span>
+          </div>
+        </div>
+        <div class="cp-timer-row">
+          <span class="cp-timer-text" id="cpTimerText">${PANEL_TIMEOUT}s</span>
+          <div class="cp-timer-bar">
+            <div class="cp-timer-fill" id="cpTimerFill" style="width:100%"></div>
+          </div>
+        </div>`;
+
+      // Path A：預發券
+      html += `<div class="cp-section-title">預發券</div>`;
+      if (coupons.length) {
+        html += coupons.map(c => {
+          const typeLabel = c.type === 'ticket' ? '🎫 入場券' : '🎟 兌換券';
+          const validStr  = c.validUntil
+            ? '　有效至 ' + c.validUntil.toDate().toLocaleDateString('zh-TW')
+            : '';
+          return `
+            <div class="cp-item">
+              <div class="cp-item-info">
+                <div class="cp-item-name">${_esc(c.item || '兌換券')}</div>
+                <div class="cp-item-sub">${typeLabel}${_esc(validStr)}</div>
+              </div>
+              <button class="cp-redeem-btn" data-path="A" data-coupon-id="${_esc(c.id)}">核銷</button>
+            </div>`;
+        }).join('');
+      } else {
+        html += `<div class="cp-empty">無預發券</div>`;
+      }
+
+      // Path B：即時兌換獎勵
+      html += `<div class="cp-section-title">即時兌換獎勵</div>`;
+      if (matchedRewards.length) {
+        html += matchedRewards.map((r, i) => {
+          const forBadge = ROLE_BADGE[r.forRole] || { label: r.forRole || '' };
+          return `
+            <div class="cp-item">
+              <div class="cp-item-info">
+                <div class="cp-item-name">${_esc(r.item || '獎勵')}</div>
+                <div class="cp-item-sub">${_esc(r.condition || '')}　<span style="opacity:.6">${_esc(forBadge.label)} 適用</span></div>
+              </div>
+              <button class="cp-redeem-btn" data-path="B" data-reward-idx="${i}">核銷</button>
+            </div>`;
+        }).join('');
+      } else {
+        html += `<div class="cp-empty">此店尚未設定即時獎勵</div>`;
+      }
+
+      document.getElementById('cpContent').innerHTML = html;
+
+      // 綁定核銷按鈕
+      document.getElementById('cpContent').querySelectorAll('.cp-redeem-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          _resetPanelTimer();
+          const allBtns = document.querySelectorAll('.cp-redeem-btn');
+          allBtns.forEach(b => { b.disabled = true; });
+          try {
+            if (btn.dataset.path === 'A') {
+              await _redeemPathA(btn.dataset.couponId);
+            } else {
+              const idx    = parseInt(btn.dataset.rewardIdx, 10);
+              await _redeemPathB(uid, matchedRewards[idx]);
+            }
+            showToast('✅ 核銷成功！', 'success');
+            setTimeout(closeCustomerPanel, 1400);
+          } catch (e) {
+            console.error('[scan] 核銷失敗', e);
+            showToast('核銷失敗：' + (e.code === 'permission-denied' ? '權限不足（請確認 operators 設定）' : '請重試'), 'error');
+            allBtns.forEach(b => { b.disabled = false; });
+          }
+        });
+      });
+
+      // 面板內任何點擊重置計時器
+      document.getElementById('customerPanel')
+        .addEventListener('click', _resetPanelTimer, { passive: true });
+
+      // 顯示面板
+      document.getElementById('cpBackdrop').classList.add('open');
+      document.getElementById('customerPanel').classList.add('open');
+      _startPanelTimer();
+    }
+
+    function closeCustomerPanel() {
+      clearInterval(_panelTimer);
+      _currentUid = null;
+      document.getElementById('cpBackdrop').classList.remove('open');
+      document.getElementById('customerPanel').classList.remove('open');
+    }
+
+    document.getElementById('cpBackdrop').addEventListener('click', closeCustomerPanel);
+
+    // ── 計時器 ────────────────────────────────────────────────────────────────
+    function _startPanelTimer() {
+      clearInterval(_panelTimer);
+      let remaining = PANEL_TIMEOUT;
+      const text = () => document.getElementById('cpTimerText');
+      const fill = () => document.getElementById('cpTimerFill');
+      _panelTimer = setInterval(() => {
+        remaining--;
+        if (text()) text().textContent = remaining + 's';
+        if (fill())  fill().style.width = `${(remaining / PANEL_TIMEOUT) * 100}%`;
+        if (remaining <= 0) {
+          clearInterval(_panelTimer);
+          closeCustomerPanel();
+        }
+      }, 1000);
+    }
+
+    function _resetPanelTimer() {
+      if (_currentUid) _startPanelTimer();
+    }
+
+    // ── 核銷 ──────────────────────────────────────────────────────────────────
+    // Path A：更新預發券 issued → redeemed
+    async function _redeemPathA(couponId) {
+      await db.collection('redemptions').doc(couponId).update({
+        status:      'redeemed',
+        redeemedAt:  firebase.firestore.FieldValue.serverTimestamp(),
+        redeemedBy:  _scannerUid,
+      });
+    }
+
+    // Path B：直接建立 redeemed 記錄（即時兌換）
+    async function _redeemPathB(customerUid, reward) {
+      await db.collection('redemptions').add({
+        uid:        customerUid,
+        shopId:     _storeShopId,
+        type:       'coupon',
+        status:     'redeemed',
+        item:       reward.item || '',
+        issuedBy:   _scannerUid,
+        issuedAt:   firebase.firestore.FieldValue.serverTimestamp(),
+        validFrom:  firebase.firestore.Timestamp.fromDate(new Date('2020-01-01')),
+        validUntil: null,
+        redeemedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        redeemedBy: _scannerUid,
+      });
+    }
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+    let _toastTimer;
+    function showToast(msg, type = '') {
+      const el = document.getElementById('scToast');
+      el.textContent = msg;
+      el.className   = 'sc-toast ' + type;
+      void el.offsetWidth; // reflow
+      el.classList.add('show');
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+    }
+  </script>
+</body>
+</html>
