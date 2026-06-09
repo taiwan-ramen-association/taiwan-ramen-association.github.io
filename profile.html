@@ -318,32 +318,71 @@
       color: var(--stone); padding: 0 4px; line-height: 1;
     }
     .mc-close:hover { color: var(--ink); }
-    /* 身份徽章 */
-    .mc-role-badge { text-align: center; margin-bottom: 16px; }
-    .mc-role-chip {
-      display: inline-block; padding: 4px 16px; border-radius: 20px;
-      font-size: 12px; font-weight: 600; letter-spacing: 1px; color: #fff;
+    /* ── 翻面會員卡 ── */
+    .mc-flip-card {
+      perspective: 1200px; cursor: pointer; user-select: none; margin-bottom: 14px;
     }
-    .mc-role-chip.viewer   { background: var(--stone); }
-    .mc-role-chip.store    { background: #5c7cfa; }
-    .mc-role-chip.member   { background: var(--red); }
-    .mc-role-chip.director { background: #4a4a4a; }
-    .mc-role-chip.admin    { background: #1a1a1a; }
-    /* QR 區域 */
-    .mc-qr-section { display: flex; justify-content: center; margin-bottom: 12px; }
-    .mc-qr-wrap {
-      position: relative; cursor: pointer; user-select: none;
-      border-radius: 10px; overflow: hidden;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.1); line-height: 0;
+    .mc-flip-inner {
+      position: relative; width: 100%; height: 200px;
+      transform-style: preserve-3d;
+      transition: transform 0.7s cubic-bezier(0.45, 0.05, 0.2, 1);
     }
+    .mc-flip-inner.flipped { transform: rotateY(180deg); }
+    .mc-card-face {
+      position: absolute; inset: 0; border-radius: 14px; overflow: hidden;
+      backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    }
+    /* 正面：金屬外框 + 深色卡面 */
+    .mc-card-front {
+      padding: 3px;
+      background: var(--mc-frame, linear-gradient(135deg,#888,#ccc,#888));
+      box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+    }
+    .mc-card-inner {
+      width: 100%; height: 100%; border-radius: 11px; padding: 16px 18px;
+      background: linear-gradient(150deg, #232428 0%, #34363b 55%, #1b1c1f 100%);
+      color: #f5f5f5; position: relative;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .mc-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .mc-card-brand { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; letter-spacing: .5px; }
+    .mc-card-logo { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+    .mc-card-tier {
+      font-size: 12px; font-weight: 700; letter-spacing: 1px; white-space: nowrap;
+      padding: 3px 11px; border-radius: 20px;
+      background: var(--mc-accent, rgba(255,255,255,.15));
+      color: var(--mc-accent-ink, #fff);
+    }
+    .mc-card-bottom { display: flex; flex-direction: column; gap: 1px; }
+    .mc-card-label { font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,.4); }
+    .mc-card-nick {
+      font-size: 21px; font-weight: 700; letter-spacing: .5px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .mc-card-hint { position: absolute; right: 16px; bottom: 13px; font-size: 11px; color: rgba(255,255,255,.5); }
+    /* 背面：QR */
+    .mc-card-back {
+      transform: rotateY(180deg); background: #fff; border: 1px solid var(--line);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    }
+    .mc-qr-canvas { line-height: 0; }
+    .mc-qr-caption { font-size: 12px; color: var(--stone); }
     .mc-qr-blur-overlay {
       position: absolute; inset: 0; display: none;
       flex-direction: column; align-items: center; justify-content: center;
-      gap: 6px; background: rgba(255,255,255,0.88);
+      gap: 6px; background: rgba(255,255,255,0.9);
       backdrop-filter: blur(6px); font-size: 13px; color: var(--ink);
       font-weight: 500; line-height: 1.4;
     }
     .mc-qr-blur-overlay.show { display: flex; }
+    /* 等級金屬外框 */
+    .mc-tier-gold     { --mc-frame: linear-gradient(135deg,#bf953f,#fcf6ba,#b38728,#fbf5b7,#aa771c); --mc-accent: linear-gradient(135deg,#d4af37,#f7ecc0); --mc-accent-ink:#5a4500; }
+    .mc-tier-silver   { --mc-frame: linear-gradient(135deg,#9a9a9a,#f5f5f5,#bcbcbc,#e8e8e8,#9a9a9a); --mc-accent: linear-gradient(135deg,#c4c4c4,#f0f0f0); --mc-accent-ink:#3a3a3a; }
+    .mc-tier-red      { --mc-frame: linear-gradient(135deg,#7a1f1f,#d64545,#9e2a2a,#e06b6b,#7a1f1f); --mc-accent:#d64545; --mc-accent-ink:#fff; }
+    .mc-tier-graphite { --mc-frame: linear-gradient(135deg,#2b2b2b,#5e5e5e,#383838,#6e6e6e,#2b2b2b); --mc-accent:#5a5a5a; --mc-accent-ink:#fff; }
+    .mc-tier-black    { --mc-frame: linear-gradient(135deg,#0a0a0a,#3a3a3a,#141414,#2c2c2c,#0a0a0a); --mc-accent:#1a1a1a; --mc-accent-ink:#fff; }
+    .mc-tier-blue     { --mc-frame: linear-gradient(135deg,#1e3a8a,#5c7cfa,#2546b8,#7d97ff,#1e3a8a); --mc-accent:#5c7cfa; --mc-accent-ink:#fff; }
+    .mc-tier-gray     { --mc-frame: linear-gradient(135deg,#6b6b6b,#a8a8a8,#7d7d7d,#9a9a9a,#6b6b6b); --mc-accent:#888; --mc-accent-ink:#fff; }
     /* 倒計時 */
     .mc-timer-row {
       display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
@@ -361,7 +400,12 @@
     }
     /* 券列表 */
     .mc-coupon-section { border-top: 1px solid var(--line); padding-top: 14px; }
-    .mc-coupon-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+    .mc-coupon-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .mc-coupon-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+    .mc-coupon-toggle {
+      background: none; border: none; color: var(--red); font-size: 12px;
+      cursor: pointer; font-family: inherit; padding: 2px 4px; white-space: nowrap;
+    }
     .mc-coupon-item {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 0; border-bottom: 1px solid var(--line); gap: 8px;
@@ -533,22 +577,45 @@
           <span class="mc-header-title">🪪 數位會員卡</span>
           <button id="mcCloseBtn" class="mc-close">✕</button>
         </div>
-        <div id="mcRoleBadge" class="mc-role-badge"></div>
-        <div class="mc-qr-section">
-          <div id="mcQrWrap" class="mc-qr-wrap">
-            <div id="mcQrCanvas"></div>
-            <div id="mcQrBlurOverlay" class="mc-qr-blur-overlay">
-              <span>⏰ 已逾時</span>
-              <span style="font-size:11px;color:var(--stone)">點擊重新顯示</span>
+        <div id="mcFlipCard" class="mc-flip-card">
+          <div id="mcFlipInner" class="mc-flip-inner">
+            <!-- 正面：會員卡 -->
+            <div id="mcCardFront" class="mc-card-face mc-card-front">
+              <div class="mc-card-inner">
+                <div class="mc-card-top">
+                  <div class="mc-card-brand">
+                    <img src="assets/icons/03.png" alt="" class="mc-card-logo">
+                    <span>台灣拉麵協會</span>
+                  </div>
+                  <span id="mcCardTier" class="mc-card-tier">會員</span>
+                </div>
+                <div class="mc-card-bottom">
+                  <div class="mc-card-label">MEMBER</div>
+                  <div id="mcCardNick" class="mc-card-nick"></div>
+                </div>
+                <div class="mc-card-hint">點一下顯示 QR ↻</div>
+              </div>
+            </div>
+            <!-- 背面：QR -->
+            <div id="mcCardBack" class="mc-card-face mc-card-back">
+              <div id="mcQrCanvas" class="mc-qr-canvas"></div>
+              <div class="mc-qr-caption">出示給店家掃描</div>
+              <div id="mcQrBlurOverlay" class="mc-qr-blur-overlay">
+                <span>⏰ 已逾時</span>
+                <span style="font-size:11px;color:var(--stone)">點擊重新顯示</span>
+              </div>
             </div>
           </div>
         </div>
-        <div class="mc-timer-row">
+        <div id="mcTimerRow" class="mc-timer-row" style="display:none">
           <span id="mcTimerText" class="mc-timer-text">02:00</span>
           <div class="mc-timer-bar"><div id="mcTimerFill" class="mc-timer-fill" style="width:100%"></div></div>
         </div>
         <div class="mc-coupon-section">
-          <div class="mc-coupon-title">我的兌換券</div>
+          <div class="mc-coupon-head">
+            <div class="mc-coupon-title">我的兌換券</div>
+            <button id="mcCouponToggle" class="mc-coupon-toggle" style="display:none"></button>
+          </div>
           <div id="mcCouponList"><div class="item-loading">載入中…</div></div>
         </div>
       </div>

@@ -82,6 +82,9 @@ async function initProfile(viewerUid, targetUid, isSelf, currentUser) {
 
   // 6. 本人 → 顯示 self-actions 區塊（Google 帳號資訊、登出、設定）
   if (isSelf) {
+    // 會員卡顯示用暱稱（不顯示編號，避免曝光註冊人數）
+    _mcNickname = profileDoc.nickname || profileDoc.displayName ||
+                  (currentUser && currentUser.displayName) || '會員';
     renderSelfActions(currentUser);
     bindSettingsModal(targetUid, profileDoc);
     // 自助領券：登入後自動派發（背景執行，不阻塞畫面）
@@ -437,6 +440,8 @@ function bindSettingsModal(uid, profile) {
         // 更新頁面上的暱稱顯示
         const nicknameEl = document.getElementById('profileNickname');
         if (nicknameEl && nickname) nicknameEl.textContent = nickname;
+        // 同步會員卡暱稱
+        if (nickname) _mcNickname = nickname;
         nickSaveBtn.textContent = '✅ 已儲存';
         setTimeout(() => { nickSaveBtn.textContent = '儲存'; }, 2000);
       } catch (e) {
@@ -642,37 +647,60 @@ let _mcTimerInterval  = null;
 let _mcQrGenerated    = false;
 let _mcCouponsLoaded  = false;
 let _mcInitialized    = false;
+let _mcFlipped        = false;   // 是否已翻面顯示 QR
+let _mcExpired        = false;   // QR 是否已逾時
+let _mcNickname       = '';      // 會員卡顯示的暱稱（由 initProfile 設定）
 
-const _MC_ROLE_BADGE = {
-  admin:             { label: 'ADMIN',   cls: 'admin'    },
-  director:          { label: '理事',    cls: 'director' },
-  member_individual: { label: '個人會員', cls: 'member'  },
-  member_group:      { label: '團體會員', cls: 'member'  },
-  member_sponsor:    { label: '贊助會員', cls: 'member'  },
-  member_honorary:   { label: '榮譽會員', cls: 'member'  },
-  store:             { label: '合作店家', cls: 'store'   },
-  viewer:            { label: '一般用戶', cls: 'viewer'  },
+// 等級 → 名片顯示文字
+const _MC_TIER_LABEL = {
+  admin:             '系統管理',
+  director:          '理事',
+  member_individual: '個人會員',
+  member_group:      '團體會員',
+  member_sponsor:    '贊助會員',
+  member_honorary:   '榮譽會員',
+  store:             '合作店家',
+  viewer:            '一般會員',
 };
+
+// 等級 → 金屬外框樣式（對應 profile.html 的 .mc-tier-* class）
+const _MC_TIER_FRAME = {
+  admin:             'black',
+  director:          'graphite',
+  member_honorary:   'gold',
+  member_sponsor:    'silver',
+  member_individual: 'red',
+  member_group:      'red',
+  store:             'blue',
+  viewer:            'gray',
+};
+const _MC_TIER_CLASSES = ['mc-tier-gold','mc-tier-silver','mc-tier-red',
+  'mc-tier-graphite','mc-tier-black','mc-tier-blue','mc-tier-gray'];
 
 function openMemberCardModal(uid, role) {
   const modal = document.getElementById('memberCardModal');
   if (!modal) return;
 
-  // 一次性：綁定關閉事件
+  // 一次性：綁定關閉與翻面事件
   if (!_mcInitialized) {
     _mcInitialized = true;
     document.getElementById('mcCloseBtn')?.addEventListener('click', closeMemberCardModal);
     modal.addEventListener('click', e => { if (e.target === modal) closeMemberCardModal(); });
-    document.getElementById('mcQrWrap')?.addEventListener('click', _mcStartTimer);
+    document.getElementById('mcFlipCard')?.addEventListener('click', _mcCardClick);
   }
 
   modal.classList.add('open');
 
-  // 身份徽章
-  const badge = _MC_ROLE_BADGE[role] || { label: role || '一般用戶', cls: 'viewer' };
-  const badgeEl = document.getElementById('mcRoleBadge');
-  if (badgeEl) badgeEl.innerHTML =
-    `<span class="mc-role-chip ${badge.cls}">${badge.label}</span>`;
+  // 名片正面：等級外框 + 等級文字 + 暱稱
+  const front = document.getElementById('mcCardFront');
+  if (front) {
+    front.classList.remove(..._MC_TIER_CLASSES);
+    front.classList.add('mc-tier-' + (_MC_TIER_FRAME[role] || 'gray'));
+  }
+  const tierEl = document.getElementById('mcCardTier');
+  if (tierEl) tierEl.textContent = _MC_TIER_LABEL[role] || '會員';
+  const nickEl = document.getElementById('mcCardNick');
+  if (nickEl) nickEl.textContent = _mcNickname || '會員';
 
   // 產生 QR（只建一次）
   if (!_mcQrGenerated && typeof QRCode !== 'undefined') {
@@ -680,15 +708,15 @@ function openMemberCardModal(uid, role) {
     const qrEl = document.getElementById('mcQrCanvas');
     if (qrEl) {
       new QRCode(qrEl, {
-        text: uid, width: 200, height: 200,
+        text: uid, width: 150, height: 150,
         colorDark: '#000000', colorLight: '#ffffff',
         correctLevel: QRCode.CorrectLevel.M
       });
     }
   }
 
-  // 重置計時器並顯示 QR
-  _mcStartTimer();
+  // 每次開啟都回到正面（名片），QR 與計時器待點擊翻面後才啟動
+  _mcShowFront();
 
   // 載入券（只載入一次）
   if (!_mcCouponsLoaded) {
@@ -696,22 +724,52 @@ function openMemberCardModal(uid, role) {
     loadCoupons(uid);
   }
 
-  // Page Visibility：螢幕解鎖回來 → 重置計時器
+  // Page Visibility：螢幕解鎖回來且正在顯示 QR → 重置計時器
   document.addEventListener('visibilitychange', _mcOnVisibility);
 }
 
 function closeMemberCardModal() {
   document.getElementById('memberCardModal')?.classList.remove('open');
   clearInterval(_mcTimerInterval);
+  _mcShowFront();
   document.removeEventListener('visibilitychange', _mcOnVisibility);
 }
 
 function _mcOnVisibility() {
-  if (!document.hidden) _mcStartTimer();
+  if (!document.hidden && _mcFlipped) _mcStartTimer();
+}
+
+// 點擊卡片：正面→翻面顯示 QR；逾時→重新計時；顯示中→不動作（避免出示時誤觸隱藏）
+function _mcCardClick() {
+  if (!_mcFlipped) {
+    _mcFlipToQr();
+  } else if (_mcExpired) {
+    _mcStartTimer();
+  }
+}
+
+// 回到正面（名片）
+function _mcShowFront() {
+  _mcFlipped = false;
+  clearInterval(_mcTimerInterval);
+  document.getElementById('mcFlipInner')?.classList.remove('flipped');
+  document.getElementById('mcQrBlurOverlay')?.classList.remove('show');
+  const row = document.getElementById('mcTimerRow');
+  if (row) row.style.display = 'none';
+}
+
+// 旋轉門翻面 → 顯示 QR 並開始計時
+function _mcFlipToQr() {
+  _mcFlipped = true;
+  document.getElementById('mcFlipInner')?.classList.add('flipped');
+  const row = document.getElementById('mcTimerRow');
+  if (row) row.style.display = 'flex';
+  _mcStartTimer();
 }
 
 function _mcStartTimer() {
   clearInterval(_mcTimerInterval);
+  _mcExpired = false;
 
   // 顯示 QR（移除逾時遮罩）
   document.getElementById('mcQrBlurOverlay')?.classList.remove('show');
@@ -734,6 +792,7 @@ function _mcStartTimer() {
     _tick();
     if (remaining <= 0) {
       clearInterval(_mcTimerInterval);
+      _mcExpired = true;
       // 逾時：顯示遮罩
       document.getElementById('mcQrBlurOverlay')?.classList.add('show');
     }
@@ -757,7 +816,25 @@ async function loadCoupons(uid) {
     }
 
     const now = new Date();
-    const coupons = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const THIRTY_D = 30 * 24 * 60 * 60 * 1000;
+    let coupons = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // 前端隱藏「30 天前就已核銷／已過期」的舊紀錄（資料由後端 TTL 自動清除，這裡只是不顯示）
+    const _isStale = c => {
+      const until = c.validUntil?.toDate?.();
+      if (c.status === 'redeemed') {
+        const rd = c.redeemedAt?.toDate?.() || c.issuedAt?.toDate?.();
+        return rd ? (now - rd) > THIRTY_D : false;
+      }
+      if (until && until < now) return (now - until) > THIRTY_D; // 過期超過 30 天
+      return false; // 可用券一律保留
+    };
+    coupons = coupons.filter(c => !_isStale(c));
+
+    if (!coupons.length) {
+      list.innerHTML = '<div class="item-empty" style="padding:16px 0;font-size:13px">尚無兌換券</div>';
+      return;
+    }
 
     // 排序：可用 → 已過期 → 已核銷（由新到舊）
     const _statusOrder = c => {
@@ -773,17 +850,10 @@ async function loadCoupons(uid) {
       return tb - ta;
     });
 
-    // 讀取店家名稱（shopRewards 是 public read）
-    const shopIds = [...new Set(coupons.map(c => c.shopId).filter(Boolean))];
-    const shopNames = {};
-    await Promise.all(shopIds.map(async shopId => {
-      try {
-        const doc = await db.collection('shopRewards').doc(shopId).get();
-        shopNames[shopId] = doc.exists ? (doc.data().shopName || shopId) : shopId;
-      } catch { shopNames[shopId] = shopId; }
-    }));
+    // 店家名稱：data/data.json 的「店名」為單一真實來源（getShopMap 已快取）
+    const shopMap = await getShopMap();
 
-    list.innerHTML = coupons.map(c => {
+    const itemsHtml = coupons.map(c => {
       const until = c.validUntil?.toDate?.();
       const isExpired = until && until < now;
       let statusLabel, statusCls;
@@ -795,7 +865,7 @@ async function loadCoupons(uid) {
         statusLabel = '可使用'; statusCls = 'mc-status-active';
       }
 
-      const shopName = pfEscape(c.shopName || shopNames[c.shopId] || c.shopId || '店家');
+      const shopName = pfEscape(c.shopName || shopMap[c.shopId]?.['店名'] || c.shopId || '店家');
       const typeLabel = c.type === 'ticket' ? '🎫 入場券' : '🎟 兌換券';
       const validStr = c.status === 'redeemed' ? '' :
         until ? `有效至 ${until.toLocaleDateString('zh-TW')}` : '永久有效';
@@ -809,7 +879,32 @@ async function loadCoupons(uid) {
           </div>
           <span class="mc-status-badge ${statusCls}">${statusLabel}</span>
         </div>`;
-    }).join('');
+    });
+
+    // 預設只顯示 3 張，其餘收進可展開區塊（資料已抓回，純前端切換）
+    const SHOWN = 3;
+    list.innerHTML = itemsHtml.slice(0, SHOWN).join('') +
+      (itemsHtml.length > SHOWN
+        ? `<div id="mcCouponMore" class="mc-coupon-more" style="display:none">${itemsHtml.slice(SHOWN).join('')}</div>`
+        : '');
+
+    // 展開／收合按鈕（位於「我的兌換券」標題右側）
+    const toggle = document.getElementById('mcCouponToggle');
+    if (toggle) {
+      if (itemsHtml.length > SHOWN) {
+        toggle.style.display = '';
+        toggle.textContent = `展開（共 ${itemsHtml.length} 張）`;
+        toggle.onclick = () => {
+          const more = document.getElementById('mcCouponMore');
+          if (!more) return;
+          const open = more.style.display === 'none';
+          more.style.display = open ? '' : 'none';
+          toggle.textContent = open ? '收合' : `展開（共 ${itemsHtml.length} 張）`;
+        };
+      } else {
+        toggle.style.display = 'none';
+      }
+    }
 
   } catch (e) {
     console.error('[profile] loadCoupons 失敗', e);
@@ -874,6 +969,10 @@ async function runSelfServeDispatch(uid, currentUser) {
           validUntil: t.validUntil || null,
           taskId:     doc.id,
           source:     'self',
+          // TTL：有效期後 90 天（永久券則發出後 365 天）由 Firestore 自動刪除
+          expireAt:   t.validUntil
+            ? firebase.firestore.Timestamp.fromMillis(t.validUntil.toMillis() + 90*24*60*60*1000)
+            : firebase.firestore.Timestamp.fromDate(new Date(Date.now() + 365*24*60*60*1000)),
         });
       } catch (e) {
         // 規則擋下（不符資格 / 競態已存在）→ 靜默略過

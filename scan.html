@@ -280,6 +280,24 @@
         String(d.getDate()).padStart(2, '0');
     }
 
+    // 解析店家名稱：以 data/data.json 的「店名」為單一真實來源，其次 shopRewards.shopName，最後退回 ID
+    let _shopListCache = null;
+    async function resolveShopName(shopId) {
+      try {
+        if (!_shopListCache) {
+          const res = await fetch('data/data.json');
+          _shopListCache = await res.json();
+        }
+        const hit = _shopListCache.find(s => s.ID === shopId);
+        if (hit && hit['店名']) return hit['店名'];
+      } catch (e) { console.warn('[scan] data.json 載入失敗', e); }
+      try {
+        const srSnap = await db.collection('shopRewards').doc(shopId).get();
+        if (srSnap.exists && srSnap.data().shopName) return srSnap.data().shopName;
+      } catch (e) {}
+      return shopId;
+    }
+
     // ── Auth ──────────────────────────────────────────────────────────────────
     auth.onAuthStateChanged(async user => {
       const logoutBtn = document.getElementById('navLogoutBtn');
@@ -308,15 +326,8 @@
 
       _storeShopId = shopId;
 
-      // 讀店家名稱（shopRewards 是 public read）
-      if (shopId) {
-        try {
-          const srSnap = await db.collection('shopRewards').doc(shopId).get();
-          _storeShopName = srSnap.exists ? (srSnap.data().shopName || shopId) : shopId;
-        } catch { _storeShopName = shopId; }
-      } else {
-        _storeShopName = 'Admin 測試模式';
-      }
+      // 店家名稱：data.json 店名 → shopRewards.shopName → shopId
+      _storeShopName = shopId ? await resolveShopName(shopId) : 'Admin 測試模式';
 
       const badge = ROLE_BADGE[role] || ROLE_BADGE.viewer;
       document.getElementById('scStoreName').textContent = _storeShopName;
@@ -616,6 +627,8 @@
         validUntil: null,
         redeemedAt: firebase.firestore.FieldValue.serverTimestamp(),
         redeemedBy: _scannerUid,
+        // TTL：即時核銷紀錄保留 90 天後由 Firestore 自動刪除（防止無限堆積）
+        expireAt:   firebase.firestore.Timestamp.fromDate(new Date(Date.now() + 90*24*60*60*1000)),
       });
     }
 
