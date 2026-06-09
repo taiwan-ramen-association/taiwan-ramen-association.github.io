@@ -71,6 +71,7 @@ var featureFlags = {
   nonActiveShops: { vis: 'all',      perm: 'viewer'   },
   onboardingTour: { vis: 'viewer',   perm: 'viewer'   },
   shopPage:       { vis: 'viewer',   perm: 'viewer'   },
+  scanLink:       { vis: 'all',      perm: 'all'      },
 };
 
 const ROLE_LEVEL = { all: 0, viewer: 1, member: 2, director: 3, admin: 4 };
@@ -209,6 +210,13 @@ function applyFeatureFlags() {
   if (rkPdBtn) {
     rkPdBtn.style.display = canView('rankings') ? '' : 'none';
     rkPdBtn.classList.toggle('ff-locked', canView('rankings') && !canUse('rankings'));
+  }
+
+  // 店家掃描連結（初始 display:none）：僅掃描者角色（store/member_group/admin）且 featureFlag 開放
+  const scanLink = document.getElementById('scanLink');
+  if (scanLink) {
+    const isScannerRole = ['store', 'member_group', 'admin'].includes(currentUserRole);
+    scanLink.style.display = (isScannerRole && canView('scanLink')) ? '' : 'none';
   }
 
   // ── 搜尋過濾 Modal ────────────────────────────────────────────────────────

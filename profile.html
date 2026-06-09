@@ -99,6 +99,42 @@
       background: none; border: 1px solid var(--line); color: var(--stone);
     }
     .sf-btn.outline:hover { border-color: var(--red); color: var(--red); }
+    .sf-btn.danger { background: none; border: 1px solid #d33; color: #c00; }
+    .sf-btn.danger:hover { background: #c00; color: #fff; }
+
+    /* ── 清除所有記憶 Overlay（從 finder 搬移）── */
+    .clear-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.93);
+      z-index: 1100; display: none;
+      flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 20px;
+    }
+    .clear-overlay.show { display: flex; }
+    .clear-ov-title { color: #fff; font-size: 20px; font-weight: 700; }
+    .clear-ov-warn {
+      color: #ff6b6b; font-size: 14px; font-weight: 600;
+      text-align: center; line-height: 1.8; background: rgba(255,0,0,0.1);
+      padding: 10px 20px; border-radius: 10px; border: 1px solid rgba(255,100,100,0.3);
+      max-width: 360px;
+    }
+    .clear-ov-count {
+      font-size: 80px; font-weight: 800; color: #fff; line-height: 1;
+      font-variant-numeric: tabular-nums; min-width: 1.5ch; text-align: center;
+    }
+    .clear-ov-count.ready { color: #ff4444; }
+    .clear-ov-btns { display: flex; gap: 12px; margin-top: 4px; }
+    .clear-ov-cancel {
+      padding: 13px 32px; background: #555; color: #fff;
+      border: none; border-radius: 12px; font-size: 15px;
+      font-family: inherit; cursor: pointer; transition: background 0.15s;
+    }
+    .clear-ov-cancel:hover { background: #777; }
+    .clear-ov-confirm {
+      padding: 13px 32px; background: #cc0000; color: #fff;
+      border: none; border-radius: 12px; font-size: 15px;
+      font-family: inherit; cursor: pointer; transition: all 0.15s;
+    }
+    .clear-ov-confirm:disabled { background: #444; cursor: not-allowed; opacity: 0.5; }
+    .clear-ov-confirm:not(:disabled):hover { background: #aa0000; }
     /* 暱稱輸入框 */
     .pf-nick-input {
       width: 100%; padding: 7px 10px; border: 1.5px solid var(--line); border-radius: 7px;
@@ -382,7 +418,7 @@
         <!-- 本人專用：會員卡 + 設定按鈕（profile.js 控制顯示） -->
         <div id="selfActions" class="self-actions" style="display:none">
           <button id="memberCardBtn" class="self-btn" style="display:none">🪪 會員卡</button>
-          <button id="settingsBtn" class="settings-btn" title="設定" style="display:none">⚙ 設定</button>
+          <button id="settingsBtn" class="self-btn" title="設定" style="display:none">⚙ 設定</button>
         </div>
       </div>
 
@@ -465,9 +501,28 @@
             <span class="switch-slider"></span>
           </label>
         </div>
+        <!-- 清除我的所有記憶 -->
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label" style="color:#c00">清除我的所有記憶</div>
+            <div class="settings-row-desc">刪除收藏清單與踩點記錄，不可還原。<br>此動作僅能刪除紀錄，無法註銷帳號；若要註銷帳號請寄信至 <a href="mailto:taiwan.ramen.association@gmail.com" style="color:var(--red);text-decoration:none">taiwan.ramen.association@gmail.com</a></div>
+          </div>
+          <button id="pfClearDataBtn" class="sf-btn danger">清除</button>
+        </div>
         <div class="settings-footer">
           <button class="settings-close" id="settingsCloseBtn">關閉</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Clear All Data Overlay（清除我的所有記憶）-->
+    <div class="clear-overlay" id="clearOverlay">
+      <div class="clear-ov-title">🗑 清除所有記憶</div>
+      <div class="clear-ov-warn">收藏清單與踩點記錄將全部清除<br>⚠️ 此動作不可還原，請再次確認<br><span style="color:#ffd; font-weight:400; font-size:12px">僅刪除紀錄，無法註銷帳號；註銷請寄 taiwan.ramen.association@gmail.com</span></div>
+      <div class="clear-ov-count" id="clearCountdown">10</div>
+      <div class="clear-ov-btns">
+        <button class="clear-ov-cancel" id="clearCancelBtn">取消</button>
+        <button class="clear-ov-confirm" id="clearConfirmBtn" disabled>確認清除</button>
       </div>
     </div>
 

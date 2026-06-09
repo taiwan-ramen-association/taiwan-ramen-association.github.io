@@ -510,6 +510,56 @@ function bindSettingsModal(uid, profile) {
     }
     toggle.disabled = false;
   });
+
+  // ── 清除我的所有記憶（從 finder 搬移；10 秒倒數後才可確認）──────────────────
+  const clearBtn     = document.getElementById('pfClearDataBtn');
+  const clearOverlay = document.getElementById('clearOverlay');
+  if (clearBtn && clearOverlay) {
+    const cntEl     = document.getElementById('clearCountdown');
+    const confirmEl = document.getElementById('clearConfirmBtn');
+    const cancelEl  = document.getElementById('clearCancelBtn');
+    let _clearTimer = null;
+
+    clearBtn.addEventListener('click', () => {
+      clearOverlay.classList.add('show');
+      confirmEl.disabled = true;
+      confirmEl.textContent = '確認清除';
+      cntEl.className = 'clear-ov-count';
+      let n = 10;
+      cntEl.textContent = n;
+      clearInterval(_clearTimer);
+      _clearTimer = setInterval(() => {
+        n--;
+        cntEl.textContent = n;
+        if (n <= 0) {
+          clearInterval(_clearTimer);
+          confirmEl.disabled = false;
+          cntEl.classList.add('ready');
+        }
+      }, 1000);
+    });
+
+    cancelEl.addEventListener('click', () => {
+      clearInterval(_clearTimer);
+      clearOverlay.classList.remove('show');
+    });
+
+    confirmEl.addEventListener('click', async () => {
+      confirmEl.disabled = true; confirmEl.textContent = '清除中…';
+      try {
+        await db.collection('users').doc(uid).update({
+          favorites: firebase.firestore.FieldValue.delete()
+        });
+        await db.collection('userVisits').doc(uid).delete();
+        clearOverlay.classList.remove('show');
+        alert('✓ 所有記憶已清除');
+        location.reload();
+      } catch (e) {
+        alert('清除失敗：' + e.message);
+        confirmEl.disabled = false; confirmEl.textContent = '確認清除';
+      }
+    });
+  }
 }
 
 // ── Tab 5：挑戰 ────────────────────────────────────────────────────────────
