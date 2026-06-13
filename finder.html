@@ -272,6 +272,19 @@
     animation: spin 0.8s linear infinite;
   }
   .loading-text { font-size: 13px; color: var(--stone); }
+
+  /* ── SKELETON ── */
+  @keyframes skShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .skeleton-card { cursor: default; padding: 14px 13px; }
+  .skeleton-card .sk-line, .skeleton-card .sk-tag {
+    background: linear-gradient(90deg, var(--line) 25%, var(--paper) 50%, var(--line) 75%);
+    background-size: 200% 100%;
+    border-radius: 6px; animation: skShimmer 1.3s linear infinite;
+  }
+  .sk-title { height: 16px; width: 55%; margin-bottom: 12px; }
+  .sk-meta  { height: 12px; width: 82%; margin-bottom: 12px; }
+  .sk-tags  { display: flex; gap: 6px; }
+  .sk-tag   { height: 18px; width: 50px; border-radius: 10px; }
   .error-screen { padding: 50px 20px; text-align: center; color: var(--stone); }
   .error-screen .big { font-size: 36px; margin-bottom: 10px; }
   .error-screen p { font-size: 13px; line-height: 1.6; }
@@ -330,6 +343,30 @@
   .dist-badge {
     font-size: 11px; color: #1a73e8; background: #edf3ff;
     border-radius: 10px; padding: 1px 7px; font-weight: 500;
+  }
+
+  /* ── FILTER CHIPS ── */
+  .filter-chips {
+    display: flex; gap: 6px; padding: 8px 12px;
+    background: var(--white); border-bottom: 1px solid var(--line);
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .filter-chips::-webkit-scrollbar { display: none; }
+  .filter-chips:empty { display: none; }
+  .fchip {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 500; color: var(--red-dark);
+    background: var(--red-light); border: none;
+    border-radius: 14px; padding: 5px 9px 5px 11px; cursor: pointer;
+    white-space: nowrap; font-family: 'Noto Sans TC', sans-serif;
+    transition: opacity 0.15s;
+  }
+  .fchip:active { opacity: 0.6; }
+  .fchip-x { font-size: 12px; line-height: 1; opacity: 0.75; }
+  .fchip-clear {
+    flex-shrink: 0; font-size: 12px; color: var(--stone);
+    background: none; border: none; cursor: pointer; padding: 5px 6px;
+    white-space: nowrap; font-family: 'Noto Sans TC', sans-serif; text-decoration: underline;
   }
 
   /* ── SF MODAL ── */
@@ -608,7 +645,29 @@
   .nl-pause  { background: var(--pause-bg); color: var(--pause-txt); }
   .nl-prep   { background: var(--prep-bg);  color: var(--prep-txt); }
 
-  .card-meta { padding: 0 13px 8px; }
+  .card-meta {
+    padding: 0 13px 8px; display: flex; align-items: flex-start;
+    justify-content: space-between; gap: 8px;
+  }
+  .card-meta-main { flex: 1; min-width: 0; }
+  .card-chevron {
+    flex-shrink: 0; width: 8px; height: 8px; margin-top: 4px;
+    border-right: 2px solid var(--stone); border-bottom: 2px solid var(--stone);
+    transform: rotate(45deg); opacity: 0.45;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+  .card.expanded .card-chevron { transform: rotate(225deg); opacity: 0.85; margin-top: 7px; }
+  .now-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; line-height: 1.4;
+    padding: 2px 9px; border-radius: 10px; margin-bottom: 5px;
+  }
+  .now-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+  .now-pill.is-open           { background: var(--open-bg); color: var(--open-txt); }
+  .now-pill.is-open::before   { background: var(--open-txt); }
+  .now-pill.is-closed         { background: #f0ece6; color: var(--stone); }
+  .now-pill.is-closed::before { background: #b8ab9a; }
+  body.dark .now-pill.is-closed { background: #28221c; }
   .meta-row {
     display: flex; gap: 5px; margin-bottom: 3px;
     align-items: flex-start; font-size: 12px; color: var(--stone);
@@ -625,10 +684,15 @@
 
   /* ── EXPANDED DETAIL ── */
   .card-detail {
-    display: none; border-top: 1px solid var(--line);
+    display: grid; grid-template-rows: 0fr;
+    transition: grid-template-rows 0.28s ease;
+  }
+  .card.expanded .card-detail { grid-template-rows: 1fr; }
+  .card-detail-inner { overflow: hidden; min-height: 0; }
+  .card-detail-body {
+    border-top: 1px solid var(--line);
     padding: 11px 13px; background: var(--paper);
   }
-  .card.expanded .card-detail { display: block; }
 
   .detail-grid {
     display: grid; grid-template-columns: 1fr 1fr;
@@ -1803,6 +1867,7 @@
     <div class="sf-count">共 <strong id="resultCount">0</strong> 間</div>
   </div>
 
+  <div class="filter-chips" id="filterChips"></div>
 
 <div class="card-list" id="cardList"></div>
   <div id="mapContainer"></div>
@@ -2368,10 +2433,29 @@ let followMode   = false;
 
 
 // ── Load ───────────────────────────────────────────────────────────────────
+function renderSkeleton(n = 7) {
+  const list = document.getElementById('cardList');
+  if (!list) return;
+  let html = '';
+  for (let i = 0; i < n; i++) {
+    html += '<div class="card skeleton-card">' +
+            '<div class="sk-line sk-title"></div>' +
+            '<div class="sk-line sk-meta"></div>' +
+            '<div class="sk-tags"><span class="sk-tag"></span><span class="sk-tag"></span></div>' +
+            '</div>';
+  }
+  list.innerHTML = html;
+}
+
 async function loadData() {
-  document.getElementById('loadingScreen').style.display = 'flex';
-  document.getElementById('errorScreen').style.display   = 'none';
-  document.getElementById('mainContent').classList.remove('mc-show');
+  document.getElementById('errorScreen').style.display = 'none';
+  document.getElementById('loadingScreen').style.display = 'none';
+  // 顯示骨架卡片（取代全螢幕 spinner）
+  const mc0 = document.getElementById('mainContent');
+  mc0.classList.add('mc-show');
+  mc0.classList.remove('page-left', 'page-right');
+  mc0.classList.add('page-active');
+  renderSkeleton();
 
   loadQueueSettings();  // 非同步背景載入，不阻塞主流程
   // loadFeatureFlags() 已在 auth.js 底部於頁面解析時立即觸發（_ffReady）
@@ -2447,6 +2531,9 @@ async function loadData() {
   } catch(e) {
     console.error(e);
     document.getElementById('loadingScreen').style.display = 'none';
+    const mc1 = document.getElementById('mainContent');
+    mc1.classList.remove('mc-show', 'page-active');
+    document.getElementById('cardList').innerHTML = '';
     document.getElementById('errorScreen').style.display   = 'block';
   }
 }
@@ -2529,6 +2616,18 @@ function isOpenAt(timeStr, targetMins) {
     if (s.end > 24 * 60 && (targetMins + 24 * 60) >= s.start && (targetMins + 24 * 60) < s.end) return true;
     return false;
   });
+}
+
+// 依「現在」判斷店家是否營業中：true=營業中, false=已打烊, null=無時間資料
+function isOpenNow(shop) {
+  const now = serverNow();
+  const DAY_NAMES = ['日','一','二','三','四','五','六'];
+  const day = DAY_NAMES[now.getDay()];
+  const hasWeekData = ['一','二','三','四','五','六','日'].some(d => shop['週'+d]);
+  let hoursStr = shop['週'+day];
+  if (!hoursStr && !hasWeekData) hoursStr = shop['營業時段'];
+  if (!hoursStr) return hasWeekData ? false : null;  // 有週資料但今日空=公休；全無=未知
+  return isOpenAt(hoursStr, now.getHours() * 60 + now.getMinutes());
 }
 
 // ── Filter   → js/filter.js ─────────────────────────────────────────────────

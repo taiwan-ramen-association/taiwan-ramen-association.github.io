@@ -41,15 +41,15 @@ function renderCard(shop) {
   const mapUrl  = hasMap ? shop['Map']
     : `https://www.google.com/maps/search/${encodeURIComponent(shop['地址'] || shop['店名'])}`;
   const mapBtn  = shop['地址']
-    ? `<a href="${mapUrl}" target="_blank" class="map-btn">
+    ? `<a href="${escapeHtml(mapUrl)}" target="_blank" class="map-btn">
          <span class="map-btn-icon">📍</span>
          ${shop['地址']}
        </a>`
     : '';
 
   const links = [];
-  if (isValidUrl(shop['Instagram'])) links.push(`<a href="${shop['Instagram']}" target="_blank" class="link-btn link-ig">📷 Instagram</a>`);
-  if (isValidUrl(shop['Facebook']))  links.push(`<a href="${shop['Facebook']}"  target="_blank" class="link-btn link-fb">👥 Facebook</a>`);
+  if (isValidUrl(shop['Instagram'])) links.push(`<a href="${escapeHtml(shop['Instagram'])}" target="_blank" class="link-btn link-ig">📷 Instagram</a>`);
+  if (isValidUrl(shop['Facebook']))  links.push(`<a href="${escapeHtml(shop['Facebook'])}"  target="_blank" class="link-btn link-fb">👥 Facebook</a>`);
 
   const detailItems = [
     shop['支付方式'] ? {l:'支付', v:shop['支付方式']} : null,
@@ -64,6 +64,10 @@ function renderCard(shop) {
 
   const birthday = isBirthday(shop);
   const member   = shop['會員'] === 'Y';
+  const openNow  = typeof isOpenNow === 'function' ? isOpenNow(shop) : null;
+  const nowPill  = openNow === null ? ''
+    : openNow ? '<span class="now-pill is-open">營業中</span>'
+              : '<span class="now-pill is-closed">已打烊</span>';
   return `
   <div class="card${member ? ' member' : ''}${birthday ? ' birthday' : ''}" data-shop-id="${escapeAttr(shop['ID'] || '')}">
     <div class="card-header">
@@ -80,9 +84,13 @@ function renderCard(shop) {
       </div>
     </div>
     <div class="card-meta">
-      <div class="meta-row">
-        ${dayStr ? `<span><span class="meta-icon">📅</span><span class="meta-text">${dayStr}${hours ? '　' + hours : ''}${offDay && offDay !== '無' ? '　休：' + offDay : ''}</span></span>` : ''}
+      <div class="card-meta-main">
+        ${nowPill}
+        <div class="meta-row">
+          ${dayStr ? `<span><span class="meta-icon">📅</span><span class="meta-text">${dayStr}${hours ? '　' + hours : ''}${offDay && offDay !== '無' ? '　休：' + offDay : ''}</span></span>` : ''}
+        </div>
       </div>
+      <span class="card-chevron" aria-hidden="true"></span>
     </div>
     ${types.length || factions.length ? `
     <div class="tags">
@@ -90,6 +98,8 @@ function renderCard(shop) {
       ${factions.map(t=>`<span class="tag tag-gray">${t}</span>`).join('')}
     </div>` : ''}
     <div class="card-detail">
+      <div class="card-detail-inner">
+      <div class="card-detail-body">
       <div class="card-tabs">
         <button class="card-tab active" data-tab-target="info">資訊</button>
         ${canView('menuTab')   ? `<button class="card-tab${canUse('menuTab')   ? '' : ' ff-locked'}" data-tab-target="menu">菜單</button>`   : ''}
@@ -116,6 +126,8 @@ function renderCard(shop) {
       </div>
       <div class="card-tab-panel" data-tab-panel="reviews">
         ${canView('reviews') ? '<div class="review-loading">點擊「評論」頁籤載入…</div>' : '<p class="tab-placeholder">💬 評論功能<br>暫不開放</p>'}
+      </div>
+      </div>
       </div>
     </div>
   </div>`;

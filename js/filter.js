@@ -303,7 +303,66 @@ function updateSfTrigger() {
     if (badge)    badge.style.display = 'none';
     if (trigText) { trigText.textContent = '搜尋店名、地址、派系…'; trigText.classList.remove('has-query'); }
   }
+  renderFilterChips();
 }
+
+// ── 主畫面篩選 chip（finder.html 專用；finder-beta 無 #filterChips → 早退）────
+function renderFilterChips() {
+  const wrap = document.getElementById('filterChips');
+  if (!wrap) return;
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const query = (document.getElementById('searchInput') || {}).value?.trim() || '';
+  const chips = [];
+  if (query)               chips.push({ label: query, type: 'query' });
+  if (isNowOpen)           chips.push({ label: '🟢 現在營業中', type: 'nowOpen' });
+  if (selectedCities.size) [...selectedCities].forEach(c => chips.push({ label: c, type: 'city', value: c }));
+  if (selectedTypes.size)  [...selectedTypes].forEach(t => chips.push({ label: t, type: 'type', value: t }));
+  if (selectedDays.size && !isNowOpen)
+    chips.push({ label: '週' + ALL_DAYS.filter(d => selectedDays.has(d)).join(''), type: 'days' });
+  if (mealTime && !isNowOpen) chips.push({ label: mealTime, type: 'meal' });
+  if (locEnabled && userLat !== null) {
+    const base = locMode === 'custom' ? ('🗺️ ' + (customLocLabel || '指定位置')) : '📍 附近';
+    const r = locRadius >= 1000 ? ' ' + locRadius/1000 + 'km' : locRadius ? ' ' + locRadius + 'm' : '';
+    chips.push({ label: base + r, type: 'loc' });
+  }
+  if (showNonActive) chips.push({ label: '含非現存', type: 'nonActive' });
+  if (showUnvisited) chips.push({ label: '未踩點', type: 'unvisited' });
+
+  if (!chips.length) { wrap.innerHTML = ''; return; }
+  let html = chips.map(c =>
+    `<button class="fchip" data-ctype="${c.type}" data-cvalue="${escapeAttr(c.value || '')}">` +
+    `<span>${esc(c.label)}</span><span class="fchip-x">✕</span></button>`
+  ).join('');
+  if (chips.length > 1) html += `<button class="fchip-clear">清除全部</button>`;
+  wrap.innerHTML = html;
+}
+
+function removeFilterChip(type, value) {
+  switch (type) {
+    case 'query':     { const i = document.getElementById('searchInput'); if (i) i.value = ''; break; }
+    case 'nowOpen':   isNowOpen = false; selectedDays.clear(); mealTime = ''; break;
+    case 'city':      selectedCities.delete(value); break;
+    case 'type':      selectedTypes.delete(value); break;
+    case 'days':      selectedDays.clear(); break;
+    case 'meal':      mealTime = ''; break;
+    case 'loc':       deactivateLocate(); break;   // 內含 render()
+    case 'nonActive': showNonActive = false; break;
+    case 'unvisited': showUnvisited = false; break;
+  }
+  if (typeof syncSfModal === 'function') syncSfModal();
+  updateSfTrigger();
+  render();
+}
+
+(function () {
+  const wrap = document.getElementById('filterChips');
+  if (!wrap) return;
+  wrap.addEventListener('click', e => {
+    if (e.target.closest('.fchip-clear')) { clearSfFilters(); render(); return; }
+    const chip = e.target.closest('.fchip');
+    if (chip) removeFilterChip(chip.dataset.ctype, chip.dataset.cvalue);
+  });
+})();
 
 function toggleNowOpen() {
   isNowOpen = !isNowOpen;
