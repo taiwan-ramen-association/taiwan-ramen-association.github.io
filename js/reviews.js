@@ -8,6 +8,22 @@
 //   escapeHtml, showStampToast, canView, canUse, showAccessToast
 //   render, getShopById, openSfModal, lockScroll, unlockScroll
 
+// ── URL 白名單（XSS 第二層防護）──────────────────────────────────────────────
+// escapeHtml 擋屬性逃逸；safeUrl 再限制 URL 只能指向已知圖片來源，
+// 防止惡意 avatarUrl / 照片 URL 指向外部網址（追蹤像素洩漏瀏覽者 IP 等）。
+// 不在白名單 → 回空字串（avatar 會 fallback 成 👤 placeholder）。
+function safeUrl(u) {
+  try {
+    const url = new URL(String(u || ''));
+    if (url.protocol !== 'https:') return '';
+    const h = url.hostname;
+    const ok = h === 'firebasestorage.googleapis.com'
+            || h.endsWith('.googleusercontent.com')
+            || h.endsWith('.ggpht.com');
+    return ok ? u : '';
+  } catch { return ''; }
+}
+
 // ── Reviews System ────────────────────────────────────────────────────────────
 
 const REVIEW_MAX_PHOTOS = 5;
@@ -144,14 +160,15 @@ async function loadReviews(shopId, panel, append = false) {
       const stars = '★'.repeat(d.rating || 0) + '☆'.repeat(5 - (d.rating || 0));
       const canDel = uid === d.uid || isAdmin;
       const photosHtml = (d.photos || []).map(p =>
-        `<img class="review-photo-thumb" src="${escapeHtml(p.thumb)}" data-original="${escapeHtml(p.original)}" alt="">`
+        `<img class="review-photo-thumb" src="${escapeHtml(safeUrl(p.thumb))}" data-original="${escapeHtml(safeUrl(p.original))}" alt="">`
       ).join('');
+      const avatarUrl = safeUrl(d.avatarUrl);
       const item = document.createElement('div');
       item.className = 'review-item';
       item.innerHTML = `
         <div class="review-item-header">
-          ${d.avatarUrl
-            ? `<img class="review-avatar" src="${escapeHtml(d.avatarUrl)}" data-uid="${d.uid}" alt="">`
+          ${avatarUrl
+            ? `<img class="review-avatar" src="${escapeHtml(avatarUrl)}" data-uid="${d.uid}" alt="">`
             : `<div class="review-avatar-placeholder" data-uid="${d.uid}">👤</div>`}
           <div class="review-meta">
             <div class="review-name" data-uid="${d.uid}">${escapeHtml(d.displayName || '匿名')}</div>
@@ -475,7 +492,7 @@ let _rfCurrentPage   = 1;
 let _rfMaxPage       = 1;
 let _rfLoaded        = false;
 let _rfTab           = 'reviews'; // 'reviews' | 'menus'
-let _currentPage     = 'finder';
+var _currentPage     = 'finder';
 
 function getFeedSeen() {
   try { return new Set(JSON.parse(localStorage.getItem(RF_SEEN_KEY) || '[]')); }
@@ -554,16 +571,17 @@ async function loadReviewsFeedPage(page = 1) {
         : '';
       const stars = '★'.repeat(d.rating || 0) + '☆'.repeat(5 - (d.rating || 0));
       const photosHtml = (d.photos || []).slice(0, 5).map(p =>
-        `<img class="rf-thumb" src="${escapeHtml(p.thumb)}" data-original="${escapeHtml(p.original)}" alt="" loading="lazy">`
+        `<img class="rf-thumb" src="${escapeHtml(safeUrl(p.thumb))}" data-original="${escapeHtml(safeUrl(p.original))}" alt="" loading="lazy">`
       ).join('');
 
+      const avatarUrl = safeUrl(d.avatarUrl);
       const card = document.createElement('div');
       card.className = 'rf-card' + (isUnread ? ' unread' : '');
       card.dataset.docid = doc.id;
       card.innerHTML = `
         <div class="rf-card-header">
-          ${d.avatarUrl
-            ? `<img class="rf-avatar" src="${escapeHtml(d.avatarUrl)}" data-uid="${d.uid}" alt="">`
+          ${avatarUrl
+            ? `<img class="rf-avatar" src="${escapeHtml(avatarUrl)}" data-uid="${d.uid}" alt="">`
             : `<div class="rf-avatar-ph" data-uid="${d.uid}">👤</div>`}
           <div class="rf-user-info">
             <span class="rf-username" data-uid="${d.uid}">${escapeHtml(d.displayName || '匿名')}</span>

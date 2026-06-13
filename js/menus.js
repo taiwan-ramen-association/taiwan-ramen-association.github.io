@@ -5,7 +5,7 @@
 // 依賴全域函式：
 //   canUse, canView（feature flag 檢查）、findShopById、escapeHtml
 //   openPhotoViewer（photos.js）、showStampToast（stamps.js）
-//   compressImage、isValidPhotoDate、updateDisplayNames（reviews.js）
+//   compressImage、isValidPhotoDate、updateDisplayNames、safeUrl（reviews.js）
 // 提供全域變數：
 //   menuCache, _mnuFeedLoaded（pageReviews tab 切換用）
 // 提供全域函式：
@@ -59,13 +59,13 @@ async function loadShopMenu(shop, panel, append = false) {
     grid.className = 'mnu-grid';
     const allMnuUrls = docs.map(doc => {
       const d = doc.data();
-      return d.photo?.original || d.photo?.thumb || '';
+      return safeUrl(d.photo?.original || d.photo?.thumb || '');
     });
     docs.forEach((doc, idx) => {
       const d = doc.data();
       const thumb = document.createElement('div');
       thumb.className = 'mnu-thumb';
-      thumb.innerHTML = `<img src="${escapeHtml(d.photo?.thumb || d.photo?.original || '')}" alt="菜單" loading="lazy">
+      thumb.innerHTML = `<img src="${escapeHtml(safeUrl(d.photo?.thumb || d.photo?.original || ''))}" alt="菜單" loading="lazy">
         ${d.photoDate ? `<span class="mnu-date-badge">${escapeHtml(d.photoDate)}</span>` : ''}`;
       thumb.addEventListener('click', () =>
         openPhotoViewer(allMnuUrls, idx, { date: d.photoDate || '', uid: d.uid || '', authorName: d.displayName || '匿名' })
@@ -261,7 +261,7 @@ async function loadMenusFeedPage(page = 1) {
       card.className = 'mnu-card';
       card.dataset.docid = doc.id;
       card.innerHTML = `
-        <img class="mnu-photo" src="${escapeHtml(d.photo?.thumb || d.photo?.original || '')}" data-original="${escapeHtml(d.photo?.original || '')}" alt="" loading="lazy">
+        <img class="mnu-photo" src="${escapeHtml(safeUrl(d.photo?.thumb || d.photo?.original || ''))}" data-original="${escapeHtml(safeUrl(d.photo?.original || ''))}" alt="" loading="lazy">
         <div class="mnu-info">
           <span class="mnu-shop">📍 ${escapeHtml(d.shopName || '')}</span>
           <span class="mnu-date">${escapeHtml(d.photoDate || dateStr)}</span>

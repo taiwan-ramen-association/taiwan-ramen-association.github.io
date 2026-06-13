@@ -139,8 +139,8 @@ function renderShopPage(shop) {
 
   // Social links
   const links = [];
-  if (isValidUrl(shop['Instagram'])) links.push(`<a href="${shop['Instagram']}" target="_blank" class="link-btn link-ig">📷 Instagram</a>`);
-  if (isValidUrl(shop['Facebook']))  links.push(`<a href="${shop['Facebook']}"  target="_blank" class="link-btn link-fb">👥 Facebook</a>`);
+  if (isValidUrl(shop['Instagram'])) links.push(`<a href="${escapeHtml(shop['Instagram'])}" target="_blank" class="link-btn link-ig">📷 Instagram</a>`);
+  if (isValidUrl(shop['Facebook']))  links.push(`<a href="${escapeHtml(shop['Facebook'])}"  target="_blank" class="link-btn link-fb">👥 Facebook</a>`);
   if (links.length) {
     const linksEl = document.getElementById('shopLinksRow');
     linksEl.innerHTML = links.join('');

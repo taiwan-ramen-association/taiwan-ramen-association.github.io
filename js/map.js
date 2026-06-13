@@ -245,7 +245,7 @@ function renderMap() {
         ${dayStr ? `<div class="map-popup-meta">📅 ${dayStr}${hours ? '　' + hours : ''}</div>` : ''}
         ${shop['地址'] ? `<div class="map-popup-meta">📍 ${shop['地址']}</div>` : ''}
         ${shop['營業備註'] ? `<div class="map-popup-note">${shop['營業備註']}</div>` : ''}
-        <a href="${mapUrl}" target="_blank" class="map-popup-link">開啟 Google 地圖 →</a>
+        <a href="${escapeHtml(mapUrl)}" target="_blank" class="map-popup-link">開啟 Google 地圖 →</a>
       </div>`;
 
     L.marker([lat, lng], { icon }).bindPopup(popup, { maxWidth: 250 }).addTo(markerLayer);
