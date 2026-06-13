@@ -27,6 +27,9 @@ const GATE_MSG_NO_PERM       = IS_BETA ? '此頁面僅開放特定身份瀏覽' 
 const GATE_MSG_NOT_LOGGED_IN = IS_BETA ? '此頁面需要登入後才能瀏覽' : '此頁面暫時關閉，請稍後再試';
 const GATE_SHOW_LOGIN_BTN    = IS_BETA;  // 未登入時是否顯示登入按鈕
 
+// 跨檔共享狀態（reviews.js 亦會宣告，此處先宣告確保 auth callback 觸發前已存在）
+var _currentPage = 'finder';
+
 // ── 1. Firebase Init ─────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyBdN0AYZMM2AU66QcH4BVNJHx1plwQBBYc",
