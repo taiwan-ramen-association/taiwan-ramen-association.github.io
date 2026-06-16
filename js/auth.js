@@ -58,6 +58,7 @@ let _localAvatarUid = null;
 
 // ── 3. Role / Feature Flag State ─────────────────────────────────────────────
 var currentUserRole    = ''; // 登入後由 onAuthStateChanged 填入
+var currentShopId      = ''; // 掃描者綁定的店家 ID（store/member_group）；js/scan.js 核銷用
 var _ffReady           = null; // loadFeatureFlags() 的 Promise，供 onAuthStateChanged await
 var currentDisplayName = '';
 var currentAvatarUrl   = '';
@@ -215,11 +216,16 @@ function applyFeatureFlags() {
     rkPdBtn.classList.toggle('ff-locked', canView('rankings') && !canUse('rankings'));
   }
 
-  // 店家掃描連結（初始 display:none）：僅掃描者角色（store/member_group/admin）且 featureFlag 開放
+  // 店家掃描（初始 display:none）：僅掃描者角色（store/member_group/admin）且 featureFlag 開放
+  // 兩入口共用同條件：① profile 下拉 scanLink ② header 相機圖示 scnScanBtn（js/scan.js）
+  const isScannerRole = ['store', 'member_group', 'admin'].includes(currentUserRole);
   const scanLink = document.getElementById('scanLink');
   if (scanLink) {
-    const isScannerRole = ['store', 'member_group', 'admin'].includes(currentUserRole);
     scanLink.style.display = (isScannerRole && canView('scanLink')) ? '' : 'none';
+  }
+  const scnScanBtn = document.getElementById('scnScanBtn');
+  if (scnScanBtn) {
+    scnScanBtn.style.display = (isScannerRole && canView('scanLink')) ? '' : 'none';
   }
 
   // ── 搜尋過濾 Modal ────────────────────────────────────────────────────────
@@ -331,6 +337,7 @@ auth.onAuthStateChanged(async user => {
       adminLink.style.display   = userData.role === 'admin' ? 'flex' : 'none';
       isWarned = userData.role === 'warned';
       currentUserRole    = userData.role || 'viewer';
+      currentShopId      = userData.shopId || '';
       currentDisplayName = userData.nickname || user.displayName || '匿名';
       currentAvatarUrl   = avatar;
 
@@ -353,6 +360,7 @@ auth.onAuthStateChanged(async user => {
       userAvatar.style.display = 'none';
       isWarned = false;
       currentUserRole    = '';
+      currentShopId      = '';
       currentDisplayName = '';
       currentAvatarUrl   = '';
       _localAvatarUid = null;
