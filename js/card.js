@@ -65,13 +65,14 @@ function renderCard(shop) {
   const birthday = isBirthday(shop);
   const member   = shop['會員'] === 'Y';
   const openNow  = typeof isOpenNow === 'function' ? isOpenNow(shop) : null;
-  const nowPill  = openNow === null ? ''
+  const isActiveShop = !shop['營業狀態'] || shop['營業狀態'] === '營業中';
+  const nowPill  = (!isActiveShop || openNow === null) ? ''
     : openNow ? '<span class="now-pill is-open">營業中</span>'
               : '<span class="now-pill is-closed">已打烊</span>';
   return `
   <div class="card${member ? ' member' : ''}${birthday ? ' birthday' : ''}" data-shop-id="${escapeAttr(shop['ID'] || '')}">
     <div class="card-header">
-      <div class="card-name">${shop['店名']}${nonActiveLabel(shop['營業狀態'])}</div>
+      <div class="card-name">${shop['店名']}${nonActiveLabel(shop['營業狀態'])}${nowPill}</div>
       <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
         ${dist !== null ? `<span class="dist-badge">${formatDist(dist)}</span>` : ''}
         ${birthday ? '<span class="birthday-badge">🎂 本日壽星</span>' : ''}
@@ -85,7 +86,6 @@ function renderCard(shop) {
     </div>
     <div class="card-meta">
       <div class="card-meta-main">
-        ${nowPill}
         <div class="meta-row">
           ${dayStr ? `<span><span class="meta-icon">📅</span><span class="meta-text">${dayStr}${hours ? '　' + hours : ''}${offDay && offDay !== '無' ? '　休：' + offDay : ''}</span></span>` : ''}
         </div>
