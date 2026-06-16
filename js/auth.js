@@ -75,7 +75,7 @@ var featureFlags = {
   nonActiveShops: { vis: 'all',      perm: 'viewer'   },
   onboardingTour: { vis: 'viewer',   perm: 'viewer'   },
   shopPage:       { vis: 'viewer',   perm: 'viewer'   },
-  scanLink:       { vis: 'all',      perm: 'all'      },
+  scanLink:       { vis: 'viewer',   perm: 'viewer'   },
 };
 
 const ROLE_LEVEL = { all: 0, viewer: 1, member: 2, director: 3, admin: 4 };
@@ -216,16 +216,17 @@ function applyFeatureFlags() {
     rkPdBtn.classList.toggle('ff-locked', canView('rankings') && !canUse('rankings'));
   }
 
-  // 店家掃描（初始 display:none）：僅掃描者角色（store/member_group/admin）且 featureFlag 開放
-  // 兩入口共用同條件：① profile 下拉 scanLink ② header 相機圖示 scnScanBtn（js/scan.js）
-  const isScannerRole = ['store', 'member_group', 'admin'].includes(currentUserRole);
+  // 店家掃描（初始 display:none）：顯示純由 featureFlag scanLink 控制（vis）；角色過濾已移除
+  // 兩入口共用：① profile 下拉 scanLink ② header 相機圖示 scnScanBtn（js/scan.js）
+  // 未登入靠 scanLink 預設 viewer 擋（等級 0 < viewer，看不到也不能用）
+  const _scanVisible = canView('scanLink');
   const scanLink = document.getElementById('scanLink');
   if (scanLink) {
-    scanLink.style.display = (isScannerRole && canView('scanLink')) ? '' : 'none';
+    scanLink.style.display = _scanVisible ? '' : 'none';
   }
   const scnScanBtn = document.getElementById('scnScanBtn');
   if (scnScanBtn) {
-    scnScanBtn.style.display = (isScannerRole && canView('scanLink')) ? '' : 'none';
+    scnScanBtn.style.display = _scanVisible ? '' : 'none';
   }
 
   // ── 搜尋過濾 Modal ────────────────────────────────────────────────────────

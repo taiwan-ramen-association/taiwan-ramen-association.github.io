@@ -12,7 +12,6 @@
 // ⚠ 所有識別字加 scn / SCN 前綴，避免與 auth.js / 主 script 全域（如 ROLE_LEVEL）衝突。
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const SCN_SCANNER_ROLES = ['store', 'member_group', 'admin'];
 const SCN_PANEL_TIMEOUT = 60; // 秒
 
 const SCN_ROLE_BADGE = {
@@ -74,14 +73,11 @@ function _scnLoadQrLib() {
 
 // ── 入口：header 掃描圖示點擊 ────────────────────────────────────────────────
 async function scnStart() {
-  // double-check 權限（圖示本身已靠 featureFlag 只對掃描者顯示，此處防 race / 防直接呼叫）
+  // 權限純走 featureFlag scanLink（perm）；角色 / shopId 不再硬擋。防 race / 防直接呼叫。
   if (!auth.currentUser) { scnShowToast('請先登入', 'error'); return; }
-  if (!SCN_SCANNER_ROLES.includes(currentUserRole)) { scnShowToast('此功能僅限具掃描資格的帳號', 'error'); return; }
-  if (currentUserRole !== 'admin' && !currentShopId) {
-    scnShowToast('此帳號尚未設定店家 ID，請聯絡管理員', 'error'); return;
-  }
+  if (!canUse('scanLink')) { scnShowToast('此功能目前未開放', 'error'); return; }
   _scnScannerUid  = auth.currentUser.uid;
-  _scnStoreShopId = currentShopId || null; // admin 可無 shopId（測試模式）
+  _scnStoreShopId = currentShopId || null; // 無 shopId（非店家）→ 掃會員卡僅顯示唯讀身份、無券可核銷
 
   try { await _scnLoadQrLib(); }
   catch (e) { scnShowToast('掃描元件載入失敗，請檢查網路', 'error'); return; }
