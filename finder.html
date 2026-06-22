@@ -1405,6 +1405,9 @@
     text-decoration: none; transition: color 0.15s;
   }
   .shop-link-btn:hover { color: var(--red); }
+  .shop-link-btn.ff-locked { opacity: 0.4; cursor: not-allowed; }
+  .drawer-item.ff-locked { opacity: 0.45; cursor: not-allowed; }
+  .sf-toggle-row.ff-locked { opacity: 0.5; cursor: not-allowed; }
 
   /* ── STAMP MODAL ── */
   .stamp-backdrop {
@@ -1913,7 +1916,6 @@
     <a class="pd-action" id="myProfileLink" href="profile.html">👤 我的個人頁</a>
     <button class="pd-action" id="darkModeBtn">🌙 深色模式<span class="dark-toggle" id="darkToggle"></span></button>
     <a class="pd-action" id="dominationLink" href="domination.html" style="display:none">🗺️ 制霸地圖</a>
-    <a class="pd-action" id="scanLink" href="scan.html" style="display:none">📷 店家掃描</a>
     <a class="pd-action" id="adminLink" href="admin.html" style="display:none">⚙️ 後台管理</a>
     <button class="pd-action danger" id="logoutBtn">🚪 登出</button>
   </div>
@@ -3751,6 +3753,7 @@ document.getElementById('onboardingConfirmBtn').addEventListener('click', () => 
 });
 
 document.getElementById('resetOnboardBtn').addEventListener('click', () => {
+  if (!canUse('onboardingTour')) { showAccessToast(); return; }
   const uid = auth.currentUser?.uid;
   if (uid) localStorage.removeItem('onboarding_done_' + uid);
   document.getElementById('drawer').style.display = 'none';
@@ -3884,7 +3887,7 @@ document.getElementById('bnavFinder').addEventListener('click', () => {
   else switchPage('finder');
 });
 document.getElementById('bnavFavorites').addEventListener('click', () => {
-  if (!auth.currentUser) { showAccessToast(); return; }
+  if (!auth.currentUser || !canUse('favorites')) { showAccessToast(); return; }
   switchPage(_currentPage === 'favorites' ? 'finder' : 'favorites');
 });
 document.getElementById('bnavPosts').addEventListener('click', () => {

@@ -76,6 +76,7 @@ var featureFlags = {
   onboardingTour: { vis: 'viewer',   perm: 'viewer'   },
   shopPage:       { vis: 'viewer',   perm: 'viewer'   },
   scanLink:       { vis: 'viewer',   perm: 'viewer'   },
+  scanChallengeVerify: { vis: 'admin', perm: 'admin' },
 };
 
 const ROLE_LEVEL = { all: 0, viewer: 1, member: 2, director: 3, admin: 4 };
@@ -173,9 +174,13 @@ logoutBtn.addEventListener('click', () => {
 // ── 6. applyFeatureFlags ─────────────────────────────────────────────────────
 function applyFeatureFlags() {
   // ── Bottom Nav ────────────────────────────────────────────────────────────
-  // 收藏（初始 display:none，有權限才顯示）
+  // 收藏（初始 display:none）：vis 控顯示、perm 控鎖定（對齊 bnavChallenges / rankings）
   const bnavFavorites = document.getElementById('bnavFavorites');
-  if (bnavFavorites) bnavFavorites.style.display = canView('favorites') ? '' : 'none';
+  if (bnavFavorites) {
+    const show = canView('favorites');
+    bnavFavorites.style.display = show ? '' : 'none';
+    bnavFavorites.classList.toggle('ff-locked', show && !canUse('favorites'));
+  }
 
   // 社群貼文（初始 display:none）
   const bnavPosts = document.getElementById('bnavPosts');
@@ -216,23 +221,25 @@ function applyFeatureFlags() {
     rkPdBtn.classList.toggle('ff-locked', canView('rankings') && !canUse('rankings'));
   }
 
-  // 店家掃描（初始 display:none）：顯示純由 featureFlag scanLink 控制（vis）；角色過濾已移除
-  // 兩入口共用：① profile 下拉 scanLink ② header 相機圖示 scnScanBtn（js/scan.js）
+  // 店家掃描 header 圖示（初始 display:none）：顯示純由 featureFlag scanLink 控制（vis）
   // 未登入靠 scanLink 預設 viewer 擋（等級 0 < viewer，看不到也不能用）
-  const _scanVisible = canView('scanLink');
-  const scanLink = document.getElementById('scanLink');
-  if (scanLink) {
-    scanLink.style.display = _scanVisible ? '' : 'none';
-  }
+  // （profile 下拉的 scanLink 連結已移除，統一走 header 圖示 scnScanBtn → js/scan.js）
   const scnScanBtn = document.getElementById('scnScanBtn');
   if (scnScanBtn) {
-    scnScanBtn.style.display = _scanVisible ? '' : 'none';
+    scnScanBtn.style.display = canView('scanLink') ? '' : 'none';
   }
 
   // ── 搜尋過濾 Modal ────────────────────────────────────────────────────────
-  // 非現存店家 toggle（初始 display:none）
+  // 非現存店家 toggle（初始 display:none）：vis 控顯示、perm 控鎖定（無 perm 則 checkbox 禁用）
   const sfNonActiveRow = document.getElementById('sfNonActiveRow');
-  if (sfNonActiveRow) sfNonActiveRow.style.display = canView('nonActiveShops') ? '' : 'none';
+  if (sfNonActiveRow) {
+    const show = canView('nonActiveShops');
+    sfNonActiveRow.style.display = show ? '' : 'none';
+    const lockedNon = show && !canUse('nonActiveShops');
+    sfNonActiveRow.classList.toggle('ff-locked', lockedNon);
+    const cbNon = document.getElementById('sfShowNonActive');
+    if (cbNon) cbNon.disabled = lockedNon;
+  }
 
   // 未踩點 toggle（登入後才顯示）
   const sfUnvisitedRow = document.getElementById('sfShowUnvisitedRow');
@@ -241,7 +248,11 @@ function applyFeatureFlags() {
   // ── 漢堡選單 ──────────────────────────────────────────────────────────────
   // 新手導覽（初始 display:none）
   const resetOnboardBtn = document.getElementById('resetOnboardBtn');
-  if (resetOnboardBtn) resetOnboardBtn.style.display = canView('onboardingTour') ? '' : 'none';
+  if (resetOnboardBtn) {
+    const show = canView('onboardingTour');
+    resetOnboardBtn.style.display = show ? '' : 'none';
+    resetOnboardBtn.classList.toggle('ff-locked', show && !canUse('onboardingTour'));
+  }
 }
 
 // ── 7. Beta Gate ─────────────────────────────────────────────────────────────

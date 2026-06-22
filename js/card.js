@@ -78,7 +78,7 @@ function renderCard(shop) {
         ${birthday ? '<span class="birthday-badge">🎂 本日壽星</span>' : ''}
         ${shop['會員'] === 'Y' ? '<span class="member-badge">MEMBER SHOP</span>' : ''}
         ${isNewOpen(shop) ? '<span class="new-open-badge">NEW OPEN</span>' : ''}
-        ${canView('shopPage') ? `<a class="shop-link-btn" href="shop.html?id=${escapeAttr(shop['ID'] || '')}" target="_blank" title="店家主頁" onclick="if(typeof gtag!=='undefined')gtag('event','shop_page_open',{shop_id:'${escapeAttr(shop['ID'] || '')}',shop_name:'${escapeAttr(shop['店名'] || '')}'})">✈</a>` : ''}
+        ${canView('shopPage') ? `<a class="shop-link-btn${canUse('shopPage') ? '' : ' ff-locked'}" href="shop.html?id=${escapeAttr(shop['ID'] || '')}" target="_blank" title="店家主頁" onclick="if(typeof gtag!=='undefined')gtag('event','shop_page_open',{shop_id:'${escapeAttr(shop['ID'] || '')}',shop_name:'${escapeAttr(shop['店名'] || '')}'})">✈</a>` : ''}
         <span class="queue-badge-header" data-id="${escapeAttr(shop['ID'] || '')}" hidden></span>
         ${canView('favorites') ? `<button class="fav-btn${isWarned || !canUse('favorites') ? ' locked' : ''}" data-id="${escapeAttr(shop['ID'] || '')}">${favSet.has(shop['ID']) ? '♥' : '♡'}</button>` : ''}
         ${canView('stamps') ? `<button class="stamp-btn${isWarned || !canUse('stamps') ? ' locked' : ' can-stamp'}${(stampMap[shop['ID']] ?? 0) >= 1 ? ' stamped' : ''}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}" title="踩點">👣</button>` : ''}
@@ -263,6 +263,9 @@ function _bindCardEvents(scope) {
 
 // ── 5. ir-btn-card 事件委派（整個 cardList） ─────────────────────────────────
 document.getElementById('cardList').addEventListener('click', e => {
+  // 店家主頁連結：perm 不足（ff-locked）時攔截導頁 + 提示
+  if (e.target.closest('.shop-link-btn.ff-locked')) { e.preventDefault(); showAccessToast(); return; }
+
   const btn = e.target.closest('.ir-btn-card');
   if (!btn) return;
   if (btn.classList.contains('ff-locked')) { showAccessToast(); return; }
