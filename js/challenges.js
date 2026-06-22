@@ -29,6 +29,8 @@ function chComputeAutoTaskIds(submission, challenge) {
       // 客觀條件：shopId / shopCity 等可自動判斷
       // 主觀條件（如 soupBase）→ requiresReview=true，不在這裡 match
       if (task.requiresReview) continue;
+      // scanShop 型：靠店家掃描驗證（challengeCheckins），不由自助上傳 auto-match
+      if (cond.field === 'scanShop') continue;
       if (submission[cond.field] === cond.value) matched.push(task.id);
     }
   }
@@ -81,6 +83,20 @@ async function loadChallengesPage() {
         _chUserProgress[c.id] = { completedTaskIds: [] };
       }
     }));
+
+    // 附加：店家掃描驗證（challengeCheckins）union 進 completedTaskIds
+    // （不動審查路徑；壞了現有審查進度照常顯示）
+    try {
+      const ckSnap = await db.collection('challengeCheckins').where('uid', '==', uid).get();
+      ckSnap.docs.forEach(d => {
+        const ck = d.data();
+        if (!ck.challengeId || !ck.taskId) return;
+        const prog = _chUserProgress[ck.challengeId];
+        if (!prog) return;
+        if (!prog.completedTaskIds) prog.completedTaskIds = [];
+        if (!prog.completedTaskIds.includes(ck.taskId)) prog.completedTaskIds.push(ck.taskId);
+      });
+    } catch (e) { console.warn('[challenges] checkins 聯集失敗（不影響審查進度）', e); }
 
     renderChallenges();
     _chPageLoaded = true;

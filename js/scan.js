@@ -329,6 +329,12 @@ function scnOpenCustomerPanel(uid, profile, coupons, shopRewards, redeemedItemsT
     html += `<div class="cp-empty">此店尚未設定即時獎勵</div>`;
   }
 
+  // 挑戰任務驗證（featureFlag scanChallengeVerify；內容異步載入）
+  const _scnChVerify = (typeof canView === 'function' && canView('scanChallengeVerify') && _scnStoreShopId);
+  if (_scnChVerify) {
+    html += `<div class="cp-section-title">挑戰任務驗證</div><div id="scnChallengeArea"><div class="cp-empty">載入中…</div></div>`;
+  }
+
   document.getElementById('cpContent').innerHTML = html;
 
   // 綁定核銷按鈕
@@ -365,6 +371,82 @@ function scnOpenCustomerPanel(uid, profile, coupons, shopRewards, redeemedItemsT
   document.getElementById('cpBackdrop').classList.add('open');
   document.getElementById('customerPanel').classList.add('open');
   _scnStartPanelTimer();
+
+  if (_scnChVerify) scnLoadChallengeVerify(uid);
+}
+
+// ── 挑戰任務驗證（店家掃客人完成到訪型 task → challengeCheckins）──────────────
+async function scnLoadChallengeVerify(custUid) {
+  const area = document.getElementById('scnChallengeArea');
+  if (!area || !_scnStoreShopId) return;
+  try {
+    const chSnap = await db.collection('challenges').where('status', '==', 'active').get();
+    const shopTasks = []; // 本店相關的 scanShop task
+    chSnap.docs.forEach(d => {
+      const ch = { id: d.id, ...d.data() };
+      (ch.groups || []).forEach(g => (g.tasks || []).forEach(t => {
+        const cond = t.condition || {};
+        if (cond.field === 'scanShop' && cond.value === _scnStoreShopId) {
+          shopTasks.push({ challengeId: ch.id, challengeTitle: ch.title || '', taskId: t.id, taskTitle: t.title || '' });
+        }
+      }));
+    });
+    if (!shopTasks.length) { area.innerHTML = '<div class="cp-empty">本店無相關挑戰任務</div>'; return; }
+
+    // 查客人在本店、各 task 是否已驗（checkin doc 存在）
+    const doneSet = new Set();
+    await Promise.all(shopTasks.map(async st => {
+      const cid = `${_scnStoreShopId}_${custUid}_${st.challengeId}_${st.taskId}`;
+      try { if ((await db.collection('challengeCheckins').doc(cid).get()).exists) doneSet.add(st.taskId); } catch (e) {}
+    }));
+
+    area.innerHTML = shopTasks.map(st => {
+      const done = doneSet.has(st.taskId);
+      return `<div class="cp-item">
+        <div class="cp-item-info">
+          <div class="cp-item-name">${_scnEsc(st.taskTitle)}</div>
+          <div class="cp-item-sub">${_scnEsc(st.challengeTitle)}</div>
+        </div>
+        ${done
+          ? `<button class="cp-redeem-btn" disabled>✅ 已驗證</button>`
+          : `<button class="cp-redeem-btn" data-ch-cid="${_scnEsc(st.challengeId)}" data-ch-tid="${_scnEsc(st.taskId)}">驗證完成</button>`}
+      </div>`;
+    }).join('');
+
+    area.querySelectorAll('[data-ch-cid]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        _scnResetPanelTimer();
+        btn.disabled = true;
+        try {
+          await scnVerifyChallengeTask(custUid, btn.dataset.chCid, btn.dataset.chTid);
+          scnShowToast('✅ 挑戰任務已驗證！', 'success');
+          btn.textContent = '✅ 已驗證';
+        } catch (e) {
+          console.error('[scan] 挑戰驗證失敗', e);
+          scnShowToast('驗證失敗：' + (e.code === 'permission-denied' ? '權限不足（operators / 已驗證）' : '請重試'), 'error');
+          btn.disabled = false;
+        }
+      });
+    });
+  } catch (e) {
+    console.error('[scan] 載入挑戰驗證失敗', e);
+    area.innerHTML = '<div class="cp-empty">挑戰任務載入失敗</div>';
+  }
+}
+
+// 寫入店家掃描驗證記錄（固定 doc id 防重複；rules 限該店 operator）
+async function scnVerifyChallengeTask(custUid, challengeId, taskId) {
+  const docId = `${_scnStoreShopId}_${custUid}_${challengeId}_${taskId}`;
+  const ref   = db.collection('challengeCheckins').doc(docId);
+  if ((await ref.get()).exists) return;
+  await ref.set({
+    uid:        custUid,
+    shopId:     _scnStoreShopId,
+    challengeId,
+    taskId,
+    scannedBy:  _scnScannerUid,
+    createdAt:  firebase.firestore.FieldValue.serverTimestamp(),
+  });
 }
 
 function scnCloseCustomerPanel() {

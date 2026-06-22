@@ -614,6 +614,19 @@ async function loadChallengesTab(uid) {
       }
     }));
 
+    // 附加：店家掃描驗證（challengeCheckins）union 進 completedTaskIds（不動審查路徑）
+    try {
+      const ckSnap = await db.collection('challengeCheckins').where('uid', '==', uid).get();
+      ckSnap.docs.forEach(d => {
+        const ck = d.data();
+        if (!ck.challengeId || !ck.taskId) return;
+        const prog = progress[ck.challengeId];
+        if (!prog) return;
+        if (!prog.completedTaskIds) prog.completedTaskIds = [];
+        if (!prog.completedTaskIds.includes(ck.taskId)) prog.completedTaskIds.push(ck.taskId);
+      });
+    } catch (e) { console.warn('[profile] checkins 聯集失敗（不影響審查進度）', e); }
+
     // 按 challenge 分組 submissions
     const subsByChallenge = {};
     submissions.forEach(s => {
