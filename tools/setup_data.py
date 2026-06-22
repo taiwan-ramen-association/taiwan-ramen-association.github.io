@@ -382,7 +382,6 @@ def step_normalize_dates():
             if re.match(r'^\d{4}-\d{2}-\d{2}$', normalized):
                 row[field] = normalized
                 updated   += 1
-                print(f'    ✓ {row["店名"]} [{field}]  {original!r} → {normalized!r}')
             else:
                 failed.append((row['店名'], field, original))
 
@@ -391,7 +390,6 @@ def step_normalize_dates():
         if re.match(r'^\d{4}-\d{2}-\d{2}$', d):
             month = int(d.split('-')[1])
             if row.get('開幕月份') != month:
-                print(f'    ✓ {row["店名"]}：開幕月份 {row.get("開幕月份","（空）")} → {month}')
                 row['開幕月份'] = month
                 updated += 1
 
@@ -685,7 +683,7 @@ def step_normalize_map_urls(mode='new_only'):
         try:
             # 1. 展開短連結
             if 'maps.app.goo.gl' in url:
-                r   = requests.head(url, headers=UA, allow_redirects=True, timeout=10)
+                r   = requests.head(url, headers=UA, allow_redirects=True, timeout=10, verify=False)
                 url = r.url
 
             # 2. 移除 query string（g_ep / skid 等動態參數）
