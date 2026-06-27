@@ -194,12 +194,24 @@
 
 <script>
   // ── 地區設定（日後新增都道府縣只要加一筆 + 對應 data/jp-xxx.json）──
+  // 依 JIS 都道府県順(北 → 南)排列:北海道在首、沖縄在末
   const REGIONS = [
-    { key: 'hiroshima', label: '広島県', file: './data/jp-hiroshima.json' },
-    { key: 'miyagi',    label: '宮城県', file: './data/jp-miyagi.json' },
-    { key: 'okinawa',   label: '沖縄県', file: './data/jp-okinawa.json' },
-    { key: 'kanagawa',   label: '神奈川県', file: './data/jp-kanagawa.json' },
-    { key: 'yamagata',   label: '山形県', file: './data/jp-yamagata.json' },
+    { key: 'hokkaido',  label: '北海道',  file: './data/jp-hokkaido.json' },
+    { key: 'aomori',    label: '青森県',  file: './data/jp-aomori.json' },
+    { key: 'iwate',     label: '岩手県',  file: './data/jp-iwate.json' },
+    { key: 'miyagi',    label: '宮城県',  file: './data/jp-miyagi.json' },
+    { key: 'akita',     label: '秋田県',  file: './data/jp-akita.json' },
+    { key: 'yamagata',  label: '山形県',  file: './data/jp-yamagata.json' },
+    { key: 'fukushima', label: '福島県',  file: './data/jp-fukushima.json' },
+    { key: 'ibaraki',   label: '茨城県',  file: './data/jp-ibaraki.json' },
+    { key: 'tochigi',   label: '栃木県',  file: './data/jp-tochigi.json' },
+    { key: 'gunma',     label: '群馬県',  file: './data/jp-gunma.json' },
+    { key: 'saitama',   label: '埼玉県',  file: './data/jp-saitama.json' },
+    { key: 'chiba',     label: '千葉県',  file: './data/jp-chiba.json' },
+    { key: 'tokyo',     label: '東京都',  file: './data/jp-tokyo.json' },
+    { key: 'kanagawa',  label: '神奈川県', file: './data/jp-kanagawa.json' },
+    { key: 'hiroshima', label: '広島県',  file: './data/jp-hiroshima.json' },
+    { key: 'okinawa',   label: '沖縄県',  file: './data/jp-okinawa.json' },
   ];
 
   const $ = id => document.getElementById(id);
