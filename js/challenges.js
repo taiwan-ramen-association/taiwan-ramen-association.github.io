@@ -98,6 +98,19 @@ async function loadChallengesPage() {
       });
     } catch (e) { console.warn('[challenges] checkins 聯集失敗（不影響審查進度）', e); }
 
+    // 附加：客人自助尋寶（questCheckins）union 進 completedTaskIds（情境2）
+    try {
+      const qSnap = await db.collection('questCheckins').where('uid', '==', uid).get();
+      qSnap.docs.forEach(d => {
+        const q = d.data();
+        if (!q.challengeId || !q.taskId) return;
+        const prog = _chUserProgress[q.challengeId];
+        if (!prog) return;
+        if (!prog.completedTaskIds) prog.completedTaskIds = [];
+        if (!prog.completedTaskIds.includes(q.taskId)) prog.completedTaskIds.push(q.taskId);
+      });
+    } catch (e) { console.warn('[challenges] questCheckins 聯集失敗', e); }
+
     renderChallenges();
     _chPageLoaded = true;
   } catch (e) {
@@ -110,16 +123,36 @@ async function loadChallengesPage() {
 function renderChallenges() {
   const list = document.getElementById('challengesList');
   if (!list) return;
-  if (!_chChallenges.length) {
+  // reveal 過濾：discover（掃到才解鎖）僅在玩家於該活動有進度時顯示；announced 一律顯示
+  const visible = _chChallenges.filter(ch => {
+    if (ch.reveal === 'discover') {
+      return ((_chUserProgress[ch.id]?.completedTaskIds) || []).length > 0;
+    }
+    return true;
+  });
+  if (!visible.length) {
     list.innerHTML = '<p class="ch-empty">目前沒有進行中的挑戰</p>';
     return;
   }
-  list.innerHTML = _chChallenges.map(ch => renderChallengeCard(ch)).join('');
+  list.innerHTML = visible.map(ch => renderChallengeCard(ch)).join('');
 
   // 綁定送出按鈕
   list.querySelectorAll('.ch-submit-btn').forEach(btn => {
-    btn.addEventListener('click', () => openChSubmitModal(btn.dataset.challengeId));
+    btn.addEventListener('click', e => { e.stopPropagation(); openChSubmitModal(btn.dataset.challengeId); });
   });
+  // 綁定卡片展開（點 header 切換）
+  list.querySelectorAll('.ch-toggle').forEach(h => {
+    h.addEventListener('click', () => h.closest('.ch-card')?.classList.toggle('expanded'));
+  });
+}
+
+// 環狀順序：找「下一個該掃的 quest task」= frontier（已完成但環後繼未完成）的環後繼
+function chNextQuestTask(ring, doneSet) {
+  for (let i = 0; i < ring.length; i++) {
+    const next = ring[(i + 1) % ring.length];
+    if (doneSet.has(ring[i].id) && !doneSet.has(next.id)) return next;
+  }
+  return null;
 }
 
 function renderChallengeCard(challenge) {
@@ -132,19 +165,51 @@ function renderChallengeCard(challenge) {
   const period    = challenge.period || {};
   const periodStr = period.start && period.end ? `${period.start} ~ ${period.end}` : '';
 
+  // quest 尋寶「下一站」提示（環狀）
+  const questTasks = allTasks
+    .filter(t => t.condition && t.condition.field === 'quest')
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+  let nextHtml = '';
+  if (questTasks.length) {
+    const doneSet = new Set(completed);
+    if (questTasks.every(t => doneSet.has(t.id))) {
+      nextHtml = `<div class="ch-next done">🎉 已完成整圈尋寶！</div>`;
+    } else if (doneSet.size === 0) {
+      nextHtml = `<div class="ch-next">🧭 掃描任一店家立牌，開始尋寶</div>`;
+    } else {
+      const next = chNextQuestTask(questTasks, doneSet);
+      const ei   = next ? questTasks.findIndex(t => t.id === next.id) : -1;
+      const frontier = ei >= 0 ? questTasks[(ei - 1 + questTasks.length) % questTasks.length] : null;
+      const hint = (frontier && doneSet.has(frontier.id) && frontier.hint?.text) ? frontier.hint.text : '';
+      nextHtml = `<div class="ch-next">🧭 ${hint ? escapeHtml(hint) : '下一站：依現場提示前往'}</div>`;
+    }
+  }
+
+  // 是否有需「拍照送出」的任務（quest / scanShop 不需自助上傳）
+  const hasUploadTask = allTasks.some(t => {
+    const f = t.condition && t.condition.field;
+    return f && f !== 'quest' && f !== 'scanShop';
+  });
+
   return `
     <div class="ch-card">
-      <div class="ch-card-header">
+      <div class="ch-card-header ch-toggle">
         <div class="ch-title">${escapeHtml(challenge.title || '')}</div>
         ${periodStr ? `<div class="ch-period">📅 ${escapeHtml(periodStr)}</div>` : ''}
+        <span class="ch-chevron" aria-hidden="true"></span>
       </div>
       <div class="ch-progress-row">
         <div class="ch-progress-bar"><div class="ch-progress-fill" style="width:${pct}%"></div></div>
         <span class="ch-progress-text">${doneTasks}/${totalTasks}　${pct}%</span>
       </div>
-      <button class="ch-submit-btn" data-challenge-id="${challenge.id}">📷 送出新紀錄</button>
-      <div class="ch-groups">
-        ${(challenge.groups || []).map(g => renderGroup(g, completed)).join('')}
+      ${nextHtml}
+      <div class="ch-detail">
+        <div class="ch-detail-inner">
+          <div class="ch-groups">
+            ${(challenge.groups || []).map(g => renderGroup(g, completed)).join('')}
+          </div>
+          ${hasUploadTask ? `<button class="ch-submit-btn" data-challenge-id="${challenge.id}">📷 送出新紀錄</button>` : ''}
+        </div>
       </div>
     </div>
   `;
@@ -156,12 +221,18 @@ function renderGroup(group, completed) {
       <div class="ch-group-title">${escapeHtml(group.title || '')}</div>
       <div class="ch-task-list">
         ${(group.tasks || []).map(t => {
-          const done = completed.includes(t.id);
-          const tw   = t.timeWindow ? `<span class="ch-task-tw">📅 ${t.timeWindow.start}~${t.timeWindow.end}</span>` : '';
+          const done    = completed.includes(t.id);
+          const isQuest = !!(t.condition && t.condition.field === 'quest');
+          const tw      = t.timeWindow ? `<span class="ch-task-tw">📅 ${t.timeWindow.start}~${t.timeWindow.end}</span>` : '';
+          const icon    = done ? '✅' : (isQuest ? '🔒' : '⬜');
+          // quest 完成後揭示該站提示（下一站線索）
+          const hint = (isQuest && done && t.hint?.text)
+            ? `<div class="ch-task-hint">🧭 ${escapeHtml(t.hint.text)}</div>` : '';
           return `<div class="ch-task ${done ? 'done' : ''}">
-            <span class="ch-task-check">${done ? '✅' : '⬜'}</span>
+            <span class="ch-task-check">${icon}</span>
             <span class="ch-task-title">${escapeHtml(t.title || '')}</span>
             ${tw}
+            ${hint}
           </div>`;
         }).join('')}
       </div>

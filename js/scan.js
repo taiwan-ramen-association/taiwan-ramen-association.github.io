@@ -13,6 +13,7 @@
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SCN_PANEL_TIMEOUT = 60; // 秒
+const SCN_QUEST_GPS_RADIUS = 300; // 公尺：客人需在店家此範圍內才能完成尋寶站（情境2）
 
 const SCN_ROLE_BADGE = {
   admin:             { label: 'ADMIN',    cls: 'admin'    },
@@ -199,6 +200,8 @@ async function scnToggleMyCode() {
 // ── 掃到 QR 後處理 ─────────────────────────────────────────────────────────────
 async function scnHandleScannedText(uid) {
   if (!uid) { scnShowToast('無效的 QR 內容', 'error'); return; }
+  // 情境2：店家立牌尋寶 QR（quest:cid:shopId:taskId:secret）→ 客人自助完成
+  if (uid.startsWith('quest:')) return scnHandleQuestQR(uid);
   if (uid === _scnScannerUid) { scnShowToast('⚠ 無法掃描自己的 QR', 'error'); return; }
   // 會員卡 QR = 顧客 uid（英數）。含 Firestore docId 非法字元或過長 → 明顯非會員卡，
   // 直接擋並給精準訊息（不必白跑 Firestore，也避免落入 catch 顯示模糊的「查詢失敗」）
@@ -206,8 +209,7 @@ async function scnHandleScannedText(uid) {
     scnShowToast('無法辨識的 QR（非會員卡）', 'error'); return;
   }
 
-  // ── 未來 QR 類型 dispatch 預留（想法①②；目前一律當會員卡 uid 處理）──────────
-  //   店家立牌尋寶：if (uid.startsWith('quest:')) return scnHandleQuestQR(uid); // → GPS 打卡 / 謎題
+  // ── QR 類型 dispatch：quest 立牌已於上方分流；以下為會員卡 uid 流程 ──────────
   //   輪替碼(Phase 6)：const realUid = scnParseToken(uid);
   //   權限放寬後：viewer 掃會員卡應只顯示唯讀身份，核銷仍限 operator。
 
@@ -447,6 +449,136 @@ async function scnVerifyChallengeTask(custUid, challengeId, taskId) {
     scannedBy:  _scnScannerUid,
     createdAt:  firebase.firestore.FieldValue.serverTimestamp(),
   });
+}
+
+// ── 情境2：客人自助尋寶（掃店家立牌 quest QR）─────────────────────────────────
+// QR 格式：quest:{challengeId}:{shopId}:{taskId}:{secret}
+// 防作弊（中等）：secret 比對 + GPS 在店附近 + 環狀順序，皆「前端」把關；
+//   questCheckins rules 僅擋「非本人 / 重複 / 警告戶 / 欄位不齊」。
+function _scnGetGps() {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) { resolve({ ok: false }); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      ()  => resolve({ ok: false }),
+      { timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
+// 由 finder 既有 ALL_DATA / NON_ACTIVE_DATA 取店家（含 lat/lng）
+function _scnFindShop(shopId) {
+  try {
+    const find = arr => (Array.isArray(arr) ? arr.find(s => s.ID === shopId) : null);
+    return (typeof ALL_DATA !== 'undefined' && find(ALL_DATA))
+        || (typeof NON_ACTIVE_DATA !== 'undefined' && find(NON_ACTIVE_DATA))
+        || null;
+  } catch (e) { return null; }
+}
+
+// 環狀順序：找「下一個該掃的 task」= frontier（已完成但其環後繼未完成）的環後繼
+function _scnNextQuestTask(ring, doneIds) {
+  for (let i = 0; i < ring.length; i++) {
+    const next = ring[(i + 1) % ring.length];
+    if (doneIds.has(ring[i].id) && !doneIds.has(next.id)) return next;
+  }
+  return null;
+}
+
+async function scnHandleQuestQR(raw) {
+  const parts = raw.split(':');
+  if (parts.length !== 5 || parts[0] !== 'quest') { scnShowToast('無效的尋寶 QR', 'error'); return; }
+  const [, cid, shopId, taskId, secret] = parts;
+  if (!auth.currentUser) { scnShowToast('請先登入', 'error'); return; }
+  const myUid = auth.currentUser.uid;
+
+  try {
+    // 1) 活動 + 任務 + secret
+    const chSnap = await db.collection('challenges').doc(cid).get();
+    if (!chSnap.exists || chSnap.data().status !== 'active') {
+      scnShowToast('此尋寶活動尚未開始或已結束', 'error'); return;
+    }
+    const ch = chSnap.data();
+    const ring = [];
+    (ch.groups || []).forEach(g => (g.tasks || []).forEach(t => {
+      if (t.condition && t.condition.field === 'quest') ring.push(t);
+    }));
+    ring.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const task = ring.find(t => t.id === taskId);
+    if (!task || task.condition.value !== shopId) { scnShowToast('QR 與活動不符', 'error'); return; }
+    if (!task.secret || task.secret !== secret) { scnShowToast('QR 驗證失敗（請掃描現場立牌）', 'error'); return; }
+
+    // 2) GPS 在店附近
+    const shop = _scnFindShop(shopId);
+    if (!shop || !shop['lat'] || !shop['lng']) { scnShowToast('店家座標缺失，無法定位驗證', 'error'); return; }
+    scnShowToast('📍 定位中…');
+    const gps = await _scnGetGps();
+    if (!gps.ok) { scnShowToast('需要開啟定位才能完成尋寶', 'error'); return; }
+    const dist = haversineDistance(gps.lat, gps.lng, shop['lat'], shop['lng']);
+    if (dist > SCN_QUEST_GPS_RADIUS) {
+      scnShowToast(`距離店家約 ${Math.round(dist)}m，請靠近後再掃（需 ${SCN_QUEST_GPS_RADIUS}m 內）`, 'error');
+      return;
+    }
+
+    // 3) 既有進度（N 次 doc.get，免複合索引）+ 環狀順序把關
+    const idOf = t => `${cid}_${t.condition.value}_${myUid}_${t.id}`;
+    const flags = await Promise.all(ring.map(async t => {
+      try { return (await db.collection('questCheckins').doc(idOf(t)).get()).exists; } catch (e) { return false; }
+    }));
+    const doneIds = new Set(ring.filter((t, i) => flags[i]).map(t => t.id));
+
+    if (doneIds.has(taskId)) { scnShowToast('這一站你已經完成囉 ✅'); return; }
+    if (doneIds.size > 0) {
+      const expected = _scnNextQuestTask(ring, doneIds);
+      if (expected && expected.id !== taskId) {
+        const ei = ring.findIndex(t => t.id === expected.id);
+        const frontier = ring[(ei - 1 + ring.length) % ring.length];
+        const fhint = frontier && frontier.hint && frontier.hint.text ? frontier.hint.text : '';
+        scnShowQuestPanel('🧭', '請依提示順序',
+          `<div class="cp-empty" style="text-align:left;line-height:1.7">你還沒輪到這一站。<br>目前該前往：<b>${_scnEsc(expected.title || '下一站')}</b>` +
+          `${fhint ? `<br><br>🧭 ${_scnEsc(fhint)}` : ''}</div>`);
+        return;
+      }
+    }
+
+    // 4) 寫入 checkin（固定 doc id + !exists 防重複）
+    const ref = db.collection('questCheckins').doc(idOf(task));
+    if (!(await ref.get()).exists) {
+      await ref.set({
+        uid: myUid, challengeId: cid, shopId, taskId,
+        order: task.order || 0,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    // 5) 揭示提示 / 完成
+    if (doneIds.size + 1 >= ring.length) {
+      scnShowQuestPanel('🎉', '完成整圈尋寶！',
+        `<div class="cp-empty" style="text-align:left;line-height:1.7">恭喜蒐集完所有 ${ring.length} 站，挑戰完成！</div>`);
+    } else {
+      const h = task.hint || {};
+      scnShowQuestPanel('✅', `第 ${task.order || (doneIds.size + 1)} 站完成！`,
+        `${h.text ? `<div class="cp-empty" style="text-align:left;line-height:1.7">🧭 下一站提示<br>${_scnEsc(h.text)}</div>` : ''}` +
+        `${h.image ? `<img src="${_scnEsc(h.image)}" style="width:100%;border-radius:8px;margin-top:10px" onerror="this.style.display='none'">` : ''}`);
+    }
+  } catch (e) {
+    console.error('[scan] quest 失敗', e);
+    scnShowToast('完成失敗，請重試', 'error');
+  }
+}
+
+// 尋寶結果面板（重用 customerPanel DOM）
+function scnShowQuestPanel(icon, title, bodyHtml) {
+  const cp = document.getElementById('cpContent');
+  if (!cp) return;
+  cp.innerHTML =
+    `<div class="cp-section-title" style="font-size:16px">${icon} ${_scnEsc(title)}</div>` +
+    (bodyHtml || '') +
+    `<button class="cp-redeem-btn" id="scnQuestClose" style="width:100%;margin-top:14px">關閉</button>`;
+  const btn = document.getElementById('scnQuestClose');
+  if (btn) btn.addEventListener('click', scnCloseCustomerPanel);
+  document.getElementById('cpBackdrop').classList.add('open');
+  document.getElementById('customerPanel').classList.add('open');
 }
 
 function scnCloseCustomerPanel() {

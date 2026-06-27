@@ -1091,6 +1091,27 @@
   .ch-task-title { flex: 1; }
   .ch-task-tw { font-size: 11px; color: var(--stone); }
 
+  /* 卡片展開（點 header）+ 尋寶提示 */
+  .ch-card-header.ch-toggle { cursor: pointer; }
+  .ch-chevron {
+    width: 9px; height: 9px; border-right: 2px solid var(--stone); border-bottom: 2px solid var(--stone);
+    transform: rotate(45deg); transition: transform 0.25s ease; flex-shrink: 0; margin-left: auto; align-self: center;
+  }
+  .ch-card.expanded .ch-chevron { transform: rotate(225deg); }
+  .ch-detail { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.28s ease; }
+  .ch-card.expanded .ch-detail { grid-template-rows: 1fr; }
+  .ch-detail-inner { overflow: hidden; min-height: 0; }
+  .ch-next {
+    font-size: 13px; color: var(--red-dark); background: var(--red-light);
+    border-radius: 8px; padding: 9px 12px; margin-bottom: 12px; line-height: 1.6;
+  }
+  .ch-next.done { color: var(--open-txt); background: var(--open-bg); }
+  .ch-task { flex-wrap: wrap; }
+  .ch-task-hint {
+    flex-basis: 100%; font-size: 12px; color: var(--stone);
+    background: var(--paper); border-radius: 6px; padding: 6px 9px; margin: 2px 0 2px 20px; line-height: 1.5;
+  }
+
   /* ── 挑戰送出 modal 內的店家 autocomplete ────────────────────────── */
   .ch-shop-wrap { position: relative; }
   .ch-shop-input, .ch-text-input {
