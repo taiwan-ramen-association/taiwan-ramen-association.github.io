@@ -13,7 +13,7 @@
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SCN_PANEL_TIMEOUT = 60; // 秒
-const SCN_QUEST_GPS_RADIUS = 300; // 公尺：客人需在店家此範圍內才能完成尋寶站（情境2）
+const SCN_QUEST_GPS_RADIUS = 1000; // 公尺：客人需在店家此範圍內才能完成尋寶站（情境2）
 
 const SCN_ROLE_BADGE = {
   admin:             { label: 'ADMIN',    cls: 'admin'    },
