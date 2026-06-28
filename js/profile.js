@@ -627,6 +627,19 @@ async function loadChallengesTab(uid) {
       });
     } catch (e) { console.warn('[profile] checkins 聯集失敗（不影響審查進度）', e); }
 
+    // 附加：客人自助尋寶（questCheckins）union 進 completedTaskIds（情境2）
+    try {
+      const qSnap = await db.collection('questCheckins').where('uid', '==', uid).get();
+      qSnap.docs.forEach(d => {
+        const q = d.data();
+        if (!q.challengeId || !q.taskId) return;
+        const prog = progress[q.challengeId];
+        if (!prog) return;
+        if (!prog.completedTaskIds) prog.completedTaskIds = [];
+        if (!prog.completedTaskIds.includes(q.taskId)) prog.completedTaskIds.push(q.taskId);
+      });
+    } catch (e) { console.warn('[profile] questCheckins 聯集失敗', e); }
+
     // 按 challenge 分組 submissions
     const subsByChallenge = {};
     submissions.forEach(s => {
