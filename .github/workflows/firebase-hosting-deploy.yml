@@ -7,17 +7,49 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - uses: actions/setup-node@v4
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: live
-          projectId: taiwan-ramen-association
-          # 釘住 firebase-tools：15.22.3（6/25）起 release 步驟有 premature-close→重試→
-          # 「already the current active version」的假失敗；15.22.1 為最後已知正常版。
-          firebaseToolsVersion: "15.22.1"
+          node-version: '20'
+
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools@15.22.2
+
+      - name: Deploy to Firebase Hosting (retry-resilient)
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -u
+          # service account 寫入暫存檔供 firebase CLI（ADC）使用；離開時清掉
+          SA_FILE="$RUNNER_TEMP/firebase-sa.json"
+          trap 'rm -f "$SA_FILE"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$SA_FILE"
+          export GOOGLE_APPLICATION_CREDENTIALS="$SA_FILE"
+
+          # 自 2026-06-27 起 GitHub runner 連 googleapis.com 間歇性 "Premature close"
+          # （auth / release 皆中，與 firebase-tools 版本無關）→ 重試吃掉它。
+          ATTEMPTS=5
+          for i in $(seq 1 "$ATTEMPTS"); do
+            echo "::group::部署嘗試 $i/$ATTEMPTS"
+            set +e
+            OUT="$(firebase deploy --only hosting --project taiwan-ramen-association --non-interactive 2>&1)"
+            CODE=$?
+            set -e
+            echo "$OUT"
+            echo "::endgroup::"
+            if [ "$CODE" -eq 0 ]; then
+              echo "✅ 部署成功（第 $i 次嘗試）"
+              exit 0
+            fi
+            # 內容與現行 live 相同 → 無新版本可發布，視為成功（非真失敗）
+            if echo "$OUT" | grep -qi "current active version"; then
+              echo "✅ 內容與現行 live 相同（無變更），視為成功"
+              exit 0
+            fi
+            echo "⚠️ 第 $i 次失敗（exit $CODE，可能 Premature close）；15 秒後重試…"
+            sleep 15
+          done
+          echo "❌ 重試 $ATTEMPTS 次後仍失敗"
+          exit 1
