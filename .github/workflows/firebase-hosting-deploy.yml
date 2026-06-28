@@ -18,3 +18,6 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           channelId: live
           projectId: taiwan-ramen-association
+          # 釘住 firebase-tools：15.22.3（6/25）起 release 步驟有 premature-close→重試→
+          # 「already the current active version」的假失敗；15.22.1 為最後已知正常版。
+          firebaseToolsVersion: "15.22.1"
