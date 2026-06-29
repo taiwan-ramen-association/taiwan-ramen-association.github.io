@@ -193,6 +193,7 @@ function renderChallengeCard(challenge) {
 
   return `
     <div class="ch-card">
+      ${challenge.image ? `<img class="ch-cover" src="${escapeHtml(challenge.image)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
       <div class="ch-card-header ch-toggle">
         <div class="ch-title">${escapeHtml(challenge.title || '')}</div>
         ${periodStr ? `<div class="ch-period">📅 ${escapeHtml(periodStr)}</div>` : ''}
