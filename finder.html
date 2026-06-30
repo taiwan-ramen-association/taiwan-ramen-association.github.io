@@ -2687,7 +2687,10 @@ async function loadData() {
     mc.classList.add('page-active');
     render();
     const bdShops = ALL_DATA.filter(s => isBirthday(s)).map(s => s['店名']);
-    if (bdShops.length) launchFireworks(bdShops);
+    if (bdShops.length) {
+      try { await _ffReady; } catch (e) {}   // 等 feature flags 載入，尊重後台煙火開關
+      if (typeof canView === 'function' && canView('fireworks')) launchFireworks(bdShops);
+    }
     _resolveDataLoaded();
   } catch(e) {
     console.error(e);
