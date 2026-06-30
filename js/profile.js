@@ -1061,8 +1061,10 @@ function renderProfileChallengeCard(challenge, progressDoc, submissions) {
         </div>
       </div>
       <div class="pfch-detail">
-        ${tasksHtml}
-        ${subsHtml}
+        <div class="pfch-detail-inner">
+          ${tasksHtml}
+          ${subsHtml}
+        </div>
       </div>
     </div>
   `;

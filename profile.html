@@ -215,10 +215,12 @@
     }
     .pfch-card-header:hover { background: var(--paper); }
     .pfch-card-header::after {
-      content: '▶'; float: right; font-size: 10px; color: var(--stone);
-      transition: transform 0.2s; margin-top: 2px;
+      content: ''; float: right; box-sizing: border-box;
+      width: 9px; height: 9px; margin: 5px 2px 0 8px;
+      border-right: 2px solid var(--stone); border-bottom: 2px solid var(--stone);
+      transform: rotate(45deg); transition: transform 0.25s ease;
     }
-    .pfch-card.expanded .pfch-card-header::after { transform: rotate(90deg); }
+    .pfch-card.expanded .pfch-card-header::after { transform: rotate(225deg); }
     .pfch-title-row {
       display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
       flex-wrap: wrap; margin-bottom: 8px;
@@ -229,8 +231,9 @@
     .pfch-progress-bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
     .pfch-progress-fill { height: 100%; background: var(--red); transition: width 0.3s; }
     .pfch-progress-text { font-size: 11px; color: var(--muted); white-space: nowrap; }
-    .pfch-detail { display: none; padding: 0 14px 14px; border-top: 1px solid var(--line); }
-    .pfch-card.expanded .pfch-detail { display: block; }
+    .pfch-detail { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.28s ease; }
+    .pfch-card.expanded .pfch-detail { grid-template-rows: 1fr; }
+    .pfch-detail-inner { overflow: hidden; min-height: 0; padding: 0 14px 14px; }
     .pfch-group { margin-top: 12px; }
     .pfch-group-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
     .pfch-task { font-size: 12px; color: var(--ink); padding: 2px 0; display: flex; gap: 4px; }
