@@ -3,7 +3,7 @@
 // 依賴全域變數（finder.html 提供）：
 //   db, auth, firebase, storage, ALL_DATA, currentUserRole
 // 依賴全域函式：
-//   findShopById, escapeHtml, compressImage, showStampToast, canUse
+//   findShopById, escapeHtml, compressImage, showStampToast, canUse, haversineDistance
 // 依賴外部資源：
 //   exifr（CDN 載入；讀取照片 EXIF 拍攝時間）
 // 提供全域變數：
@@ -380,6 +380,28 @@ function initChShopAutocomplete() {
   });
 }
 
+// ── GPS 驗證：確認在所選店家附近（比照排隊回報 openQueueModal）───────────────
+// 回傳 null=通過；字串=錯誤訊息（擋下送出）。店家無 lat/lng 則略過驗證（放行）。
+// 半徑共用排隊回報的後台設定 queueSettings.gpsRadiusMeters（meta/queueSettings），fallback 500。
+async function chVerifyGpsNearShop(shop) {
+  const lat = shop && shop['lat'], lng = shop && shop['lng'];
+  if (lat == null || lng == null || lat === '' || lng === '') return null; // 無座標→不驗
+  if (!navigator.geolocation) return '此裝置不支援定位，無法送出';
+  document.getElementById('chProgress').textContent = '📍 取得定位中…';
+  const gps = await new Promise(resolve => {
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      ()  => resolve({ ok: false }),
+      { timeout: 10000, maximumAge: 60000 }
+    );
+  });
+  if (!gps.ok) return '需要開啟定位才能送出（請允許定位權限）';
+  const radius = (typeof queueSettings !== 'undefined' && queueSettings.gpsRadiusMeters) || 500;
+  const dist = haversineDistance(gps.lat, gps.lng, Number(lat), Number(lng));
+  if (dist > radius) return `距離「${shop['店名'] || ''}」約 ${Math.round(dist)} 公尺，需在 ${radius} 公尺內才能送出`;
+  return null;
+}
+
 // ── 送出紀錄 ───────────────────────────────────────────────────────────────
 async function submitChallengeRecord() {
   if (!_chCurrentFile || !_chCurrentShop || !auth.currentUser || !_chCurrentChallenge) return;
@@ -399,6 +421,13 @@ async function submitChallengeRecord() {
   const err = chValidateTime(diningDate, _chCurrentChallenge, null);
   if (err) {
     document.getElementById('chProgress').textContent = '❌ ' + err;
+    return;
+  }
+
+  // GPS 驗證：必須在所選店家附近才能送出（擋下；店家無座標則略過）
+  const gpsErr = await chVerifyGpsNearShop(_chCurrentShop);
+  if (gpsErr) {
+    document.getElementById('chProgress').textContent = '❌ ' + gpsErr;
     return;
   }
 
