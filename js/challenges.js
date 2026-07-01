@@ -18,6 +18,9 @@ var _chPageLoaded       = false;  // 頁面是否已載入
 let _chCurrentChallenge = null;
 let _chCurrentFile      = null;
 let _chCurrentShop      = null;
+let _chCurrentTask      = null;      // 點圖鑑格開送出 modal 時記住的 task（供 submission 記 taskId）
+let _chPendingTaskIds   = new Set(); // 本人有 pending submission 的 taskId（顯示「審查中」）
+let _chRejectedTaskIds  = new Set(); // 本人有 rejected submission 的 taskId（顯示「已駁回」）
 
 // ── 條件比對：計算這筆 submission 自動完成哪些 task ───────────────────────
 function chComputeAutoTaskIds(submission, challenge) {
@@ -110,6 +113,21 @@ async function loadChallengesPage() {
         if (!prog.completedTaskIds.includes(q.taskId)) prog.completedTaskIds.push(q.taskId);
       });
     } catch (e) { console.warn('[challenges] questCheckins 聯集失敗', e); }
+
+    // 附加：載入本人 submission → 標記「審查中」(pending) / 「已駁回」(rejected) 的 task
+    _chPendingTaskIds  = new Set();
+    _chRejectedTaskIds = new Set();
+    try {
+      const subSnap = await db.collection('challengeSubmissions').where('uid', '==', uid).get();
+      subSnap.docs.forEach(d => {
+        const s = d.data();
+        const ids = [];
+        if (s.taskId) ids.push(s.taskId);
+        (s.autoTaskIds || []).forEach(tid => ids.push(tid));
+        if (s.status === 'pending')       ids.forEach(tid => _chPendingTaskIds.add(tid));
+        else if (s.status === 'rejected') ids.forEach(tid => _chRejectedTaskIds.add(tid));
+      });
+    } catch (e) { console.warn('[challenges] submission 狀態載入失敗', e); }
 
     renderChallenges();
     _chPageLoaded = true;
@@ -245,8 +263,10 @@ function renderGroup(group, completed, challenge) {
 
 // 圖鑑卡片：麵照（未完成灰階 / 完成彩色）＋ 店家 ＋ 品項(title) ＋ 日期 ＋ 完成郵戳
 function renderDexCard(t, completed, challenge) {
-  const done  = completed.includes(t.id);
-  const field = (t.condition && t.condition.field) || '';
+  const done     = completed.includes(t.id);
+  const pending  = !done && _chPendingTaskIds && _chPendingTaskIds.has(t.id);
+  const rejected = !done && !pending && _chRejectedTaskIds && _chRejectedTaskIds.has(t.id);
+  const field    = (t.condition && t.condition.field) || '';
   const val   = (t.condition && t.condition.value) || '';
   // 店家標籤依 field：shopId/quest/scanShop 查店名；shopCity 顯示縣市；manual 不限店家
   let shopLabel;
@@ -266,12 +286,15 @@ function renderDexCard(t, completed, challenge) {
   const noodle = t.image
     ? `<div class="ch-dex-noodle"><img src="${escapeHtml(t.image)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('no-img');this.remove()"></div>`
     : `<div class="ch-dex-noodle no-img"></div>`;
-  return `<div class="ch-dex-card ${done ? 'done' : ''}" data-tid="${escapeHtml(t.id || '')}" data-cid="${escapeHtml(challenge.id || '')}" data-field="${escapeHtml(field)}">
+  const stateClass = done ? 'done' : pending ? 'pending' : rejected ? 'rejected' : '';
+  return `<div class="ch-dex-card ${stateClass}" data-tid="${escapeHtml(t.id || '')}" data-cid="${escapeHtml(challenge.id || '')}" data-field="${escapeHtml(field)}">
     ${noodle}
     <div class="ch-dex-shop">${escapeHtml(shopLabel)}</div>
     <div class="ch-dex-item">${escapeHtml(t.title || '')}</div>
     <div class="ch-dex-date">${escapeHtml(dateLabel)}</div>
     <div class="ch-dex-stamp">已完成</div>
+    <div class="ch-dex-stamp-review">審查中</div>
+    <div class="ch-dex-stamp-reject">已駁回</div>
   </div>`;
 }
 
@@ -282,6 +305,7 @@ function openChSubmitModal(challengeId, task) {
   _chCurrentChallenge = challenge;
   _chCurrentFile      = null;
   _chCurrentShop      = null;
+  _chCurrentTask      = task || null;
 
   document.getElementById('chSubmitTitle').textContent = `📷 送出紀錄 — ${challenge.title || ''}`;
   document.getElementById('chShopInput').value          = '';
@@ -510,6 +534,7 @@ async function submitChallengeRecord() {
       diningTime:  firebase.firestore.Timestamp.fromDate(diningDate),
       photoUrl,
       photoPath:   path,
+      taskId:      _chCurrentTask ? _chCurrentTask.id : '',
       status:      'pending',
       autoTaskIds: [],
       createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
@@ -528,6 +553,7 @@ async function submitChallengeRecord() {
       });
     }
     closeChSubmitModal();
+    loadChallengesPage();  // 送出後自動重載，圖鑑格即時更新為「審查中」
   } catch (e) {
     console.error('[challenges] submit failed', e);
     progress.textContent = '❌ 送出失敗：' + e.message;
