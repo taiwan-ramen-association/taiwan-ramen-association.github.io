@@ -1091,6 +1091,18 @@
   .ch-task-check { font-size: 14px; }
   .ch-task-title { flex: 1; }
   .ch-task-tw { font-size: 11px; color: var(--stone); }
+  /* ── 挑戰圖鑑格 ── */
+  .ch-dex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px 10px; }
+  .ch-dex-card { position: relative; text-align: center; cursor: pointer; }
+  .ch-dex-noodle { width: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: var(--paper); display: flex; align-items: center; justify-content: center; margin-bottom: 6px; transition: filter 0.4s ease, opacity 0.4s ease; }
+  .ch-dex-noodle img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ch-dex-noodle.no-img::after { content: '🍜'; font-size: 30px; opacity: 0.4; }
+  .ch-dex-card:not(.done) .ch-dex-noodle { filter: grayscale(1); opacity: 0.5; }
+  .ch-dex-shop { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.35; }
+  .ch-dex-item { font-size: 11px; color: var(--stone); line-height: 1.35; }
+  .ch-dex-date { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .ch-dex-stamp { position: absolute; top: 2px; right: 2px; width: 42px; height: 42px; border: 2px solid var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--red); transform: rotate(-12deg); opacity: 0; transition: opacity 0.4s ease; }
+  .ch-dex-card.done .ch-dex-stamp { opacity: 0.72; }
 
   /* 卡片展開（點 header）+ 尋寶提示 */
   .ch-card-header.ch-toggle { cursor: pointer; }
@@ -2689,7 +2701,7 @@ async function loadData() {
     const bdShops = ALL_DATA.filter(s => isBirthday(s)).map(s => s['店名']);
     if (bdShops.length) {
       try { await _ffReady; } catch (e) {}   // 等 feature flags 載入，尊重後台煙火開關
-      if (typeof canView === 'function' && canView('fireworks')) launchFireworks(bdShops);
+      if (typeof canView === 'function' && canView('birthdayNotice')) launchFireworks(bdShops);
     }
     _resolveDataLoaded();
   } catch(e) {

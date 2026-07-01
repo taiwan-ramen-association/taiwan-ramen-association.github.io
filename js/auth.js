@@ -77,7 +77,7 @@ var featureFlags = {
   shopPage:       { vis: 'viewer',   perm: 'viewer'   },
   scanLink:       { vis: 'viewer',   perm: 'viewer'   },
   scanChallengeVerify: { vis: 'admin', perm: 'admin' },
-  fireworks:      { vis: 'admin',   perm: 'admin'   },  // 生日店家煙火；預設關（admin），後台改 all 開放
+  birthdayNotice: { vis: 'admin',   perm: 'admin'   },  // 生日店家通知（煙火）；預設關（admin），後台改 all 開放
 };
 
 const ROLE_LEVEL = { all: 0, viewer: 1, member: 2, director: 3, admin: 4 };

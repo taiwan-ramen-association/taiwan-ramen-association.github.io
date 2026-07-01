@@ -140,6 +140,22 @@ function renderChallenges() {
   list.querySelectorAll('.ch-submit-btn').forEach(btn => {
     btn.addEventListener('click', e => { e.stopPropagation(); openChSubmitModal(btn.dataset.challengeId); });
   });
+  // 綁定圖鑑格點擊：拍照型開送出 modal 並預填；quest / scanShop 顯示提示（quest 已完成則揭示下一站線索）
+  list.querySelectorAll('.ch-dex-card').forEach(card => {
+    card.addEventListener('click', e => {
+      e.stopPropagation();
+      const { cid, tid, field } = card.dataset;
+      const ch   = _chChallenges.find(c => c.id === cid);
+      const task = ch && (ch.groups || []).flatMap(g => g.tasks || []).find(t => t.id === tid);
+      if (field === 'quest') {
+        if (card.classList.contains('done') && task && task.hint && task.hint.text) showStampToast('🧭 ' + task.hint.text);
+        else showStampToast('掃描店家立牌即可完成此關卡');
+        return;
+      }
+      if (field === 'scanShop') { showStampToast('請由店家掃描你的會員卡完成'); return; }
+      openChSubmitModal(cid, task);
+    });
+  });
   // 綁定卡片展開（點 header 切換）
   list.querySelectorAll('.ch-toggle').forEach(h => {
     h.addEventListener('click', () => h.closest('.ch-card')?.classList.toggle('expanded'));
@@ -207,7 +223,7 @@ function renderChallengeCard(challenge) {
       <div class="ch-detail">
         <div class="ch-detail-inner">
           <div class="ch-groups">
-            ${(challenge.groups || []).map(g => renderGroup(g, completed)).join('')}
+            ${(challenge.groups || []).map(g => renderGroup(g, completed, challenge)).join('')}
           </div>
           ${hasUploadTask ? `<button class="ch-submit-btn" data-challenge-id="${challenge.id}">📷 送出新紀錄</button>` : ''}
         </div>
@@ -216,33 +232,51 @@ function renderChallengeCard(challenge) {
   `;
 }
 
-function renderGroup(group, completed) {
+function renderGroup(group, completed, challenge) {
   return `
     <div class="ch-group">
       <div class="ch-group-title">${escapeHtml(group.title || '')}</div>
-      <div class="ch-task-list">
-        ${(group.tasks || []).map(t => {
-          const done    = completed.includes(t.id);
-          const isQuest = !!(t.condition && t.condition.field === 'quest');
-          const tw      = t.timeWindow ? `<span class="ch-task-tw">📅 ${t.timeWindow.start}~${t.timeWindow.end}</span>` : '';
-          const icon    = done ? '✅' : (isQuest ? '🔒' : '⬜');
-          // quest 完成後揭示該站提示（下一站線索）
-          const hint = (isQuest && done && t.hint?.text)
-            ? `<div class="ch-task-hint">🧭 ${escapeHtml(t.hint.text)}</div>` : '';
-          return `<div class="ch-task ${done ? 'done' : ''}">
-            <span class="ch-task-check">${icon}</span>
-            <span class="ch-task-title">${escapeHtml(t.title || '')}</span>
-            ${tw}
-            ${hint}
-          </div>`;
-        }).join('')}
+      <div class="ch-dex-grid">
+        ${(group.tasks || []).map(t => renderDexCard(t, completed, challenge)).join('')}
       </div>
     </div>
   `;
 }
 
+// 圖鑑卡片：麵照（未完成灰階 / 完成彩色）＋ 店家 ＋ 品項(title) ＋ 日期 ＋ 完成郵戳
+function renderDexCard(t, completed, challenge) {
+  const done  = completed.includes(t.id);
+  const field = (t.condition && t.condition.field) || '';
+  const val   = (t.condition && t.condition.value) || '';
+  // 店家標籤依 field：shopId/quest/scanShop 查店名；shopCity 顯示縣市；manual 不限店家
+  let shopLabel;
+  if (field === 'shopId' || field === 'quest' || field === 'scanShop') {
+    const shop = (typeof findShopById === 'function') ? findShopById(val) : null;
+    shopLabel = (shop && shop['店名']) ? shop['店名'] : (val || '');
+  } else if (field === 'shopCity') {
+    shopLabel = val || '';
+  } else {
+    shopLabel = '不限店家';
+  }
+  // 日期區間：task.timeWindow 優先，否則活動期間
+  const tw = t.timeWindow, p = challenge.period || {};
+  const dateLabel = (tw && tw.start && tw.end) ? `${tw.start} ~ ${tw.end}`
+    : (p.start && p.end) ? `${p.start} ~ ${p.end}` : '活動期間內';
+  // 麵照：有 image 顯示圖，無則 fallback 佔位（no-img）
+  const noodle = t.image
+    ? `<div class="ch-dex-noodle"><img src="${escapeHtml(t.image)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('no-img');this.remove()"></div>`
+    : `<div class="ch-dex-noodle no-img"></div>`;
+  return `<div class="ch-dex-card ${done ? 'done' : ''}" data-tid="${escapeHtml(t.id || '')}" data-cid="${escapeHtml(challenge.id || '')}" data-field="${escapeHtml(field)}">
+    ${noodle}
+    <div class="ch-dex-shop">${escapeHtml(shopLabel)}</div>
+    <div class="ch-dex-item">${escapeHtml(t.title || '')}</div>
+    <div class="ch-dex-date">${escapeHtml(dateLabel)}</div>
+    <div class="ch-dex-stamp">已完成</div>
+  </div>`;
+}
+
 // ── 送出 Modal ─────────────────────────────────────────────────────────────
-function openChSubmitModal(challengeId) {
+function openChSubmitModal(challengeId, task) {
   const challenge = _chChallenges.find(c => c.id === challengeId);
   if (!challenge) return;
   _chCurrentChallenge = challenge;
@@ -260,7 +294,23 @@ function openChSubmitModal(challengeId) {
   document.getElementById('chProgress').textContent     = '';
   document.getElementById('chSubmitBtn').disabled       = true;
 
+  // 點圖鑑格帶入：品項(title) 一律帶；店家僅 shopId 型能帶特定店（shopCity/manual 由玩家自選）
+  if (task) {
+    document.getElementById('chItemName').value = task.title || '';
+    if (task.condition && task.condition.field === 'shopId') {
+      const shop = (typeof findShopById === 'function') ? findShopById(task.condition.value) : null;
+      if (shop) {
+        const inp = document.getElementById('chShopInput');
+        inp.value          = shop['店名'] || '';
+        inp.dataset.shopId = shop['ID'] || '';
+        _chCurrentShop     = shop;
+      }
+    }
+    document.getElementById('chSubmitTitle').textContent = `📷 ${task.title || challenge.title || ''}`;
+  }
+
   resetChUploadArea();
+  checkChReady();
 
   document.getElementById('chSubmitBackdrop').classList.add('open');
   document.getElementById('chSubmitModal').classList.add('open');
