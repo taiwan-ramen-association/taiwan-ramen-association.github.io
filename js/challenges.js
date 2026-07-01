@@ -243,7 +243,7 @@ function renderChallengeCard(challenge) {
           <div class="ch-groups">
             ${(challenge.groups || []).map(g => renderGroup(g, completed, challenge)).join('')}
           </div>
-          ${hasUploadTask ? `<button class="ch-submit-btn" data-challenge-id="${challenge.id}">📷 送出新紀錄</button>` : ''}
+          ${hasUploadTask ? `<button class="ch-submit-btn" data-challenge-id="${challenge.id}">📷 送出新紀錄(點圖示快速帶入)</button>` : ''}
         </div>
       </div>
     </div>
