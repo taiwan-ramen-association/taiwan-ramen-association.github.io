@@ -174,6 +174,10 @@ function renderChallenges() {
       openChSubmitModal(cid, task);
     });
   });
+  // 綁定排行榜按鈕
+  list.querySelectorAll('.ch-rank-btn').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); openChRankModal(btn.dataset.cid); });
+  });
   // 綁定卡片展開（點 header 切換）
   list.querySelectorAll('.ch-toggle').forEach(h => {
     h.addEventListener('click', () => h.closest('.ch-card')?.classList.toggle('expanded'));
@@ -228,6 +232,7 @@ function renderChallengeCard(challenge) {
   return `
     <div class="ch-card">
       ${challenge.image ? `<img class="ch-cover" src="${escapeHtml(challenge.image)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+      ${challenge.image ? `<button class="ch-rank-btn" data-cid="${escapeHtml(challenge.id)}">🏆 排行榜</button>` : ''}
       <div class="ch-card-header ch-toggle">
         <div class="ch-title">${escapeHtml(challenge.title || '')}</div>
         ${periodStr ? `<div class="ch-period">📅 ${escapeHtml(periodStr)}</div>` : ''}
@@ -296,6 +301,62 @@ function renderDexCard(t, completed, challenge) {
     <div class="ch-dex-stamp-review">審查中</div>
     <div class="ch-dex-stamp-reject">已駁回</div>
   </div>`;
+}
+
+// ── 挑戰排行榜 ─────────────────────────────────────────────────────────────
+// email 去識別化：前2後2＋中間固定星（越短遮越多，不洩漏原長度）
+function maskEmail(email) {
+  if (!email || email.indexOf('@') < 0) return '匿名';
+  const [local, domain] = email.split('@');
+  let m;
+  if (local.length <= 2)      m = local.slice(0, 1) + '****';
+  else if (local.length <= 4) m = local.slice(0, 1) + '****' + local.slice(-1);
+  else                        m = local.slice(0, 2) + '****' + local.slice(-2);
+  return m + '@' + domain;
+}
+// 開排行榜：讀 challengeLeaderboards/{cid}（admin batch 彙總），dense 名次 + 凍結自己
+async function openChRankModal(cid) {
+  const modal  = document.getElementById('chRankModal');
+  const listEl = document.getElementById('chRankList');
+  const selfEl = document.getElementById('chRankSelf');
+  document.getElementById('chRankTitle').textContent = '🏆 ' + ((_chChallenges.find(c => c.id === cid) || {}).title || '排行榜');
+  listEl.innerHTML = '<div class="ch-rank-empty">載入中…</div>';
+  selfEl.style.display = 'none';
+  modal.style.display = 'flex';
+  document.getElementById('chRankClose').onclick = closeChRankModal;
+  modal.onclick = e => { if (e.target === modal) closeChRankModal(); };
+  try {
+    const doc  = await db.collection('challengeLeaderboards').doc(cid).get();
+    const rows = doc.exists ? (doc.data().rows || []) : [];
+    if (!rows.length) {
+      listEl.innerHTML = '<div class="ch-rank-empty">排行榜尚未產生<br><small>管理員彙總後即會顯示</small></div>';
+      return;
+    }
+    const uid = auth.currentUser ? auth.currentUser.uid : '';
+    const MEDALS = ['🥇', '🥈', '🥉'];
+    const rowHtml = (r, rk, isSelf) => {
+      const num = rk <= 3 ? `<span class="ch-rank-medal">${MEDALS[rk - 1]}</span>` : rk;
+      return `<div class="ch-rank-row${isSelf ? ' is-self' : ''}">
+        <div class="ch-rank-num">${num}</div>
+        <div class="ch-rank-name">${escapeHtml(r.emailMasked || '匿名')}${isSelf ? '<span class="ch-rank-you">（你）</span>' : ''}</div>
+        <div class="ch-rank-count">${r.count}<span class="ch-rank-count-unit">碗</span></div>
+      </div>`;
+    };
+    let rank = 0, prev = null, selfHtml = null;
+    listEl.innerHTML = rows.map(r => {
+      if (r.count !== prev) { rank++; prev = r.count; }  // dense ranking：碗數相同並列、不跳號
+      const isSelf = r.uid === uid;
+      const h = rowHtml(r, rank, isSelf);
+      if (isSelf) selfHtml = h;
+      return h;
+    }).join('');
+    if (selfHtml) { selfEl.innerHTML = selfHtml; selfEl.style.display = ''; }
+  } catch (e) {
+    listEl.innerHTML = `<div class="ch-rank-empty">載入失敗：${escapeHtml(e.message)}</div>`;
+  }
+}
+function closeChRankModal() {
+  document.getElementById('chRankModal').style.display = 'none';
 }
 
 // ── 送出 Modal ─────────────────────────────────────────────────────────────
@@ -465,11 +526,15 @@ async function chVerifyGpsNearShop(shop) {
   const gps = await new Promise(resolve => {
     navigator.geolocation.getCurrentPosition(
       pos => resolve({ ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      ()  => resolve({ ok: false }),
+      err => resolve({ ok: false, code: err.code }),
       { timeout: 10000, maximumAge: 60000 }
     );
   });
-  if (!gps.ok) return '需要開啟定位才能送出（請允許定位權限）';
+  if (!gps.ok) {
+    if (gps.code === 1) return (typeof gpsDeniedHint === 'function') ? gpsDeniedHint('送出') : '定位權限被拒，請到瀏覽器／裝置設定開啟定位後重試';
+    if (gps.code === 3) return '定位逾時，請確認訊號後重試';
+    return '無法取得定位，請確認裝置定位已開啟';
+  }
   const radius = (typeof queueSettings !== 'undefined' && queueSettings.gpsRadiusMeters) || 500;
   const dist = haversineDistance(gps.lat, gps.lng, Number(lat), Number(lng));
   if (dist > radius) return `距離「${shop['店名'] || ''}」約 ${Math.round(dist)} 公尺，需在 ${radius} 公尺內才能送出`;

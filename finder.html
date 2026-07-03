@@ -1107,6 +1107,30 @@
   .ch-dex-card.pending .ch-dex-stamp-review { opacity: 0.8; }
   .ch-dex-stamp-reject { position: absolute; top: 2px; right: 2px; width: 42px; height: 42px; border: 2px dashed var(--red); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--red); transform: rotate(-12deg); opacity: 0; transition: opacity 0.4s ease; }
   .ch-dex-card.rejected .ch-dex-stamp-reject { opacity: 0.85; }
+  /* ── 挑戰排行榜 ── */
+  .ch-card { position: relative; }
+  .ch-rank-btn { position: absolute; top: 10px; right: 10px; z-index: 3; background: rgba(0,0,0,0.45); color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 12px; padding: 6px 12px; border-radius: 999px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .ch-rank-btn:hover { background: rgba(0,0,0,0.62); }
+  .ch-rank-backdrop { position: fixed; inset: 0; z-index: 800; background: rgba(0,0,0,0.45); display: flex; align-items: flex-end; justify-content: center; }
+  @media (min-width: 560px) { .ch-rank-backdrop { align-items: center; } }
+  .ch-rank-modal { background: var(--white); width: 100%; max-width: 480px; border-radius: 18px 18px 0 0; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
+  @media (min-width: 560px) { .ch-rank-modal { border-radius: 14px; max-height: 80vh; } }
+  .ch-rank-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .ch-rank-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .ch-rank-close { width: 28px; height: 28px; border-radius: 50%; background: var(--line); border: none; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; color: var(--stone); }
+  .ch-rank-list { overflow-y: auto; flex: 1; padding: 4px 16px 12px; }
+  .ch-rank-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; }
+  .ch-rank-row + .ch-rank-row { border-top: 1px solid var(--line); }
+  .ch-rank-row.is-self { background: rgba(200,39,45,0.06); border-radius: 8px; }
+  .ch-rank-num { font-size: 13px; font-weight: 700; color: var(--stone); width: 30px; text-align: center; flex-shrink: 0; }
+  .ch-rank-medal { font-size: 18px; }
+  .ch-rank-name { flex: 1; min-width: 0; font-size: 14px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ch-rank-you { font-size: 11px; color: var(--red); margin-left: 4px; }
+  .ch-rank-count { font-size: 18px; font-weight: 800; color: var(--red); flex-shrink: 0; }
+  .ch-rank-count-unit { font-size: 11px; color: var(--stone); font-weight: 400; margin-left: 2px; }
+  .ch-rank-self { flex-shrink: 0; border-top: 2px solid var(--red); background: var(--white); }
+  .ch-rank-self .ch-rank-row { padding: 10px 20px; }
+  .ch-rank-empty { text-align: center; padding: 28px 16px; color: var(--stone); font-size: 13px; }
 
   /* 卡片展開（點 header）+ 尋寶提示 */
   .ch-card-header.ch-toggle { cursor: pointer; }
@@ -2044,6 +2068,18 @@
     <div class="rf-list-inner" id="challengesList">
       <p class="ch-empty">載入中…</p>
     </div>
+  </div>
+</div>
+
+<!-- ── 挑戰排行榜 Modal ─────────────────────────────────────────── -->
+<div id="chRankModal" class="ch-rank-backdrop" style="display:none">
+  <div class="ch-rank-modal">
+    <div class="ch-rank-head">
+      <span class="ch-rank-title" id="chRankTitle">🏆 排行榜</span>
+      <button class="ch-rank-close" id="chRankClose">✕</button>
+    </div>
+    <div class="ch-rank-list" id="chRankList"></div>
+    <div class="ch-rank-self" id="chRankSelf" style="display:none"></div>
   </div>
 </div>
 
@@ -3224,6 +3260,10 @@ function findShopById(id) {
 }
 
 // ── Queue helpers ──────────────────────────────────────────────────────────
+// GPS 權限被拒/封鎖（getCurrentPosition error.code===1）時的引導訊息
+function gpsDeniedHint(action) {
+  return `定位權限被拒，無法${action || '使用'}。請到網址列 🔒 → 位置 開啟（iPhone：設定 → Safari → 位置）後重試`;
+}
 function haversineDistance(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -3368,14 +3408,14 @@ async function openQueueModal(shopId, shopName) {
   const gpsResult = await new Promise(resolve => {
     navigator.geolocation.getCurrentPosition(
       pos => resolve({ ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      ()  => resolve({ ok: false }),
+      err => resolve({ ok: false, code: err.code }),
       { timeout: 10000, maximumAge: 60000 }
     );
   });
 
   if (!gpsResult.ok) {
     penalizeTrustScore(-1);
-    showStampToast('需要開啟定位才能回報排隊狀況');
+    showStampToast(gpsResult.code === 1 ? gpsDeniedHint('回報') : gpsResult.code === 3 ? '定位逾時，請確認訊號後重試' : '無法取得定位，請確認裝置定位已開啟');
     return;
   }
 
