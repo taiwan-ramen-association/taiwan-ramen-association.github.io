@@ -200,6 +200,27 @@ function renderChallengeCard(challenge) {
   const doneTasks  = allTasks.filter(t => completed.includes(t.id)).length;
   const pct        = totalTasks ? Math.round(doneTasks / totalTasks * 100) : 0;
 
+  // 進度顯示：goalStep>0 → 里程碑模式（每 N 個 +1，可封頂）；否則原始 完成/總 %
+  let barPct = pct, progText = `${doneTasks}/${totalTasks}　${pct}%`;
+  const gStep = Number(challenge.goalStep) || 0;
+  if (gStep > 0) {
+    const maxAch = (Number(challenge.goalMax) || 0) > 0
+      ? Number(challenge.goalMax) : Math.floor(totalTasks / gStep);
+    if (maxAch > 0) {
+      const ach   = Math.min(Math.floor(doneTasks / gStep), maxAch);
+      const label = escapeHtml(challenge.goalLabel || '達成');
+      const unit  = escapeHtml(challenge.goalUnit || '個');
+      if (ach >= maxAch) {
+        barPct = 100;
+        progText = `🎟️ ${label} ×${ach}　（完成 ${doneTasks} ${unit}｜已達上限 🎉）`;
+      } else {
+        const inCycle = doneTasks % gStep;
+        barPct = Math.round(inCycle / gStep * 100);
+        progText = `🎟️ ${label} ×${ach}　（完成 ${doneTasks} ${unit}｜再 ${gStep - inCycle} ${unit} +1）`;
+      }
+    }
+  }
+
   const period    = challenge.period || {};
   const periodStr = period.start && period.end ? `${period.start} ~ ${period.end}` : '';
 
@@ -239,8 +260,8 @@ function renderChallengeCard(challenge) {
         <span class="ch-chevron" aria-hidden="true"></span>
       </div>
       <div class="ch-progress-row">
-        <div class="ch-progress-bar"><div class="ch-progress-fill" style="width:${pct}%"></div></div>
-        <span class="ch-progress-text">${doneTasks}/${totalTasks}　${pct}%</span>
+        <div class="ch-progress-bar"><div class="ch-progress-fill" style="width:${barPct}%"></div></div>
+        <span class="ch-progress-text">${progText}</span>
       </div>
       ${nextHtml}
       <div class="ch-detail">
