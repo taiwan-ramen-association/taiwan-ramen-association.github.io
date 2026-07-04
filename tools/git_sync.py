@@ -4,11 +4,12 @@ A  全部 Pull（Public + Private）
 B  全部 Push（Public + Private）
 1  Public Pull   （主 repo）
 2  Public Push   （主 repo）
-3  Private Pull  （_memory）
-4  Private Push  （_memory）
+3  Private Pull  （ramen-finder-notes）
+4  Private Push  （ramen-finder-notes）
 s  查看兩個 repo 狀態
 """
 import os
+import shlex
 import subprocess
 import sys
 
@@ -24,6 +25,44 @@ PUBLIC_LABEL  = 'Public  (taiwan-ramen-association.github.io)'
 PRIVATE_LABEL = 'Private (ramen-finder-notes)'
 
 
+def _detect_gh_cred():
+    """gh 已安裝且登入 → 用它當 git 憑證（繞過失效的 osxkeychain）。"""
+    try:
+        r = subprocess.run(['gh', 'auth', 'status'],
+                           capture_output=True, text=True, encoding='utf-8')
+        return r.returncode == 0
+    except (FileNotFoundError, OSError):
+        return False
+
+
+GH_CRED = _detect_gh_cred()
+
+
+def _git_cmd(network):
+    """network=True 且有 gh → 用 gh 憑證 helper（不動使用者全域設定）。"""
+    cmd = ['git']
+    if network and GH_CRED:
+        cmd += ['-c', 'credential.helper=!gh auth git-credential']
+    return cmd
+
+
+def classify_git_error(text):
+    """把 git 失敗訊息分類，供對應提示 / 自動修復。"""
+    t = (text or '').lower()
+    if any(k in t for k in ('could not read username', 'authentication failed',
+                            'error: 401', 'error: 403', 'invalid username or password',
+                            'terminal prompts disabled', 'no anonymous write access')):
+        return 'auth'
+    if any(k in t for k in ('rejected', 'non-fast-forward', 'fetch first',
+                            'tip of your current branch is behind')):
+        return 'rejected'
+    if any(k in t for k in ('could not resolve host', 'timed out', 'timeout',
+                            'connection refused', 'network is unreachable',
+                            'failed to connect')):
+        return 'network'
+    return 'other'
+
+
 def section(title):
     print()
     print('─' * 54)
@@ -31,9 +70,10 @@ def section(title):
     print('─' * 54)
 
 
-def run_git(args, cwd):
+def run_git(args, cwd, network=False):
+    """執行 git（network=True 走 gh 憑證），印出輸出，回傳成功與否。"""
     result = subprocess.run(
-        ['git'] + args,
+        _git_cmd(network) + args,
         cwd=cwd, capture_output=True, text=True, encoding='utf-8'
     )
     out = (result.stdout + result.stderr).strip()
@@ -42,11 +82,83 @@ def run_git(args, cwd):
     return result.returncode == 0
 
 
+def git_capture(args, cwd, network=False):
+    """執行 git 但不印，回傳 (returncode, stdout, stderr)，供檢查用。"""
+    result = subprocess.run(
+        _git_cmd(network) + args,
+        cwd=cwd, capture_output=True, text=True, encoding='utf-8'
+    )
+    return result.returncode, (result.stdout or ''), (result.stderr or '')
+
+
+def _hint_git_failure(kind, op, text=''):
+    """依錯誤類型給一句對應的下一步提示。"""
+    tl = (text or '').lower()
+    if 'conflict' in tl:
+        print('  ⚠  rebase 有衝突：解決後 `git rebase --continue`，或 `git rebase --abort` 放棄。')
+        return
+    if kind == 'auth':
+        print('  🔑 憑證問題。可跑一次 `gh auth setup-git`（讓 git 用 gh 的有效 token）。')
+    elif kind == 'rejected':
+        print('  ↯ 遠端有新 commit（分岔）。先 Pull（本工具已改 --rebase）再重試。')
+    elif kind == 'network':
+        print('  🌐 網路問題，請檢查連線後重試。')
+
+
 def git_pull(cwd, label):
     section(f'Pull — {label}')
-    ok = run_git(['pull'], cwd=cwd)
-    print(f'\n  {"✅ 完成" if ok else "❌ 失敗"}')
-    return ok
+    rc, out, err = git_capture(['pull', '--rebase', '--autostash'], cwd=cwd, network=True)
+    combined = (out + err).strip()
+    if combined:
+        print(combined)
+    if rc == 0:
+        print('\n  ✅ 完成')
+        return True
+    _hint_git_failure(classify_git_error(out + err), 'pull', out + err)
+    print('\n  ❌ 失敗')
+    return False
+
+
+def _safe_push(cwd):
+    """push 前先同步遠端（避免被拒）；仍被拒則 rebase 後重推一次。走 gh 憑證。"""
+    # 1. 先抓遠端，落後就先 rebase（--autostash 保住 WIP）
+    frc, fo, fe = git_capture(['fetch'], cwd=cwd, network=True)
+    if frc != 0:
+        print((fo + fe).strip())
+        _hint_git_failure(classify_git_error(fo + fe), 'fetch', fo + fe)
+        return False
+    brc, bo, _ = git_capture(['rev-list', '--count', 'HEAD..@{u}'], cwd=cwd)
+    behind = bo.strip() if brc == 0 else '0'
+    if behind.isdigit() and int(behind) > 0:
+        print(f'  ↯ 遠端領先 {behind} 個 commit，先 rebase…')
+        rrc, ro, re_ = git_capture(['pull', '--rebase', '--autostash'], cwd=cwd, network=True)
+        print((ro + re_).strip())
+        if rrc != 0:
+            _hint_git_failure(classify_git_error(ro + re_), 'pull', ro + re_)
+            return False
+    # 2. push
+    prc, po, pe = git_capture(['push'], cwd=cwd, network=True)
+    if (po + pe).strip():
+        print((po + pe).strip())
+    if prc == 0:
+        return True
+    # 3. 被拒（競態，遠端又更新）→ rebase 後重推一次
+    if classify_git_error(po + pe) == 'rejected':
+        print('  ↯ push 被拒（遠端又更新），rebase 後重推一次…')
+        rrc, ro, re_ = git_capture(['pull', '--rebase', '--autostash'], cwd=cwd, network=True)
+        print((ro + re_).strip())
+        if rrc == 0:
+            prc2, po2, pe2 = git_capture(['push'], cwd=cwd, network=True)
+            if (po2 + pe2).strip():
+                print((po2 + pe2).strip())
+            if prc2 == 0:
+                return True
+            _hint_git_failure(classify_git_error(po2 + pe2), 'push', po2 + pe2)
+            return False
+        _hint_git_failure(classify_git_error(ro + re_), 'pull', ro + re_)
+        return False
+    _hint_git_failure(classify_git_error(po + pe), 'push', po + pe)
+    return False
 
 
 def git_push(cwd, label):
@@ -83,11 +195,15 @@ def git_push(cwd, label):
     elif add_choice == 'M':
         run_git(['add', '-u'], cwd=cwd)
     elif add_choice == 'F':
-        files = input('  輸入檔案路徑（空格分隔）：').strip()
+        files = input('  輸入檔案路徑（空格分隔，含空白用引號）：').strip()
         if not files:
             print('  ↩ 取消')
             return False
-        run_git(['add'] + files.split(), cwd=cwd)
+        try:
+            paths = shlex.split(files)
+        except ValueError:
+            paths = files.split()
+        run_git(['add', '--'] + paths, cwd=cwd)
     else:
         print(f'  ⚠  無效選項')
         return False
@@ -113,8 +229,12 @@ def git_push(cwd, label):
         return False
 
     print('\n  🚀 推送中...')
-    ok = run_git(['push'], cwd=cwd)
-    print(f'\n  {"✅ Push 完成！" if ok else "❌ Push 失敗"}')
+    ok = _safe_push(cwd)
+    if ok:
+        _, sha, _ = git_capture(['rev-parse', '--short', 'HEAD'], cwd=cwd)
+        print(f'\n  ✅ Push 完成！（{sha.strip()}）')
+    else:
+        print('\n  ❌ Push 失敗')
     return ok
 
 
@@ -159,48 +279,53 @@ def show_menu():
 # ════════════════════════════════════════════════════════════════════════════════
 # 主迴圈
 # ════════════════════════════════════════════════════════════════════════════════
-while True:
-    show_menu()
-    choice = input('\n請輸入選項：').strip().lower()
+def main():
+    while True:
+        show_menu()
+        choice = input('\n請輸入選項：').strip().lower()
 
-    if choice == 'q':
-        print('\n掰掰')
-        break
+        if choice == 'q':
+            print('\n掰掰')
+            break
 
-    elif choice == 'a':
-        git_pull(root_dir, PUBLIC_LABEL)
-        if check_memory():
-            git_pull(memory_dir, PRIVATE_LABEL)
-        input('\n按 Enter 繼續...')
+        elif choice == 'a':
+            git_pull(root_dir, PUBLIC_LABEL)
+            if check_memory():
+                git_pull(memory_dir, PRIVATE_LABEL)
+            input('\n按 Enter 繼續...')
 
-    elif choice == 'b':
-        git_push(root_dir, PUBLIC_LABEL)
-        if check_memory():
-            git_push(memory_dir, PRIVATE_LABEL)
-        input('\n按 Enter 繼續...')
+        elif choice == 'b':
+            git_push(root_dir, PUBLIC_LABEL)
+            if check_memory():
+                git_push(memory_dir, PRIVATE_LABEL)
+            input('\n按 Enter 繼續...')
 
-    elif choice == '1':
-        git_pull(root_dir, PUBLIC_LABEL)
-        input('\n按 Enter 繼續...')
+        elif choice == '1':
+            git_pull(root_dir, PUBLIC_LABEL)
+            input('\n按 Enter 繼續...')
 
-    elif choice == '2':
-        git_push(root_dir, PUBLIC_LABEL)
-        input('\n按 Enter 繼續...')
+        elif choice == '2':
+            git_push(root_dir, PUBLIC_LABEL)
+            input('\n按 Enter 繼續...')
 
-    elif choice == '3':
-        if check_memory():
-            git_pull(memory_dir, PRIVATE_LABEL)
-        input('\n按 Enter 繼續...')
+        elif choice == '3':
+            if check_memory():
+                git_pull(memory_dir, PRIVATE_LABEL)
+            input('\n按 Enter 繼續...')
 
-    elif choice == '4':
-        if check_memory():
-            git_push(memory_dir, PRIVATE_LABEL)
-        input('\n按 Enter 繼續...')
+        elif choice == '4':
+            if check_memory():
+                git_push(memory_dir, PRIVATE_LABEL)
+            input('\n按 Enter 繼續...')
 
-    elif choice == 's':
-        git_status()
-        input('\n按 Enter 繼續...')
+        elif choice == 's':
+            git_status()
+            input('\n按 Enter 繼續...')
 
-    else:
-        print(f'\n  ⚠  「{choice}」不是有效的選項')
-        input('\n按 Enter 繼續...')
+        else:
+            print(f'\n  ⚠  「{choice}」不是有效的選項')
+            input('\n按 Enter 繼續...')
+
+
+if __name__ == '__main__':
+    main()
