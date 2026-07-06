@@ -337,43 +337,65 @@ function maskEmail(email) {
 }
 // 開排行榜：讀 challengeLeaderboards/{cid}（admin batch 彙總），dense 名次 + 凍結自己
 async function openChRankModal(cid) {
-  const modal  = document.getElementById('chRankModal');
-  const listEl = document.getElementById('chRankList');
-  const selfEl = document.getElementById('chRankSelf');
+  const modal    = document.getElementById('chRankModal');
+  const playerEl = document.getElementById('chRankList-player');
+  const taskEl   = document.getElementById('chRankList-task');
+  const shopEl   = document.getElementById('chRankList-shop');
+  const selfEl   = document.getElementById('chRankSelf');
   document.getElementById('chRankTitle').textContent = '🏆 ' + ((_chChallenges.find(c => c.id === cid) || {}).title || '排行榜');
-  listEl.innerHTML = '<div class="ch-rank-empty">載入中…</div>';
+  playerEl.innerHTML = '<div class="ch-rank-empty">載入中…</div>';
+  taskEl.innerHTML = shopEl.innerHTML = '';
   selfEl.style.display = 'none';
   modal.style.display = 'flex';
   document.getElementById('chRankClose').onclick = closeChRankModal;
   modal.onclick = e => { if (e.target === modal) closeChRankModal(); };
-  try {
-    const doc  = await db.collection('challengeLeaderboards').doc(cid).get();
-    const rows = doc.exists ? (doc.data().rows || []) : [];
-    if (!rows.length) {
-      listEl.innerHTML = '<div class="ch-rank-empty">排行榜尚未產生<br><small>管理員彙總後即會顯示</small></div>';
-      return;
-    }
-    const uid = auth.currentUser ? auth.currentUser.uid : '';
-    const MEDALS = ['🥇', '🥈', '🥉'];
-    const rowHtml = (r, rk, isSelf) => {
-      const num = rk <= 3 ? `<span class="ch-rank-medal">${MEDALS[rk - 1]}</span>` : rk;
-      return `<div class="ch-rank-row${isSelf ? ' is-self' : ''}">
+  // 分頁切換（資料一次載齊，純顯示切換）
+  modal.querySelectorAll('.ch-rank-mtab').forEach(tab => {
+    tab.onclick = () => {
+      const key = tab.dataset.tab;
+      modal.querySelectorAll('.ch-rank-mtab').forEach(t => t.classList.toggle('active', t === tab));
+      modal.querySelectorAll('.ch-rank-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === key));
+    };
+  });
+  // 每次開啟都回到「玩家」分頁
+  modal.querySelectorAll('.ch-rank-mtab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'player'));
+  modal.querySelectorAll('.ch-rank-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === 'player'));
+
+  const MEDALS = ['🥇', '🥈', '🥉'];
+  // 通用 dense 名次渲染（rows 已由後端 count 多→少排序）；nameOf 決定顯示名，selfUid 有值才凍結自己
+  const renderRanked = (rows, nameOf, opt) => {
+    opt = opt || {};
+    if (!rows || !rows.length) return { html: `<div class="ch-rank-empty">${opt.emptyMsg || '尚未產生'}</div>`, selfHtml: null };
+    let rank = 0, prev = null, selfHtml = null;
+    const html = rows.map(r => {
+      if (r.count !== prev) { rank++; prev = r.count; }  // dense：同碗數並列、不跳號
+      const isSelf = opt.selfUid && r.uid === opt.selfUid;
+      const num = rank <= 3 ? `<span class="ch-rank-medal">${MEDALS[rank - 1]}</span>` : rank;
+      const h = `<div class="ch-rank-row${isSelf ? ' is-self' : ''}">
         <div class="ch-rank-num">${num}</div>
-        <div class="ch-rank-name">${escapeHtml(r.emailMasked || '匿名')}${isSelf ? '<span class="ch-rank-you">（你）</span>' : ''}</div>
+        <div class="ch-rank-name">${escapeHtml(nameOf(r))}${isSelf ? '<span class="ch-rank-you">（你）</span>' : ''}</div>
         <div class="ch-rank-count">${r.count}<span class="ch-rank-count-unit">碗</span></div>
       </div>`;
-    };
-    let rank = 0, prev = null, selfHtml = null;
-    listEl.innerHTML = rows.map(r => {
-      if (r.count !== prev) { rank++; prev = r.count; }  // dense ranking：碗數相同並列、不跳號
-      const isSelf = r.uid === uid;
-      const h = rowHtml(r, rank, isSelf);
       if (isSelf) selfHtml = h;
       return h;
     }).join('');
-    if (selfHtml) { selfEl.innerHTML = selfHtml; selfEl.style.display = ''; }
+    return { html, selfHtml };
+  };
+  try {
+    const doc  = await db.collection('challengeLeaderboards').doc(cid).get();
+    const data = doc.exists ? doc.data() : {};
+    const uid  = auth.currentUser ? auth.currentUser.uid : '';
+    // ① 玩家榜（凍結自己）
+    const player = renderRanked(data.rows, r => r.emailMasked || '匿名',
+      { selfUid: uid, emptyMsg: '排行榜尚未產生<br><small>管理員彙總後即會顯示</small>' });
+    playerEl.innerHTML = player.html;
+    if (player.selfHtml) { selfEl.innerHTML = player.selfHtml; selfEl.style.display = ''; }
+    // ②③ 品項榜 / 店家榜（不凍結自己）；舊 doc 無這兩欄位 → 提示重新彙總
+    const subEmpty = ('taskRows' in data) ? '尚無資料' : '請管理員重新彙總排行榜';
+    taskEl.innerHTML = renderRanked(data.taskRows, r => r.title || r.taskId, { emptyMsg: subEmpty }).html;
+    shopEl.innerHTML = renderRanked(data.shopRows, r => r.shopName || r.shopId, { emptyMsg: subEmpty }).html;
   } catch (e) {
-    listEl.innerHTML = `<div class="ch-rank-empty">載入失敗：${escapeHtml(e.message)}</div>`;
+    playerEl.innerHTML = `<div class="ch-rank-empty">載入失敗：${escapeHtml(e.message)}</div>`;
   }
 }
 function closeChRankModal() {

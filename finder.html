@@ -1131,6 +1131,14 @@
   .ch-rank-self { flex-shrink: 0; border-top: 2px solid var(--red); background: var(--white); }
   .ch-rank-self .ch-rank-row { padding: 10px 20px; }
   .ch-rank-empty { text-align: center; padding: 28px 16px; color: var(--stone); font-size: 13px; }
+  /* 三分頁：玩家 / 品項 / 店家 */
+  .ch-rank-tabs { display: flex; border-bottom: 1px solid var(--line); flex-shrink: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .ch-rank-tabs::-webkit-scrollbar { display: none; }
+  .ch-rank-mtab { flex: 1; min-width: 72px; padding: 10px 6px; border: none; background: none; font-size: 12px; color: var(--stone); cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; font-family: inherit; transition: color 0.15s; }
+  .ch-rank-mtab.active { color: var(--red); border-bottom-color: var(--red); font-weight: 600; }
+  .ch-rank-panel { display: none; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
+  .ch-rank-panel.active { display: flex; }
+  .ch-rank-panel-desc { font-size: 12px; color: var(--stone); padding: 9px 20px; flex-shrink: 0; background: #fdf9f5; border-bottom: 1px solid var(--line); line-height: 1.5; }
 
   /* 卡片展開（點 header）+ 尋寶提示 */
   .ch-card-header.ch-toggle { cursor: pointer; }
@@ -2078,8 +2086,24 @@
       <span class="ch-rank-title" id="chRankTitle">🏆 排行榜</span>
       <button class="ch-rank-close" id="chRankClose">✕</button>
     </div>
-    <div class="ch-rank-list" id="chRankList"></div>
-    <div class="ch-rank-self" id="chRankSelf" style="display:none"></div>
+    <div class="ch-rank-tabs">
+      <button class="ch-rank-mtab active" data-tab="player">玩家</button>
+      <button class="ch-rank-mtab" data-tab="task">品項</button>
+      <button class="ch-rank-mtab" data-tab="shop">店家</button>
+    </div>
+    <div class="ch-rank-panel active" data-panel="player">
+      <div class="ch-rank-panel-desc">完成越多品項（碗）排越前；碗數相同則並列同名次</div>
+      <div class="ch-rank-list" id="chRankList-player"></div>
+      <div class="ch-rank-self" id="chRankSelf" style="display:none"></div>
+    </div>
+    <div class="ch-rank-panel" data-panel="task">
+      <div class="ch-rank-panel-desc">各品項被完成的碗數，越多人吃排越前</div>
+      <div class="ch-rank-list" id="chRankList-task"></div>
+    </div>
+    <div class="ch-rank-panel" data-panel="shop">
+      <div class="ch-rank-panel-desc">各店家累積完成碗數，越多排越前</div>
+      <div class="ch-rank-list" id="chRankList-shop"></div>
+    </div>
   </div>
 </div>
 
