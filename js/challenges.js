@@ -373,7 +373,7 @@ async function openChRankModal(cid) {
       const num = rank <= 3 ? `<span class="ch-rank-medal">${MEDALS[rank - 1]}</span>` : rank;
       const h = `<div class="ch-rank-row${isSelf ? ' is-self' : ''}">
         <div class="ch-rank-num">${num}</div>
-        <div class="ch-rank-name">${escapeHtml(nameOf(r))}${isSelf ? '<span class="ch-rank-you">（你）</span>' : ''}</div>
+        <div class="ch-rank-name">${escapeHtml(nameOf(r))}${isSelf ? '<span class="ch-rank-you">（你）</span>' : ''}${opt.subOf && opt.subOf(r) ? `<br><small style="color:var(--stone);font-size:11px;font-weight:400">${escapeHtml(opt.subOf(r))}</small>` : ''}</div>
         <div class="ch-rank-count">${r.count}<span class="ch-rank-count-unit">碗</span></div>
       </div>`;
       if (isSelf) selfHtml = h;
@@ -392,7 +392,8 @@ async function openChRankModal(cid) {
     if (player.selfHtml) { selfEl.innerHTML = player.selfHtml; selfEl.style.display = ''; }
     // ②③ 品項榜 / 店家榜（不凍結自己）；舊 doc 無這兩欄位 → 提示重新彙總
     const subEmpty = ('taskRows' in data) ? '尚無資料' : '請管理員重新彙總排行榜';
-    taskEl.innerHTML = renderRanked(data.taskRows, r => r.title || r.taskId, { emptyMsg: subEmpty }).html;
+    taskEl.innerHTML = renderRanked(data.taskRows, r => r.title || r.taskId,
+      { emptyMsg: subEmpty, subOf: r => r.shopId ? `🏪 ${r.shopId}${r.shopName && r.shopName !== r.shopId ? ' · ' + r.shopName : ''}` : '' }).html;
     shopEl.innerHTML = renderRanked(data.shopRows, r => r.shopName || r.shopId, { emptyMsg: subEmpty }).html;
   } catch (e) {
     playerEl.innerHTML = `<div class="ch-rank-empty">載入失敗：${escapeHtml(e.message)}</div>`;
