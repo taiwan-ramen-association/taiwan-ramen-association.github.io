@@ -200,23 +200,33 @@ function renderChallengeCard(challenge) {
   const doneTasks  = allTasks.filter(t => completed.includes(t.id)).length;
   const pct        = totalTasks ? Math.round(doneTasks / totalTasks * 100) : 0;
 
-  // 進度顯示：goalStep>0 → 里程碑模式（每 N 個 +1，可封頂）；否則原始 完成/總 %
+  // 進度顯示：里程碑模式（milestone.step>0，每 N 個/間 +1，可封頂）；否則原始 完成/總 %
+  // milestone 物件優先，向下相容舊頂層 goalStep/Label/Unit/Max；countBy:'shop' 以不重複店家計數（同店多碗算一間）
   let barPct = pct, progText = `${doneTasks}/${totalTasks}　${pct}%`;
-  const gStep = Number(challenge.goalStep) || 0;
+  const ms      = challenge.milestone || {};
+  const gStep   = Number(ms.step ?? challenge.goalStep) || 0;
+  const countBy = ms.countBy || challenge.goalCountBy || 'task';
   if (gStep > 0) {
-    const maxAch = (Number(challenge.goalMax) || 0) > 0
-      ? Number(challenge.goalMax) : Math.floor(totalTasks / gStep);
+    const shopOf    = t => (t.condition && ['shopId', 'scanShop', 'quest'].includes(t.condition.field)) ? t.condition.value : null;
+    const unitDone  = countBy === 'shop'
+      ? new Set(allTasks.filter(t => completed.includes(t.id)).map(shopOf).filter(Boolean)).size
+      : doneTasks;
+    const unitTotal = countBy === 'shop'
+      ? new Set(allTasks.map(shopOf).filter(Boolean)).size
+      : totalTasks;
+    const gMax   = Number(ms.max ?? challenge.goalMax) || 0;
+    const maxAch = gMax > 0 ? gMax : Math.floor(unitTotal / gStep);
     if (maxAch > 0) {
-      const ach   = Math.min(Math.floor(doneTasks / gStep), maxAch);
-      const label = escapeHtml(challenge.goalLabel || '達成');
-      const unit  = escapeHtml(challenge.goalUnit || '個');
+      const ach   = Math.min(Math.floor(unitDone / gStep), maxAch);
+      const label = escapeHtml((ms.label ?? challenge.goalLabel) || '達成');
+      const unit  = escapeHtml((ms.unit ?? challenge.goalUnit) || (countBy === 'shop' ? '間' : '個'));
       if (ach >= maxAch) {
         barPct = 100;
-        progText = `🎟️ ${label} ×${ach}　（完成 ${doneTasks} ${unit}｜已達上限 🎉）`;
+        progText = `🎟️ ${label} ×${ach}　（完成 ${unitDone} ${unit}｜已達上限 🎉）`;
       } else {
-        const inCycle = doneTasks % gStep;
+        const inCycle = unitDone % gStep;
         barPct = Math.round(inCycle / gStep * 100);
-        progText = `🎟️ ${label} ×${ach}　（完成 ${doneTasks} ${unit}｜再 ${gStep - inCycle} ${unit} +1）`;
+        progText = `🎟️ ${label} ×${ach}　（完成 ${unitDone} ${unit}｜再 ${gStep - inCycle} ${unit} +1）`;
       }
     }
   }
