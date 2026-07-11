@@ -1111,6 +1111,32 @@
   .ch-card { position: relative; }
   .ch-rank-btn { position: absolute; top: 10px; right: 10px; z-index: 3; background: rgba(0,0,0,0.45); color: #fff; border: 1px solid rgba(255,255,255,0.4); font-size: 12px; padding: 6px 12px; border-radius: 999px; cursor: pointer; font-family: inherit; white-space: nowrap; }
   .ch-rank-btn:hover { background: rgba(0,0,0,0.62); }
+  /* 無封面圖時，排行榜鈕改嵌在標題列（非疊圖），重置絕對定位改用低調底色 */
+  .ch-rank-inline { flex: 0 0 auto; }
+  .ch-rank-inline .ch-rank-btn { position: static; background: var(--paper, #f2efe9); color: var(--ink, #333); border: 1px solid var(--line, #ddd); }
+  .ch-rank-inline .ch-rank-btn:hover { background: var(--line, #e6e2da); }
+  /* 結束(ended)活動：遮罩蓋住整張卡、「活動已結束」水平垂直置中；卡片不可展開 */
+  .ch-ended-mask {
+    position: absolute; inset: 0; z-index: 4; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(250,249,246,0.66); backdrop-filter: saturate(0.4);
+    -webkit-backdrop-filter: saturate(0.4); cursor: default;
+  }
+  .ch-ended-mask span {
+    font-size: 15px; font-weight: 700; letter-spacing: 3px; color: var(--stone, #6b6b6b);
+    background: rgba(255,255,255,0.9); border: 1px solid var(--line, #ddd);
+    padding: 8px 20px; border-radius: 999px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .ch-card.ch-ended { cursor: default; }
+  .ch-card.ch-ended .ch-rank-btn { z-index: 5; } /* 最終排行榜鈕浮在遮罩之上，仍可點看結果 */
+  /* 載入更多任務 */
+  .ch-load-more {
+    display: block; width: 100%; margin: 2px 0 14px; padding: 11px; box-sizing: border-box;
+    background: var(--white, #fff); color: var(--ink, #333); border: 1px solid var(--line, #ddd);
+    border-radius: 10px; font-size: 14px; font-family: inherit; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .ch-load-more:hover { background: var(--paper, #f2efe9); }
   .ch-rank-backdrop { position: fixed; inset: 0; z-index: 800; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; }
   @media (min-width: 560px) { .ch-rank-backdrop { align-items: center; } }
   .ch-rank-modal { background: var(--white); width: 100%; max-width: 480px; border-radius: 18px 18px 18px 18px; max-height: 70vh; display: flex; flex-direction: column; overflow: hidden; }
