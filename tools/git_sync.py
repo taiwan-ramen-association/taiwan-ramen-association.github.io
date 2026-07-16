@@ -6,7 +6,7 @@ B  全部 Push（Public + Private）
 2  Public Push   （主 repo）
 3  Private Pull  （ramen-finder-notes）
 4  Private Push  （ramen-finder-notes）
-s  查看兩個 repo 狀態
+s  查看兩個 repo 狀態（先 fetch 再比對，避免漏報落後）
 """
 import os
 import shlex
@@ -238,16 +238,61 @@ def git_push(cwd, label):
     return ok
 
 
-def git_status():
-    section(f'Status — {PUBLIC_LABEL}')
-    run_git(['status', '--short', '--branch'], cwd=root_dir)
+def status_one(cwd, label):
+    """顯示單一 repo 狀態：先 fetch（只讀）再比對，並逐條列出落後／領先的 commit。
 
-    section(f'Status — {PRIVATE_LABEL}')
+    重點：git status 只拿「上次 fetch 下來的 origin ref」比對，本身不連遠端；
+    若不先 fetch，遠端已領先時會漏報成「無差異」。故這裡先 fetch 再顯示。
+    """
+    section(f'Status — {label}')
+
+    # 1. 先 fetch（只讀，更新 origin ref）；離線／失敗則標註本機狀態可能過期
+    frc, fo, fe = git_capture(['fetch'], cwd=cwd, network=True)
+    if frc != 0:
+        kind = classify_git_error(fo + fe)
+        if kind == 'network':
+            print('  🌐 無法連線遠端，以下為本機（可能過期）的狀態：')
+        elif kind == 'auth':
+            print('  🔑 憑證問題無法 fetch，以下為本機（可能過期）的狀態。')
+            print('     可跑一次 `gh auth setup-git`（讓 git 用 gh 的有效 token）。')
+        else:
+            print('  ⚠  fetch 失敗，以下為本機（可能過期）的狀態。')
+
+    # 2. 工作區 + 分支追蹤狀態
+    run_git(['status', '--short', '--branch'], cwd=cwd)
+
+    # 3. 沒有 upstream 就沒得比（避免 @{u} 報錯後靜默誤判成「同步」）
+    urc, _, _ = git_capture(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], cwd=cwd)
+    if urc != 0:
+        print('\n  ⚠  此分支未設定 upstream，無法比對遠端。')
+        return
+
+    # 4. 明確列出落後／領先遠端的 commit（fetch 後才準）
+    _, behind, _ = git_capture(['log', '--oneline', 'HEAD..@{u}'], cwd=cwd)
+    _, ahead, _  = git_capture(['log', '--oneline', '@{u}..HEAD'], cwd=cwd)
+    behind, ahead = behind.strip(), ahead.strip()
+
+    if behind:
+        print('\n  ⬇ 落後遠端（需 Pull）：')
+        for line in behind.splitlines():
+            print(f'    {line}')
+    if ahead:
+        print('\n  ⬆ 領先遠端（需 Push）：')
+        for line in ahead.splitlines():
+            print(f'    {line}')
+    if not behind and not ahead:
+        print('\n  ✅ 與遠端同步')
+
+
+def git_status():
+    status_one(root_dir, PUBLIC_LABEL)
+
     if not os.path.isdir(memory_dir):
+        section(f'Status — {PRIVATE_LABEL}')
         print('  ⚠  ramen-finder-notes/ 不存在，請先 clone private repo')
         print('  git clone https://github.com/taiwan-ramen-association/ramen-finder-notes ramen-finder-notes')
         return
-    run_git(['status', '--short', '--branch'], cwd=memory_dir)
+    status_one(memory_dir, PRIVATE_LABEL)
 
 
 def check_memory():
