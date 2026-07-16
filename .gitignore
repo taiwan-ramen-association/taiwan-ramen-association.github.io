@@ -25,3 +25,11 @@ functions/node_modules/
 .firebase/
 firebase-debug.log
 ramen-finder-notes/
+
+# 金鑰／密鑰（防呆：絕不進公開 repo）
+*firebase-adminsdk*.json
+serviceAccountKey.json
+*.pem
+*.key
+.env
+.env.*
