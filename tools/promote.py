@@ -24,7 +24,9 @@ def promote_finder():
     dst = ROOT / 'finder.html'
     text = src.read_text(encoding='utf-8')
 
-    # 1. 移除 h1 旁的 BETA badge
+    # 1. 移除 header 的 BETA chip（2026-07 起 h1 已改為 sr-only、徽章移至獨立 chip）
+    text = text.replace('\n  <span class="beta-chip">BETA</span>', '')
+    # 1b. 舊版 h1 內嵌 badge（向後相容，通常已不存在）
     text = text.replace(
         ' <span style="font-size:11px;background:rgba(255,255,255,0.25);padding:2px 7px;border-radius:10px;font-weight:400;letter-spacing:0;">BETA</span>',
         ''
