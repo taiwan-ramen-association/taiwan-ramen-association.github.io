@@ -1092,6 +1092,28 @@
   .home-banner.state-b .hb-eyebrow,
   .home-banner.state-b .hb-sub { color: var(--red); }
   .home-banner.state-b .hb-title { color: var(--ink); }
+  /* 首頁 banner：挑戰任務卡 ＋ 活動卡，多張時橫向可滑（單張挑戰卡維持全寬） */
+  .home-banner-scroll { display: flex; gap: 10px; margin-top: 14px; overflow-x: auto;
+    scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .home-banner-scroll::-webkit-scrollbar { display: none; }
+  .home-banner-scroll > * { flex: 0 0 78%; max-width: 420px; scroll-snap-align: start; }
+  .home-banner-scroll .home-banner { margin-top: 0; width: auto; }
+  .home-act-card { position: relative; min-height: 88px; border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--line); background: var(--paper); }
+  .home-act-card.home-act-noimg { background: linear-gradient(135deg, #c8272d, #7d1a1e); }
+  .home-act-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .home-act-overlay { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 12px;
+    background: linear-gradient(rgba(0,0,0,0) 0%, rgba(0,0,0,0.72) 100%); }
+  .home-act-name { font-size: 14px; font-weight: 700; color: #fff; line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .home-act-time { font-size: 12px; color: rgba(255,255,255,0.92); margin-top: 2px; }
+  .home-act-eyebrow { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.92); letter-spacing: 0.03em; margin-bottom: 1px; }
+  /* 挑戰卡（Design A：圖滿版＋底部標題）：進行中→紅框、未開始/未登入→灰框 */
+  .home-chal-card { border-width: 2px; cursor: pointer; }
+  .home-chal-card.is-active { border-color: var(--red); }
+  .home-chal-card.is-idle { border-color: var(--stone); }
+  .home-banner-single { margin-top: 14px; }
+  .home-banner-single .home-act-card { min-height: 120px; }
   .home-sec { margin-top: 22px; }
   .home-sec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
   .home-sec-title { font-size: 15px; font-weight: 700; color: var(--ink); }
@@ -2818,6 +2840,8 @@ async function loadData() {
 
   loadQueueSettings();  // 非同步背景載入，不阻塞主流程
   loadHomeFeatured();   // 今日精選策展資料（meta/homeFeatured），背景載入
+  loadHomeBanner();     // 首頁 banner 活動（meta/homeBanner），背景載入
+  loadHomeChallenge();  // active 挑戰（challenges，公開讀取），供首頁挑戰圖卡
   // loadFeatureFlags() 已在 auth.js 底部於頁面解析時立即觸發（_ffReady）
 
   try {
@@ -4228,26 +4252,51 @@ function _homeShopCardHTML(shop) {
     <div class="hsc-meta">${meta}</div>
   </div>`;
 }
+// 挑戰卡（Design A）：顯示 active 挑戰的 banner 圖＋標題；進行中紅框、未開始/未登入灰框
+function _homeChallengeCardHTML() {
+  const ch = homeActiveChallenge;
+  if (!ch) return '';  // 沒有進行中的活動就不顯示
+  const prog = (typeof _chUserProgress !== 'undefined' && _chUserProgress) ? _chUserProgress[ch.id] : null;
+  const inProgress = !!(auth.currentUser && prog && (prog.completedTaskIds || []).length > 0);
+  const img = ch.image
+    ? `<img class="home-act-img" src="${escapeAttr(ch.image)}" alt="" loading="lazy">`
+    : '';
+  return `<div class="home-act-card home-chal-card ${inProgress ? 'is-active' : 'is-idle'}${ch.image ? '' : ' home-act-noimg'}" id="homeBanner">
+    ${img}
+    <div class="home-act-overlay">
+      <div class="home-act-eyebrow">${inProgress ? '進行中的挑戰任務' : '挑戰任務'}</div>
+      <div class="home-act-name">${escapeHtml(ch.title || '挑戰任務')}</div>
+    </div>
+  </div>`;
+}
+// 活動卡：照片（滿版）＋名稱＋時間，純顯示不可點
+function _homeActCardHTML(a) {
+  const img = a.photoUrl
+    ? `<img class="home-act-img" src="${escapeAttr(a.photoUrl)}" alt="" loading="lazy">`
+    : '';
+  const time = a.timeText ? `<div class="home-act-time">${escapeHtml(a.timeText)}</div>` : '';
+  return `<div class="home-act-card${a.photoUrl ? '' : ' home-act-noimg'}">
+    ${img}
+    <div class="home-act-overlay">
+      <div class="home-act-name">${escapeHtml(a.name || '')}</div>
+      ${time}
+    </div>
+  </div>`;
+}
 function renderHomeTaskBanner() {
   const slot = document.getElementById('homeBannerSlot');
   if (!slot) return;
-  let inProgress = null;
-  if (auth.currentUser && Array.isArray(_chChallenges) && _chChallenges.length) {
-    inProgress = _chChallenges.find(c => c.status === 'active'
-      && ((_chUserProgress[c.id]?.completedTaskIds || []).length > 0));
-  }
-  if (inProgress) {
-    slot.innerHTML = `<div class="home-banner state-b" id="homeBanner">
-      <div class="hb-eyebrow">進行中的挑戰任務</div>
-      <div class="hb-title">${escapeHtml(inProgress.title || '挑戰任務')}</div>
-      <div class="hb-sub">繼續完成任務，解鎖限定獎勵 →</div>
-    </div>`;
+  const cards = [];
+  const chal = _homeChallengeCardHTML();
+  if (chal) cards.push(chal);
+  const acts = Array.isArray(homeBannerActivities)
+    ? homeBannerActivities.filter(a => a && (a.name || a.photoUrl || a.timeText)) : [];
+  acts.forEach(a => cards.push(_homeActCardHTML(a)));
+  if (!cards.length) { slot.innerHTML = ''; return; }         // 無挑戰也無活動：不顯示 banner
+  if (cards.length === 1) {
+    slot.innerHTML = `<div class="home-banner-single">${cards[0]}</div>`;   // 單張全寬
   } else {
-    slot.innerHTML = `<div class="home-banner state-a" id="homeBanner">
-      <div class="hb-eyebrow">挑戰任務</div>
-      <div class="hb-title">有可以參加的挑戰任務</div>
-      <div class="hb-sub">${auth.currentUser ? '立即參加，開始蒐集徽章 →' : '登入即可參加，開始蒐集徽章 →'}</div>
-    </div>`;
+    slot.innerHTML = `<div class="home-banner-scroll">${cards.join('')}</div>`;  // 多張橫滑
   }
 }
 function renderHomeNearby() {
@@ -4272,14 +4321,33 @@ function renderHomeNearby() {
   sec.style.display = '';
   box.innerHTML = list.map(x => _homeShopCardHTML(x.s)).join('');
 }
-// 今日精選：後台手動策展（admin 於 Console 編輯 meta/homeFeatured.items = [{shopId,shopName,itemName,photoUrl}]）
+// 今日精選：後台策展（admin「首頁精選」頁編輯 meta/homeFeatured.items = [{shopId,shopName,itemName,photoUrl}]）
 let homeFeaturedItems = [];
+// 首頁 banner 活動：後台策展（admin「首頁精選」頁編輯 meta/homeBanner.activities = [{photoUrl,name,timeText}]）
+let homeBannerActivities = [];
+let homeActiveChallenge = null;  // active 挑戰（公開讀取，供首頁挑戰圖卡；未登入亦可顯示）
 async function loadHomeFeatured() {
   try {
     const snap = await db.collection('meta').doc('homeFeatured').get();
     homeFeaturedItems = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items : [];
   } catch (e) { homeFeaturedItems = []; }
   if (_currentPage === 'home') renderHomeFeature();
+}
+async function loadHomeBanner() {
+  try {
+    const snap = await db.collection('meta').doc('homeBanner').get();
+    homeBannerActivities = (snap.exists && Array.isArray(snap.data().activities)) ? snap.data().activities : [];
+  } catch (e) { homeBannerActivities = []; }
+  renderHomeTaskBanner();
+}
+async function loadHomeChallenge() {
+  try {
+    const snap = await db.collection('challenges').where('status', '==', 'active').get();
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    list.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    homeActiveChallenge = list[0] || null;
+  } catch (e) { homeActiveChallenge = null; }
+  renderHomeTaskBanner();
 }
 
 function renderHomeFeature() {

@@ -2,6 +2,9 @@
 tools/data.xlsx
 data/data_backup_*.json
 
+# 大型單機匯出檔（約 31MB，本機保留、不進版控）
+RFS.html
+
 # 暫存 log
 tools/*_log.txt
 tools/check_*.txt
