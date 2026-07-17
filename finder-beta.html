@@ -1108,6 +1108,19 @@
   .hsc-open { color: var(--open-txt); font-weight: 600; }
   .hsc-closed { color: var(--stone); }
   .home-feature-row { display: flex; gap: 10px; }
+  /* 今日精選：策展品項照片卡（沿用 .home-hscroll 水平捲動，卡片仿 .home-shop-card） */
+  .home-feat-scroll { margin-bottom: 10px; }
+  .home-feat-card {
+    flex: 0 0 auto; width: 160px; background: var(--white);
+    border: 1px solid var(--line); border-radius: 12px; overflow: hidden; cursor: pointer;
+  }
+  .home-feat-img { width: 100%; height: 108px; object-fit: cover; display: block; background: var(--paper); }
+  .home-feat-noimg { display: flex; align-items: center; justify-content: center; font-size: 34px; }
+  .home-feat-body { padding: 8px 10px; }
+  .home-feat-item { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .home-feat-shop { font-size: 11.5px; color: var(--stone); margin-top: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .home-feature { flex: 1; min-width: 0; border-radius: 12px; padding: 12px 13px; cursor: pointer; border: 1px solid var(--line); }
   .home-feature .hf-label { font-size: 11px; font-weight: 700; }
   .home-feature .hf-main { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-top: 4px;
@@ -2121,15 +2134,15 @@
   <div class="home-wrap" id="homeWrap">
     <div id="homeBannerSlot"></div>
     <div class="home-sec" id="homeNearbySec" style="display:none">
-      <div class="home-sec-head"><span class="home-sec-title">附近營業中</span><span class="home-sec-link" id="homeNearbyLink">開啟地圖</span></div>
+      <div class="home-sec-head"><span class="home-sec-title">附近營業中</span><span class="home-sec-link" id="homeNearbyLink" style="display:none">開啟地圖</span></div>
       <div class="home-hscroll" id="homeNearby"></div>
     </div>
     <div class="home-sec" id="homeFeatureSec" style="display:none">
       <div class="home-sec-head"><span class="home-sec-title">今日精選</span></div>
-      <div class="home-feature-row" id="homeFeature"></div>
+      <div id="homeFeature"></div>
     </div>
     <div class="home-sec" id="homeFactionSec">
-      <div class="home-sec-head"><span class="home-sec-title">找你的派系</span></div>
+      <div class="home-sec-head"><span class="home-sec-title">找你的口味</span></div>
       <div class="home-tags" id="homeFactions"></div>
     </div>
     <div class="home-sec" id="homeRecentSec" style="display:none">
@@ -2804,6 +2817,7 @@ async function loadData() {
   renderSkeleton();
 
   loadQueueSettings();  // 非同步背景載入，不阻塞主流程
+  loadHomeFeatured();   // 今日精選策展資料（meta/homeFeatured），背景載入
   // loadFeatureFlags() 已在 auth.js 底部於頁面解析時立即觸發（_ffReady）
 
   try {
@@ -2913,7 +2927,7 @@ function isNewOpen(shop) {
   const d = parseOpenDate(shop['開幕日']);
   if (!d) return false;
   const cutoff = new Date(serverDate);
-  cutoff.setMonth(cutoff.getMonth() - 6);
+  cutoff.setMonth(cutoff.getMonth() - 3);  // 新開幕定義：近 3 個月內
   return d >= cutoff && d <= serverDate;
 }
 
@@ -4258,20 +4272,53 @@ function renderHomeNearby() {
   sec.style.display = '';
   box.innerHTML = list.map(x => _homeShopCardHTML(x.s)).join('');
 }
+// 今日精選：後台手動策展（admin 於 Console 編輯 meta/homeFeatured.items = [{shopId,shopName,itemName,photoUrl}]）
+let homeFeaturedItems = [];
+async function loadHomeFeatured() {
+  try {
+    const snap = await db.collection('meta').doc('homeFeatured').get();
+    homeFeaturedItems = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items : [];
+  } catch (e) { homeFeaturedItems = []; }
+  if (_currentPage === 'home') renderHomeFeature();
+}
+
 function renderHomeFeature() {
   const sec = document.getElementById('homeFeatureSec');
   const box = document.getElementById('homeFeature');
   if (!sec || !box || !Array.isArray(ALL_DATA)) return;
+  const parts = [];
+
+  // 1) 後台手動策展的精選品項（meta/homeFeatured；含店家＋品項＋照片）
+  if (Array.isArray(homeFeaturedItems) && homeFeaturedItems.length) {
+    const featCards = homeFeaturedItems.map(it => {
+      const sid = escapeAttr(it.shopId || '');
+      const img = it.photoUrl
+        ? `<img class="home-feat-img" src="${escapeAttr(it.photoUrl)}" alt="" loading="lazy">`
+        : '<div class="home-feat-img home-feat-noimg">🍜</div>';
+      return `<div class="home-feat-card"${sid ? ` data-shop-id="${sid}"` : ''}>
+        ${img}
+        <div class="home-feat-body">
+          <div class="home-feat-item">${escapeHtml(it.itemName || '')}</div>
+          <div class="home-feat-shop">${escapeHtml(it.shopName || '')}</div>
+        </div>
+      </div>`;
+    }).join('');
+    parts.push(`<div class="home-hscroll home-feat-scroll">${featCards}</div>`);
+  }
+
+  // 2) 今日壽星 + 新開幕（近 3 個月）文字卡
   const bd = ALL_DATA.find(s => typeof isBirthday === 'function' && isBirthday(s));
   const newCount = ALL_DATA.filter(s => typeof isNewOpen === 'function' && isNewOpen(s)).length;
-  const cards = [];
-  if (bd) cards.push(`<div class="home-feature hf-bd" data-shop-id="${escapeAttr(bd['ID'] || '')}">
+  const textCards = [];
+  if (bd) textCards.push(`<div class="home-feature hf-bd" data-shop-id="${escapeAttr(bd['ID'] || '')}">
     <div class="hf-label">🎂 本日壽星</div><div class="hf-main">${escapeHtml(bd['店名'] || '')}</div></div>`);
-  if (newCount) cards.push(`<div class="home-feature hf-new" data-newopen="1">
-    <div class="hf-label">NEW OPEN</div><div class="hf-main">本週 ${newCount} 間新店</div></div>`);
-  if (!cards.length) { sec.style.display = 'none'; return; }
+  if (newCount) textCards.push(`<div class="home-feature hf-new" data-newopen="1">
+    <div class="hf-label">NEW OPEN</div><div class="hf-main">近 3 個月 ${newCount} 間新店</div></div>`);
+  if (textCards.length) parts.push(`<div class="home-feature-row">${textCards.join('')}</div>`);
+
+  if (!parts.length) { sec.style.display = 'none'; return; }
   sec.style.display = '';
-  box.innerHTML = cards.join('');
+  box.innerHTML = parts.join('');
 }
 function renderHomeFactions() {
   const box = document.getElementById('homeFactions');
