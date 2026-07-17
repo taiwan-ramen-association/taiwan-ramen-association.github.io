@@ -257,11 +257,6 @@
     position: absolute; width: 1px; height: 1px;
     overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
   }
-  .beta-chip {
-    flex-shrink: 0; font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
-    color: var(--pause-txt); background: var(--pause-bg);
-    border: 1px solid var(--pause-txt); border-radius: 8px; padding: 2px 7px;
-  }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── LOADING / ERROR ── */
@@ -269,6 +264,8 @@
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     padding: 80px 20px; gap: 14px;
+    position: fixed; inset: 0; z-index: 1400;
+    background: var(--paper);
   }
   .loader {
     width: 38px; height: 38px;
@@ -291,7 +288,12 @@
   .sk-meta  { height: 12px; width: 82%; margin-bottom: 12px; }
   .sk-tags  { display: flex; gap: 6px; }
   .sk-tag   { height: 18px; width: 50px; border-radius: 10px; }
-  .error-screen { padding: 50px 20px; text-align: center; color: var(--stone); }
+  .error-screen {
+    padding: 50px 20px; text-align: center; color: var(--stone);
+    position: fixed; inset: 0; z-index: 1400;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--paper);
+  }
   .error-screen .big { font-size: 36px; margin-bottom: 10px; }
   .error-screen p { font-size: 13px; line-height: 1.6; }
   .retry-btn {
@@ -302,7 +304,9 @@
   }
   #betaGate {
     display: none; flex-direction: column; align-items: center; justify-content: center;
-    min-height: 70vh; gap: 14px; text-align: center; padding: 30px 20px;
+    position: fixed; inset: 0; z-index: 1500;
+    gap: 14px; text-align: center; padding: 30px 20px;
+    background: var(--paper);
   }
   #betaGate p { color: var(--stone); font-size: 14px; line-height: 1.7; }
   .btn-google {
@@ -1047,7 +1051,7 @@
     top: var(--header-h, 56px); left: 0; right: 0; bottom: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    background: var(--bg);
+    background: var(--paper);
     transition: transform 0.36s cubic-bezier(0.4, 0, 0.2, 1),
                 opacity   0.36s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -1406,42 +1410,26 @@
   body.dark .rf-feed-title { border-color: #3a3330; }
   body.dark .bnav-badge { border-color: rgba(26,24,22,0.92); }
 
-  /* ── DESKTOP SIDEBAR LAYOUT (≥900px) ── */
+  /* ── DESKTOP：置中窄欄（手機寬度 app，兩側鋪品牌底色）── */
+  /* 產品定位手機，桌面僅將同一份手機版面置中限寬，避免維護雙版面 */
   @media (min-width: 900px) {
-    body { overflow: hidden; }
+    :root { --app-w: 560px; }
+    body { overflow: hidden; background: #e7e0d4; }
+    body.dark { background: #0b0a09; }
 
-    #mainContent.mc-show {
-      display: grid;
-      grid-template-columns: 1fr;
-      grid-template-rows: auto 1fr;
-      overflow: hidden;
+    /* header 與所有頁面層限寬置中，兩側露出品牌底色 */
+    header {
+      max-width: var(--app-w); margin: 0 auto;
+      box-shadow: 0 1px 10px rgba(0,0,0,0.12);
+    }
+    /* .page-layer 用 left/right 限寬（非 transform，才不會與切頁動畫的 translateX 打架） */
+    .page-layer {
+      left: calc(50% - var(--app-w) / 2);
+      right: calc(50% - var(--app-w) / 2);
+      box-shadow: 0 0 50px rgba(0,0,0,0.07);
     }
 
-    /* Filter bar → top strip (full width) */
-    .filter-bar {
-      grid-column: 1 / span 2;
-      grid-row: 1;
-      border-right: none;
-      border-bottom: 1px solid var(--line);
-      overflow-y: visible;
-      padding: 8px 16px;
-    }
-
-    /* Card list → scrollable (full width) */
-    .card-list {
-      grid-column: 1 / span 2;
-      grid-row: 2;
-      overflow-y: auto;
-      padding: 10px 14px 20px;
-    }
-
-    /* Map → same grid cell as card list */
-    #mapContainer {
-      grid-column: 1 / span 2;
-      grid-row: 2;
-    }
-
-    /* sf-modal on desktop: centered card */
+    /* sf-modal on desktop：置中卡片 */
     .sf-modal {
       left: 50%; right: auto;
       top: 50%; bottom: auto;
@@ -1456,10 +1444,6 @@
       opacity: 1;
       pointer-events: auto;
     }
-
-    .rf-list-inner { max-width: 680px; margin: 0 auto; }
-    .rf-feed-title { font-size: 19px; }
-    #pageReviews { padding: 20px 24px 80px; }
   }
 
   /* ── HEADER extras ── */
@@ -1754,19 +1738,7 @@
     color: var(--red);
   }
 
-  /* Desktop: centered floating pill */
-  @media (min-width: 900px) {
-    .bottom-nav {
-      left: 50%; transform: translateX(-50%);
-      width: auto; min-width: 280px; max-width: 460px;
-      border-radius: 18px;
-      bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
-    }
-    .bnav-label { display: none; }
-    .bnav-item { min-height: 40px; padding: 7px 18px; border-radius: 12px; }
-    .bnav-svg { width: 20px; height: 20px; }
-    .card-list { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px) !important; }
-  }
+  /* Desktop：沿用手機 bottom-nav（含文字標籤），置中於 app 欄 */
 
   /* ── Photo Viewer ─────────────────────────────────────────────────────── */
   #photoViewer {
@@ -2057,7 +2029,6 @@
     <span class="sf-trigger-text" id="sfTriggerText">搜尋店名、地址、派系…</span>
     <span class="sf-badge" id="sfBadge" style="display:none">0</span>
   </div>
-  <span class="beta-chip">BETA</span>
   <div class="header-right">
     <button class="scan-icon-btn" id="scnScanBtn" style="display:none" title="店家掃描" aria-label="店家掃描">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2756,15 +2727,16 @@
 </div>
 <div id="scToast" class="sc-toast"></div>
 
-<script src="js/auth.js"></script>
+<!-- beta 專屬 fork：auth / reviews / challenges 走 js-beta/，與正式版 js/ 隔離（promote 時再同步回 js/） -->
+<script src="js-beta/auth.js"></script>
 <script src="js/stamps.js"></script>
 <script src="js/photos.js"></script>
 <script src="js/menus.js"></script>
 <script src="js/filter.js"></script>
 <script src="js/map.js"></script>
-<script src="js/reviews.js"></script>
+<script src="js-beta/reviews.js"></script>
 <script src="js/card.js"></script>
-<script src="js/challenges.js"></script>
+<script src="js-beta/challenges.js"></script>
 <script src="js/scan.js"></script>
 <script>
 // ── Config ─────────────────────────────────────────────────────────────────
