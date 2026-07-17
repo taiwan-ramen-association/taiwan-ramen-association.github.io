@@ -1101,6 +1101,7 @@
   .home-act-card { position: relative; min-height: 88px; border-radius: 14px; overflow: hidden;
     border: 1px solid var(--line); background: var(--paper); }
   .home-act-card.home-act-noimg { background: linear-gradient(135deg, #c8272d, #7d1a1e); }
+  .home-act-card.home-act-link { cursor: pointer; }
   .home-act-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .home-act-overlay { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 12px;
     background: linear-gradient(rgba(0,0,0,0) 0%, rgba(0,0,0,0.72) 100%); }
@@ -4269,13 +4270,16 @@ function _homeChallengeCardHTML() {
     </div>
   </div>`;
 }
-// 活動卡：照片（滿版）＋名稱＋時間，純顯示不可點
+// 活動卡：照片（滿版）＋名稱＋時間；有 linkUrl 時整卡可點、開新分頁
 function _homeActCardHTML(a) {
   const img = a.photoUrl
     ? `<img class="home-act-img" src="${escapeAttr(a.photoUrl)}" alt="" loading="lazy">`
     : '';
   const time = a.timeText ? `<div class="home-act-time">${escapeHtml(a.timeText)}</div>` : '';
-  return `<div class="home-act-card${a.photoUrl ? '' : ' home-act-noimg'}">
+  const link = (a.linkUrl || '').trim();
+  const cls  = `home-act-card${a.photoUrl ? '' : ' home-act-noimg'}${link ? ' home-act-link' : ''}`;
+  const dataLink = link ? ` data-link="${escapeAttr(link)}"` : '';
+  return `<div class="${cls}"${dataLink}>
     ${img}
     <div class="home-act-overlay">
       <div class="home-act-name">${escapeHtml(a.name || '')}</div>
@@ -4290,7 +4294,7 @@ function renderHomeTaskBanner() {
   const chal = _homeChallengeCardHTML();
   if (chal) cards.push(chal);
   const acts = Array.isArray(homeBannerActivities)
-    ? homeBannerActivities.filter(a => a && (a.name || a.photoUrl || a.timeText)) : [];
+    ? homeBannerActivities.filter(a => a && (a.name || a.photoUrl || a.timeText || a.linkUrl)) : [];
   acts.forEach(a => cards.push(_homeActCardHTML(a)));
   if (!cards.length) { slot.innerHTML = ''; return; }         // 無挑戰也無活動：不顯示 banner
   if (cards.length === 1) {
@@ -4425,6 +4429,8 @@ function renderHome() {
 // 首頁事件委派
 document.getElementById('pageHome')?.addEventListener('click', e => {
   if (e.target.closest('#homeBanner'))      { switchPage('challenges'); return; }
+  const actLink = e.target.closest('.home-act-link');
+  if (actLink) { const u = actLink.dataset.link; if (u) window.open(u, '_blank', 'noopener'); return; }
   if (e.target.closest('#homeLocBtn'))      return;
   const card = e.target.closest('[data-shop-id]');
   if (card) { const s = _homeShopById(card.dataset.shopId); if (s) homeOpenShop(s); return; }
