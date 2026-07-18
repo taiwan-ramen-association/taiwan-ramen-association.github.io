@@ -1096,10 +1096,10 @@
   .home-banner-scroll { display: flex; gap: 10px; margin-top: 14px; overflow-x: auto;
     scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .home-banner-scroll::-webkit-scrollbar { display: none; }
-  .home-banner-scroll > * { flex: 0 0 78%; max-width: 420px; scroll-snap-align: start; }
+  .home-banner-scroll > * { flex: 0 0 70%; max-width: 378px; scroll-snap-align: start; }
   .home-banner-scroll .home-banner { margin-top: 0; width: auto; }
-  .home-act-card { position: relative; min-height: 88px; border-radius: 14px; overflow: hidden;
-    border: 1px solid var(--line); background: var(--paper); }
+  .home-act-card { position: relative; min-height: 106px; border-radius: 14px; overflow: hidden;
+    border: none; background: var(--paper); }
   .home-act-card.home-act-noimg { background: linear-gradient(135deg, #c8272d, #7d1a1e); }
   .home-act-card.home-act-link { cursor: pointer; }
   .home-act-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -1109,12 +1109,10 @@
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .home-act-time { font-size: 12px; color: rgba(255,255,255,0.92); margin-top: 2px; }
   .home-act-eyebrow { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.92); letter-spacing: 0.03em; margin-bottom: 1px; }
-  /* 挑戰卡（Design A：圖滿版＋底部標題）：進行中→紅框、未開始/未登入→灰框 */
-  .home-chal-card { border-width: 2px; cursor: pointer; }
-  .home-chal-card.is-active { border-color: var(--red); }
-  .home-chal-card.is-idle { border-color: var(--stone); }
+  /* 挑戰卡（Design A：圖滿版＋底部標題）：無外框 */
+  .home-chal-card { cursor: pointer; }
   .home-banner-single { margin-top: 14px; }
-  .home-banner-single .home-act-card { min-height: 120px; }
+  .home-banner-single .home-act-card { min-height: 144px; }
   .home-sec { margin-top: 22px; }
   .home-sec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
   .home-sec-title { font-size: 15px; font-weight: 700; color: var(--ink); }
@@ -4262,7 +4260,7 @@ function _homeChallengeCardHTML() {
   const img = ch.image
     ? `<img class="home-act-img" src="${escapeAttr(ch.image)}" alt="" loading="lazy">`
     : '';
-  return `<div class="home-act-card home-chal-card ${inProgress ? 'is-active' : 'is-idle'}${ch.image ? '' : ' home-act-noimg'}" id="homeBanner">
+  return `<div class="home-act-card home-chal-card${ch.image ? '' : ' home-act-noimg'}" id="homeBanner">
     ${img}
     <div class="home-act-overlay">
       <div class="home-act-eyebrow">${inProgress ? '進行中的挑戰任務' : '挑戰任務'}</div>
