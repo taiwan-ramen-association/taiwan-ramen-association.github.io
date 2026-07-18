@@ -161,6 +161,18 @@ def _safe_push(cwd):
     return False
 
 
+def _push_and_report(cwd):
+    """執行 _safe_push 並印出結果，回傳成功與否。"""
+    print('\n  🚀 推送中...')
+    ok = _safe_push(cwd)
+    if ok:
+        _, sha, _ = git_capture(['rev-parse', '--short', 'HEAD'], cwd=cwd)
+        print(f'\n  ✅ Push 完成！（{sha.strip()}）')
+    else:
+        print('\n  ❌ Push 失敗')
+    return ok
+
+
 def git_push(cwd, label):
     section(f'Push — {label}')
 
@@ -172,8 +184,16 @@ def git_push(cwd, label):
     status = result.stdout.strip()
 
     if not status:
-        print('  ℹ  無變更，略過')
-        return True
+        # 工作區乾淨 ≠ 沒東西要推：可能有「已 commit 但未 push」的 commit
+        _, ahead, _ = git_capture(['log', '--oneline', '@{u}..HEAD'], cwd=cwd)
+        ahead = ahead.strip()
+        if not ahead:
+            print('  ℹ  無變更，也沒有待推送的 commit，略過')
+            return True
+        print('\n  ℹ  工作區乾淨，但有未推送的 commit：')
+        for line in ahead.splitlines():
+            print(f'    {line}')
+        return _push_and_report(cwd)
 
     print('\n  未提交的變更：')
     print(status)
@@ -228,14 +248,7 @@ def git_push(cwd, label):
         print('  ❌ commit 失敗')
         return False
 
-    print('\n  🚀 推送中...')
-    ok = _safe_push(cwd)
-    if ok:
-        _, sha, _ = git_capture(['rev-parse', '--short', 'HEAD'], cwd=cwd)
-        print(f'\n  ✅ Push 完成！（{sha.strip()}）')
-    else:
-        print('\n  ❌ Push 失敗')
-    return ok
+    return _push_and_report(cwd)
 
 
 def status_one(cwd, label):
