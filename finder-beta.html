@@ -4431,7 +4431,19 @@ document.getElementById('pageHome')?.addEventListener('click', e => {
   if (actLink) { const u = actLink.dataset.link; if (u) window.open(u, '_blank', 'noopener'); return; }
   if (e.target.closest('#homeLocBtn'))      return;
   const card = e.target.closest('[data-shop-id]');
-  if (card) { const s = _homeShopById(card.dataset.shopId); if (s) homeOpenShop(s); return; }
+  if (card) {
+    const s = _homeShopById(card.dataset.shopId);
+    if (s) {
+      // 從「附近營業中」點入且已定位：解除距離上限，避免較遠的附近店（可能 >2km）被距離篩選濾掉而搜不到
+      if (userLat !== null && e.target.closest('#homeNearby')) {
+        locRadius = 0;
+        const distSel = document.getElementById('sfDistSelect');
+        if (distSel) distSel.value = '';
+      }
+      homeOpenShop(s);
+    }
+    return;
+  }
   if (e.target.closest('[data-newopen]'))   { _homeSearchTo('新開幕'); return; }
   const fac = e.target.closest('[data-faction]');
   if (fac) { _homeSearchTo(fac.dataset.faction); return; }
