@@ -27,6 +27,20 @@ const GATE_MSG_NO_PERM       = IS_BETA ? '此頁面僅開放特定身份瀏覽' 
 const GATE_MSG_NOT_LOGGED_IN = IS_BETA ? '此頁面需要登入後才能瀏覽' : '此頁面暫時關閉，請稍後再試';
 const GATE_SHOW_LOGIN_BTN    = IS_BETA;  // 未登入時是否顯示登入按鈕
 
+// beta 讀獨立的 meta/featureFlagsBeta（測試設定，不污染正式版）；不存在時 fallback 正式 doc
+async function _readGatePerm() {
+  // 回傳本頁 gate flag 的 perm 角色；featureFlagsBeta 不存在則 fallback 正式 featureFlags
+  try {
+    if (IS_BETA) {
+      const b = await db.collection('meta').doc('featureFlagsBeta').get();
+      if (b.exists && b.data()[GATE_FLAG]?.perm) return b.data()[GATE_FLAG].perm;
+    }
+    const s = await db.collection('meta').doc('featureFlags').get();
+    if (s.exists && s.data()[GATE_FLAG]?.perm) return s.data()[GATE_FLAG].perm;
+  } catch(e) {}
+  return GATE_DEFAULT_ROLE;
+}
+
 // 跨檔共享狀態（reviews.js 亦會宣告，此處先宣告確保 auth callback 觸發前已存在）
 var _currentPage = 'finder';
 
@@ -115,7 +129,12 @@ function showAccessToast() {
 }
 
 async function loadFeatureFlags() {
+  // beta 優先讀 featureFlagsBeta（獨立測試設定），不存在則 fallback 正式 featureFlags
   try {
+    if (IS_BETA) {
+      const betaSnap = await db.collection('meta').doc('featureFlagsBeta').get();
+      if (betaSnap.exists) { featureFlags = { ...featureFlags, ...betaSnap.data() }; return; }
+    }
     const snap = await db.collection('meta').doc('featureFlags').get();
     if (snap.exists) featureFlags = { ...featureFlags, ...snap.data() };
   } catch(e) {}
@@ -174,32 +193,17 @@ logoutBtn.addEventListener('click', () => {
 
 // ── 6. applyFeatureFlags ─────────────────────────────────────────────────────
 function applyFeatureFlags() {
-  // ── Bottom Nav ────────────────────────────────────────────────────────────
-  // 收藏（初始 display:none）：vis 控顯示、perm 控鎖定（對齊 bnavChallenges / rankings）
-  const bnavFavorites = document.getElementById('bnavFavorites');
-  if (bnavFavorites) {
-    const show = canView('favorites');
-    bnavFavorites.style.display = show ? '' : 'none';
-    bnavFavorites.classList.toggle('ff-locked', show && !canUse('favorites'));
-  }
-
-  // 社群貼文（初始 display:none）
-  const bnavPosts = document.getElementById('bnavPosts');
-  if (bnavPosts) {
-    const show = canView('postsNav');
-    bnavPosts.style.display = show ? '' : 'none';
-    bnavPosts.classList.toggle('ff-locked', show && !canUse('postsNav'));
-    if (!show && _currentPage === 'reviews') switchPage('finder');
-  }
-
-  // 挑戰任務（初始 display:none）
-  const bnavChallenges = document.getElementById('bnavChallenges');
-  if (bnavChallenges) {
-    const show = canView('challengesNav');
-    bnavChallenges.style.display = show ? '' : 'none';
-    bnavChallenges.classList.toggle('ff-locked', show && !canUse('challengesNav'));
-    if (!show && _currentPage === 'challenges') switchPage('finder');
-  }
+  // ── Bottom Nav（beta：五顆常駐，不因權限隱藏）──────────────────────────────
+  // vis 退役：bottomNav 一律顯示；perm 控鎖定（未達 → ff-locked），
+  // 點擊鎖定項由既有 click handler（canUse 檢查 → showAccessToast）提示登入/不開放。
+  // 首頁 bnavHome、搜尋 bnavFinder 無 flag，永遠可用。
+  [['bnavFavorites', 'favorites'], ['bnavPosts', 'postsNav'], ['bnavChallenges', 'challengesNav']]
+    .forEach(([id, feat]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = '';                            // 覆蓋 HTML 的 display:none → 常駐
+      el.classList.toggle('ff-locked', !canUse(feat));  // perm 控鎖定
+    });
 
   // ── Profile Dropdown ──────────────────────────────────────────────────────
   // 制霸地圖（初始 display:none）
@@ -322,13 +326,7 @@ auth.onAuthStateChanged(async user => {
       } catch(e) { console.warn('userProfiles sync failed', e); }
 
       // 從 Firestore 讀取 featureFlags，決定本頁存取門檻（GATE_FLAG 由頁面偵測決定）
-      let permRole = GATE_DEFAULT_ROLE;
-      try {
-        const ffSnap = await db.collection('meta').doc('featureFlags').get();
-        if (ffSnap.exists && ffSnap.data()[GATE_FLAG]?.perm) {
-          permRole = ffSnap.data()[GATE_FLAG].perm;
-        }
-      } catch(e) { /* Firestore rules 未允許時沿用預設值 */ }
+      let permRole = await _readGatePerm();
 
       if (!hasPermission(userData.role, permRole)) {
         showBetaGate(GATE_MSG_NO_PERM);
@@ -390,13 +388,7 @@ auth.onAuthStateChanged(async user => {
       applyFeatureFlags();
 
       // 未登入時也要檢查本頁 gate flag，若為 'all' 則開放瀏覽
-      let permRole = GATE_DEFAULT_ROLE;
-      try {
-        const ffSnap = await db.collection('meta').doc('featureFlags').get();
-        if (ffSnap.exists && ffSnap.data()[GATE_FLAG]?.perm) {
-          permRole = ffSnap.data()[GATE_FLAG].perm;
-        }
-      } catch(e) {}
+      let permRole = await _readGatePerm();
 
       if (permRole === 'all') {
         document.getElementById('betaGate').style.display  = 'none';
