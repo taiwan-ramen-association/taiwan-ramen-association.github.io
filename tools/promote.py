@@ -2,18 +2,21 @@
 Beta → 正式版 推送腳本
 
 用法：
-  python tools/promote.py finder      # finder-beta.html → finder.html
+  python tools/promote.py finder      # finder-beta.html → finder.html（含 js-beta → js 同步）
   python tools/promote.py domination  # domination-beta.html → domination.html
   python tools/promote.py all         # 兩個都做
 
-設計說明：
-  finder.html 與 finder-beta.html 共用同一份 js/auth.js（含其他 JS 模組）。
-  auth.js 透過 location.pathname 自動辨識頁面，套用不同的 gate 設定：
-    - finder-beta.html → betaAccess（預設 director）
-    - finder.html      → siteAccess（預設 all）
-  因此 promote.py 只需處理 HTML 上的視覺差異（BETA badge 等），不必動 JS。
+finder 流程（2026-07 更新）：
+  finder-beta.html 載入部分 js-beta/*.js（目前 auth、reviews、challenges）作為 beta 專屬版本；
+  正式版 finder.html 則載入 js/*.js。本腳本自動：
+    1. 掃描 finder-beta.html 內所有 js-beta/<name> script 引用
+    2. 逐一把 js-beta/<name> 覆蓋到 js/<name>（同步 beta 程式碼到正式版）
+    3. 複製 finder-beta.html → finder.html，並把 script src 的 js-beta/ 換回 js/
+  gate 免手動處理：js/auth.js 靠 location.pathname 自動辨識頁面 —
+    finder-beta.html → betaAccess（預設 director）、finder.html → siteAccess（預設 all）。
+  ⚠ js/reviews.js 亦被 shop.html 共用；維護 js-beta/reviews.js 時務必保持與 shop.html 相容。
 """
-import sys, re
+import sys, re, shutil
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
@@ -24,20 +27,41 @@ def promote_finder():
     dst = ROOT / 'finder.html'
     text = src.read_text(encoding='utf-8')
 
-    # 1. 移除 header 的 BETA chip（2026-07 起 h1 已改為 sr-only、徽章移至獨立 chip）
+    # 1. 同步 beta 專屬 JS，並把 HTML script src 的 js-beta/ 換回 js/
+    #    依 finder-beta.html 實際載入的 js-beta/* 自動決定（未來增減 fork 檔也適用）
+    beta_scripts = list(dict.fromkeys(re.findall(r'js-beta/([\w.-]+\.js)', text)))
+    synced = []
+    for name in beta_scripts:
+        beta_file = ROOT / 'js-beta' / name
+        prod_file = ROOT / 'js' / name
+        if beta_file.exists():
+            shutil.copyfile(beta_file, prod_file)
+            synced.append(name)
+        else:
+            print(f'   ⚠️  找不到 js-beta/{name}，略過同步')
+        text = text.replace(f'js-beta/{name}', f'js/{name}')
+
+    # 1b. 移除任何提到 js-beta 的 HTML 註解（正式版已無意義且會誤導）
+    text = re.sub(r'^[ \t]*<!--[^\n]*js-beta[^\n]*-->[ \t]*\n', '', text, flags=re.M)
+
+    # 2. 移除 BETA 徽章 / title（向後相容；目前 beta 已無徽章，通常不觸發）
     text = text.replace('\n  <span class="beta-chip">BETA</span>', '')
-    # 1b. 舊版 h1 內嵌 badge（向後相容，通常已不存在）
     text = text.replace(
         ' <span style="font-size:11px;background:rgba(255,255,255,0.25);padding:2px 7px;border-radius:10px;font-weight:400;letter-spacing:0;">BETA</span>',
         ''
     )
-
-    # 2. 移除 <title> 內的 BETA 字樣（若有）
     text = re.sub(r'(<title>[^<]*?)\s*BETA(\s*[─\-]\s*[^<]*</title>)', r'\1\2', text)
     text = re.sub(r'(<title>[^<]*?)\s*BETA(</title>)', r'\1\2', text)
 
     dst.write_text(text, encoding='utf-8')
-    print('finder.html 已更新（auth gate 透過 js/auth.js 的頁面偵測自動套用 siteAccess）')
+
+    # 3. 安全檢查：HTML 不應再殘留任何 js-beta 字樣（含註解）
+    leftover = sorted(set(re.findall(r'js-beta[\w./-]*', text)))
+
+    print('✅ finder.html 已更新（gate 由 js/auth.js pathname 偵測自動套用 siteAccess）')
+    print(f'   已同步 JS（js-beta → js）：{", ".join(synced) if synced else "（無）"}')
+    if leftover:
+        print(f'   ⚠️  HTML 仍殘留 js-beta 引用，請檢查：{leftover}')
 
 
 def promote_domination():
