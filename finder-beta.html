@@ -1119,6 +1119,9 @@
   .home-sec-link { font-size: 12.5px; color: var(--red); cursor: pointer; }
   .home-hscroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .home-hscroll::-webkit-scrollbar { display: none; }
+  /* 首頁橫滑列桌面箭頭：容器由 JS _attachHsArrows 包 .hs-wrap 注入，<900px 一律隱藏 */
+  .hs-wrap { position: relative; }
+  .hs-arrow { display: none; }
   .home-shop-card {
     flex: 0 0 auto; width: 150px; background: var(--white); border: 1px solid var(--line);
     border-radius: 12px; padding: 11px 12px; cursor: pointer;
@@ -1450,6 +1453,23 @@
     :root { --app-w: 560px; }
     body { overflow: hidden; background: #e7e0d4; }
     body.dark { background: #0b0a09; }
+
+    /* 首頁橫滑列（banner／今日精選／附近營業中）滑鼠配套：hover 顯示左右箭頭；
+       捲到端點的箭頭加 .off 隱藏（_attachHsArrows 維護） */
+    .hs-wrap .hs-arrow {
+      display: flex; align-items: center; justify-content: center;
+      position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
+      width: 32px; height: 32px; padding: 0 0 2px; border: none; border-radius: 50%;
+      background: rgba(20,16,12,0.45); color: #fff; font-size: 20px; line-height: 1; cursor: pointer;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .hs-arrow.hs-prev { left: 6px; }
+    .hs-arrow.hs-next { right: 6px; }
+    .hs-wrap:hover .hs-arrow { opacity: 1; }
+    .hs-wrap .hs-arrow:hover { background: rgba(20,16,12,0.68); }
+    .hs-wrap .hs-arrow.off { display: none; }
+    /* 滾輪逐量橫捲與 mandatory snap 互搶會抖動，桌面放寬為 proximity */
+    .home-banner-scroll { scroll-snap-type: x proximity; }
 
     /* header 與所有頁面層限寬置中，兩側露出品牌底色 */
     header {
@@ -4300,6 +4320,7 @@ function renderHomeTaskBanner() {
   } else {
     slot.innerHTML = `<div class="home-banner-scroll">${cards.join('')}</div>`;  // 多張橫滑
   }
+  _attachHsArrows(slot.querySelector('.home-banner-scroll'));
 }
 function renderHomeNearby() {
   const sec = document.getElementById('homeNearbySec');
@@ -4322,6 +4343,7 @@ function renderHomeNearby() {
   if (!list.length) { sec.style.display = 'none'; return; }
   sec.style.display = '';
   box.innerHTML = list.map(x => _homeShopCardHTML(x.s)).join('');
+  _attachHsArrows(box);
 }
 // 今日精選：後台策展（admin「首頁精選」頁編輯 meta/homeFeatured.items = [{shopId,shopName,itemName,photoUrl}]）
 let homeFeaturedItems = [];
@@ -4389,6 +4411,7 @@ function renderHomeFeature() {
   if (!parts.length) { sec.style.display = 'none'; return; }
   sec.style.display = '';
   box.innerHTML = parts.join('');
+  _attachHsArrows(box.querySelector('.home-feat-scroll'));
 }
 function renderHomeFactions() {
   const box = document.getElementById('homeFactions');
@@ -4423,6 +4446,50 @@ function renderHome() {
   renderHomeFactions();
   renderHomeRecent();
 }
+
+// ── 首頁橫滑列桌面配套（滾輪橫捲＋hover 箭頭；<900px 箭頭由 CSS 隱藏，手機行為不變）──
+// banner／精選每次 render 都重建容器、附近店家為固定容器換內容，故此函式可重入：
+// 已初始化者只刷新箭頭顯示狀態
+function _attachHsArrows(sc) {
+  if (!sc) return;
+  if (sc._hsInit) { sc._hsUpdate(); return; }
+  sc._hsInit = true;
+  const wrap = document.createElement('div');
+  wrap.className = 'hs-wrap';
+  sc.parentNode.insertBefore(wrap, sc);
+  wrap.appendChild(sc);
+  const mk = dir => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'hs-arrow ' + (dir < 0 ? 'hs-prev' : 'hs-next');
+    b.innerHTML = dir < 0 ? '&#8249;' : '&#8250;';
+    b.addEventListener('click', e => {
+      e.stopPropagation();  // 不讓 pageHome 點擊委派誤判成卡片點擊
+      sc.scrollBy({ left: dir * Math.round(sc.clientWidth * 0.8), behavior: 'smooth' });
+    });
+    wrap.appendChild(b);
+    return b;
+  };
+  const prev = mk(-1), next = mk(1);
+  sc._hsUpdate = () => {
+    const max = sc.scrollWidth - sc.clientWidth;
+    prev.classList.toggle('off', sc.scrollLeft <= 2);
+    next.classList.toggle('off', max <= 2 || sc.scrollLeft >= max - 2);
+  };
+  sc.addEventListener('scroll', sc._hsUpdate, { passive: true });
+  sc._hsUpdate();
+}
+// 滾輪橫捲：游標在橫滑列上時把垂直滾輪量轉成橫向捲動；已到邊界則放行給頁面垂直捲動，
+// 觸控板橫滑（deltaX 為主）不攔截維持原生手感
+document.getElementById('pageHome')?.addEventListener('wheel', e => {
+  const sc = e.target.closest('.home-hscroll, .home-banner-scroll');
+  if (!sc) return;
+  const max = sc.scrollWidth - sc.clientWidth;
+  if (max <= 2 || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+  if ((e.deltaY < 0 && sc.scrollLeft <= 0) || (e.deltaY > 0 && sc.scrollLeft >= max - 1)) return;
+  e.preventDefault();
+  sc.scrollLeft += e.deltaY;
+}, { passive: false });
 
 // 首頁事件委派
 document.getElementById('pageHome')?.addEventListener('click', e => {
