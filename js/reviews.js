@@ -127,8 +127,8 @@ async function loadReviews(shopId, panel, append = false) {
 
     // 重繪 header（count + 寫評論 btn）
     if (!append) {
-      const totalSnap = await db.collection('reviews').where('shopId', '==', shopId).get();
-      const total = totalSnap.size;
+      const totalSnap = await db.collection('reviews').where('shopId', '==', shopId).count().get();
+      const total = totalSnap.data().count;
       const headerRow = document.createElement('div');
       headerRow.className = 'review-header-row';
       const canWrite = canView('reviews') && canUse('reviews') && auth.currentUser;
@@ -486,6 +486,7 @@ function unlockScroll() { document.getElementById('mainContent').classList.remov
 
 // ── Reviews Feed ──────────────────────────────────────────────────────────────
 const RF_SEEN_KEY  = 'rvFeedSeen';
+const RF_TOPTS_KEY = 'rvFeedTopTs'; // 已讀到的最新評論時間（毫秒），供 checkUnreadBadge 以 ≤1 筆讀取判斷紅點
 const RF_PAGE_SIZE   = 10;
 let _rfPageCursors   = [null]; // index 0 = 起點，[n] = 第 n+1 頁的 startAfter cursor
 let _rfCurrentPage   = 1;
@@ -525,10 +526,12 @@ function markFeedPageSeen() {
 async function checkUnreadBadge() {
   if (!auth.currentUser || _currentPage === 'finder') return;
   try {
-    const snap = await db.collection('reviews').orderBy('createdAt', 'desc').limit(20).get();
-    const seen = getFeedSeen();
-    const hasUnread = snap.docs.some(d => !seen.has(d.id));
-    document.getElementById('bnavPosts').classList.toggle('has-badge', hasUnread);
+    const lastTs = +localStorage.getItem(RF_TOPTS_KEY) || 0;
+    const q = lastTs
+      ? db.collection('reviews').where('createdAt', '>', firebase.firestore.Timestamp.fromMillis(lastTs)).limit(1)
+      : db.collection('reviews').orderBy('createdAt', 'desc').limit(1);
+    const snap = await q.get();
+    document.getElementById('bnavPosts').classList.toggle('has-badge', !snap.empty);
   } catch {}
 }
 
@@ -544,6 +547,12 @@ async function loadReviewsFeedPage(page = 1) {
 
     const snap = await q.get();
     const docs = snap.docs;
+
+    // 記錄「已讀到的最新評論時間」高水位，供下次登入時 checkUnreadBadge 以 ≤1 筆讀取判斷紅點
+    if (page === 1 && docs.length) {
+      const topTs = docs[0].data().createdAt?.toMillis?.() || 0;
+      if (topTs > (+localStorage.getItem(RF_TOPTS_KEY) || 0)) localStorage.setItem(RF_TOPTS_KEY, String(topTs));
+    }
 
     // 記錄下一頁的起點 cursor
     if (docs.length >= RF_PAGE_SIZE) {

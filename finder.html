@@ -2702,38 +2702,38 @@
         <div class="fmod-slide-icon">🍜</div>
         <p class="fmod-slide-title">歡迎使用台灣拉麵協會－拉麵搜尋器</p>
         <p class="fmod-slide-desc">全台 800+ 間拉麵店，一個搜尋器，全部找得到。</p>
-        <img class="fmod-slide-img" src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs01.gif?alt=media" alt="草葉">
+        <img class="fmod-slide-img" data-src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs01.gif?alt=media" alt="草葉">
       </div>
       <div class="fmod-slide" data-slide="1">
         <div class="fmod-slide-icon">🔍</div>
         <p class="fmod-slide-title">搜尋與篩選</p>
         <p class="fmod-slide-desc">點擊頂部搜尋欄，可依地區、類型、營業日、距離等條件篩選店家。</p>
-        <img class="fmod-slide-img" src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs02.png?alt=media" alt="輸入條件搜尋店家">
+        <img class="fmod-slide-img" data-src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs02.png?alt=media" alt="輸入條件搜尋店家">
       </div>
       <div class="fmod-slide" data-slide="2">
         <div class="fmod-slide-icon">♥</div>
         <p class="fmod-slide-title">收藏與踩點</p>
         <p class="fmod-slide-desc">♥ 收藏喜愛的店，📍 踩點記錄你去過的每一間，累積你的拉麵足跡。</p>
-        <img class="fmod-slide-img" src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs03-1.png?alt=media" alt="收藏與踩點功能">
-				<img class="fmod-slide-img" src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs03-2.png?alt=media" alt="踩點頁面">
+        <img class="fmod-slide-img" data-src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs03-1.png?alt=media" alt="收藏與踩點功能">
+				<img class="fmod-slide-img" data-src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs03-2.png?alt=media" alt="踩點頁面">
       </div>
       <div class="fmod-slide" data-slide="3">
         <div class="fmod-slide-icon">📝</div>
         <p class="fmod-slide-title">評論與照片</p>
         <p class="fmod-slide-desc">展開店家卡片，切換至評論 tab 可留下評分、文字與照片。</p>
-        <img class="fmod-slide-img" src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs04.png?alt=media" alt="分享你的用餐體驗">
+        <img class="fmod-slide-img" data-src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs04.png?alt=media" alt="分享你的用餐體驗">
       </div>
       <div class="fmod-slide" data-slide="4">
         <div class="fmod-slide-icon">🗺️</div>
         <p class="fmod-slide-title">制霸地圖</p>
         <p class="fmod-slide-desc">踩點後可到制霸地圖，看你走過了全台幾個鄉鎮，挑戰制霸全台！</p>
-        <img class="fmod-slide-img" src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs05.png?alt=media" alt="瀏覽制霸地圖">
+        <img class="fmod-slide-img" data-src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs05.png?alt=media" alt="瀏覽制霸地圖">
       </div>
       <div class="fmod-slide" data-slide="5">
         <div class="fmod-slide-icon">👤</div>
         <p class="fmod-slide-title">設定你的顯示名稱</p>
         <p class="fmod-slide-desc">點擊右上角頭像，可自訂在評論中顯示的頭像與暱稱。</p>
-        <img class="fmod-slide-img" src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs06.png?alt=media" alt="顯示名稱設定示意">
+        <img class="fmod-slide-img" data-src="https://firebasestorage.googleapis.com/v0/b/taiwan-ramen-association.firebasestorage.app/o/image%2Fs06.png?alt=media" alt="顯示名稱設定示意">
       </div>
     </div>
     <div class="fmod-nav-row">
@@ -2863,7 +2863,7 @@ async function loadData() {
   // loadFeatureFlags() 已在 auth.js 底部於頁面解析時立即觸發（_ffReady）
 
   try {
-    const res  = await fetch(DATA_URL + '?t=' + Date.now()); // 避免快取
+    const res  = await fetch(DATA_URL, { cache: 'no-cache' }); // 一律向伺服器驗證：未變更回 304（~300 bytes），變更才重抓 1MB
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const dateHeader = res.headers.get('Date');
     if (dateHeader) {
@@ -3935,6 +3935,11 @@ let _obSlide = 0;
 let _obTimer = null;
 
 function openOnboardingModal() {
+  // 延遲載入：首次開啟才把 data-src 填入 src，教學圖（Firebase Storage）不再每次進站都下載
+  document.querySelectorAll('#onboardingModal .fmod-slide-img[data-src]').forEach(img => {
+    img.src = img.dataset.src;
+    img.removeAttribute('data-src');
+  });
   const slides = document.querySelectorAll('#onboardingModal .fmod-slide');
   slides.forEach((s, i) => {
     s.style.transition = 'none';

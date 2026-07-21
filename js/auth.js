@@ -365,7 +365,7 @@ auth.onAuthStateChanged(async user => {
       applyFeatureFlags();
       render();
       checkUnreadBadge();
-      _onDataLoaded(() => _onBdAnimDone(() => { if (!localStorage.getItem('onboarding_done_' + user.uid)) openOnboardingModal(); }));
+      _onDataLoaded(() => _onBdAnimDone(() => { if (canView('onboardingTour') && !localStorage.getItem('onboarding_done_' + user.uid)) openOnboardingModal(); }));
     } else {
       loginBtn.style.display   = 'flex';
       userAvatar.style.display = 'none';
