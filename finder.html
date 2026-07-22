@@ -4282,7 +4282,7 @@ function _homeChallengeCardHTML() {
   const prog = (typeof _chUserProgress !== 'undefined' && _chUserProgress) ? _chUserProgress[ch.id] : null;
   const inProgress = !!(auth.currentUser && prog && (prog.completedTaskIds || []).length > 0);
   const img = ch.image
-    ? `<img class="home-act-img" src="${escapeAttr(ch.image)}" alt="" loading="lazy">`
+    ? `<img class="home-act-img" src="${escapeAttr(_homeImgSrc(ch.image))}" alt="" loading="lazy">`
     : '';
   return `<div class="home-act-card home-chal-card${ch.image ? '' : ' home-act-noimg'}" id="homeBanner">
     ${img}
