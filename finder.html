@@ -4292,10 +4292,15 @@ function _homeChallengeCardHTML() {
     </div>
   </div>`;
 }
+// 首頁圖片：後台策展常存 web.app 絕對網址（Firebase Hosting，計費 egress）。
+// render 時去掉該前綴改走相對路徑，圖片改由當前網域（github.io，免費）提供；非 web.app 的網址原樣保留。
+function _homeImgSrc(url) {
+  return String(url || '').replace(/^https?:\/\/taiwan-ramen-association\.web\.app\//i, '');
+}
 // 活動卡：照片（滿版）＋名稱＋時間；有 linkUrl 時整卡可點、開新分頁
 function _homeActCardHTML(a) {
   const img = a.photoUrl
-    ? `<img class="home-act-img" src="${escapeAttr(a.photoUrl)}" alt="" loading="lazy">`
+    ? `<img class="home-act-img" src="${escapeAttr(_homeImgSrc(a.photoUrl))}" alt="" loading="lazy">`
     : '';
   const time = a.timeText ? `<div class="home-act-time">${escapeHtml(a.timeText)}</div>` : '';
   const link = (a.linkUrl || '').trim();
@@ -4389,7 +4394,7 @@ function renderHomeFeature() {
     const featCards = homeFeaturedItems.map(it => {
       const sid = escapeAttr(it.shopId || '');
       const img = it.photoUrl
-        ? `<img class="home-feat-img" src="${escapeAttr(it.photoUrl)}" alt="" loading="lazy">`
+        ? `<img class="home-feat-img" src="${escapeAttr(_homeImgSrc(it.photoUrl))}" alt="" loading="lazy">`
         : '<div class="home-feat-img home-feat-noimg">🍜</div>';
       return `<div class="home-feat-card"${sid ? ` data-shop-id="${sid}"` : ''}>
         ${img}
