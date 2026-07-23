@@ -63,6 +63,9 @@ async function loadShopPhotos(shop, panel, isRetry = false) {
       body: JSON.stringify({ textQuery: query, languageCode: 'zh-TW' }),
     });
     const json = await res.json();
+    // API 回錯誤（key referrer 被擋、配額不足等）時，res.json() 會解析出 error 物件而非 throw，
+    // 明確轉成例外交給 catch，避免下面的空陣列被誤判成「沒照片」而顯示錯誤提示。
+    if (!res.ok || json.error) throw new Error(json.error?.message || `HTTP ${res.status}`);
     const photos = json.places?.[0]?.photos?.slice(0, 3) ?? [];
 
     const urls = photos.map(p =>
@@ -74,8 +77,9 @@ async function loadShopPhotos(shop, panel, isRetry = false) {
     lsSetPhoto(shopId, data);
     renderPhotoPanel(data, panel, isRetry ? null : shop);
   } catch(e) {
+    console.warn('[photos] 載入失敗：', e.message || e);
     photoCache[shopId] = null;
-    panel.innerHTML = '<p class="tab-placeholder">照片載入失敗，請稍後再試</p>';
+    panel.innerHTML = '<p class="tab-placeholder">照片暫時無法載入，請稍後再試</p>';
   }
 }
 

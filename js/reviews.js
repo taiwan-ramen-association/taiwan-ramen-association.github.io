@@ -127,8 +127,8 @@ async function loadReviews(shopId, panel, append = false) {
 
     // 重繪 header（count + 寫評論 btn）
     if (!append) {
-      const totalSnap = await db.collection('reviews').where('shopId', '==', shopId).count().get();
-      const total = totalSnap.data().count;
+      const totalSnap = await db.collection('reviews').where('shopId', '==', shopId).get();
+      const total = totalSnap.size;
       const headerRow = document.createElement('div');
       headerRow.className = 'review-header-row';
       const canWrite = canView('reviews') && canUse('reviews') && auth.currentUser;

@@ -53,13 +53,13 @@ exports.notifyOnIssueReport = onDocumentCreated(
       },
       webpush: {
         notification: {
-          icon:  'https://taiwan-ramen-association.github.io/assets/icons/03.png',
-          badge: 'https://taiwan-ramen-association.github.io/assets/icons/03.png',
+          icon:  'https://www.taiwanramen.org/assets/icons/03.png',
+          badge: 'https://www.taiwanramen.org/assets/icons/03.png',
           tag:   'issue-report',
           requireInteraction: false,
         },
         fcmOptions: {
-          link: 'https://taiwan-ramen-association.github.io/admin.html',
+          link: 'https://www.taiwanramen.org/admin.html',
         },
       },
     };
