@@ -4323,6 +4323,10 @@ function renderHomeTaskBanner() {
   const acts = Array.isArray(homeBannerActivities)
     ? homeBannerActivities.filter(a => a && (a.name || a.photoUrl || a.timeText || a.linkUrl)) : [];
   acts.forEach(a => cards.push(_homeActCardHTML(a)));
+  // 內容與上次相同就不重設 innerHTML，避免切回首頁時 <img> 重建造成圖片閃爍
+  const sig = cards.join('|');
+  if (slot._lastSig === sig) return;
+  slot._lastSig = sig;
   if (!cards.length) { slot.innerHTML = ''; return; }         // 無挑戰也無活動：不顯示 banner
   if (cards.length === 1) {
     slot.innerHTML = `<div class="home-banner-single">${cards[0]}</div>`;   // 單張全寬
@@ -4419,8 +4423,13 @@ function renderHomeFeature() {
 
   if (!parts.length) { sec.style.display = 'none'; return; }
   sec.style.display = '';
-  box.innerHTML = parts.join('');
-  _attachHsArrows(box.querySelector('.home-feat-scroll'));
+  // 內容與上次相同就不重設 innerHTML，避免切回首頁時 <img> 重建造成圖片閃爍
+  const html = parts.join('');
+  if (box._lastSig !== html) {
+    box._lastSig = html;
+    box.innerHTML = html;
+    _attachHsArrows(box.querySelector('.home-feat-scroll'));
+  }
 }
 function renderHomeFactions() {
   const box = document.getElementById('homeFactions');
