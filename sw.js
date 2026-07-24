@@ -51,8 +51,8 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // finder.html / finder-beta.html → Network First（確保每次都取最新版）
-  if (url.pathname.endsWith('finder.html') || url.pathname.endsWith('finder-beta.html') || url.pathname === '/') {
+  // finder.html → Network First（確保每次都取最新版）
+  if (url.pathname.endsWith('finder.html') || url.pathname === '/') {
     event.respondWith(
       fetch(event.request)
         .then(response => {
