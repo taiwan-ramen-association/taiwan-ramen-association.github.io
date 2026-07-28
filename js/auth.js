@@ -186,9 +186,14 @@ document.addEventListener('click', e => {
 });
 
 
+// 登出後整頁重載：一次清乾淨所有「登入後才渲染」的殘留（評論留言 bar、挑戰圖鑑戳章、
+// 收藏/踩點狀態…），並天然回到預設落點首頁。只掛在「使用者主動按登出」這條路徑——
+// 不可改掛 onAuthStateChanged 的未登入分支，否則未登入訪客首次開頁也會觸發 → 無限 reload。
 logoutBtn.addEventListener('click', () => {
   closeProfileDropdown();
-  auth.signOut();
+  auth.signOut()
+    .then(() => location.reload())
+    .catch(() => location.reload());
 });
 
 // ── 6. applyFeatureFlags ─────────────────────────────────────────────────────
@@ -365,6 +370,27 @@ auth.onAuthStateChanged(async user => {
       applyFeatureFlags();
       render();
       checkUnreadBadge();
+
+      // 登入後背景重抓「受登入狀態影響」的資料，不 reload、不跳頁（登出才 reload）。
+      // 未登入時這些頁面是以「空進度／無留言框」渲染的，不重抓就會停在舊畫面：
+      //   ① 挑戰頁：進度、審查中/已駁回戳章（否則已完成的格子還點得開送出 modal）
+      //   ② 首頁挑戰卡：「進行中」紅框吃 _chUserProgress
+      //   ③ 貼文頁：留言 bar 是渲染當下依 auth.currentUser 決定塞不塞進 DOM 的
+      // 必須等 ALL_DATA 就緒才跑——圖鑑格要靠 findShopById 查店名，早跑會顯示成 shopId。
+      if (typeof _onDataLoaded === 'function') {
+        _onDataLoaded(() => {
+          if (typeof loadChallengesPage === 'function') {
+            Promise.resolve(loadChallengesPage({ keepView: true }))
+              .then(() => { if (typeof renderHomeTaskBanner === 'function') renderHomeTaskBanner(); })
+              .catch(() => {});
+          }
+          // 沒進過貼文頁就不預載（下次進頁本來就會載），省一輪評論讀取
+          if (typeof _rfLoaded !== 'undefined' && _rfLoaded && typeof loadReviewsFeedPage === 'function') {
+            Promise.resolve(loadReviewsFeedPage(1, { keepView: true })).catch(() => {});
+          }
+        });
+      }
+
       _onDataLoaded(() => _onBdAnimDone(() => { if (canView('onboardingTour') && !localStorage.getItem('onboarding_done_' + user.uid)) openOnboardingModal(); }));
     } else {
       loginBtn.style.display   = 'flex';

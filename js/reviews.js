@@ -535,10 +535,15 @@ async function checkUnreadBadge() {
   } catch {}
 }
 
-async function loadReviewsFeedPage(page = 1) {
+// opts.keepView=true → 背景重抓模式（Google 登入後用）：保留舊畫面（半透明＋擋點擊），
+// 資料到齊才換上，不先清成「載入中…」造成畫面跳一次。
+// 登入後必須重載這頁，因為留言 bar 是渲染當下依 auth.currentUser 決定塞不塞進 DOM 的。
+async function loadReviewsFeedPage(page = 1, opts) {
   _rfCurrentPage = page;
   const list = document.getElementById('rfList');
-  list.innerHTML = '<div class="rf-empty">載入中…</div>';
+  const keepView = !!(opts && opts.keepView) && !!list.querySelector('.rf-card');
+  if (keepView) list.classList.add('is-refreshing');
+  else          list.innerHTML = '<div class="rf-empty">載入中…</div>';
 
   try {
     let q = db.collection('reviews').orderBy('createdAt', 'desc').limit(RF_PAGE_SIZE);
@@ -562,6 +567,7 @@ async function loadReviewsFeedPage(page = 1) {
       _rfMaxPage = page; // 這是最後一頁
     }
 
+    list.classList.remove('is-refreshing');
     list.innerHTML = '';
     if (!docs.length) {
       list.innerHTML = '<div class="rf-empty">目前還沒有評論</div>';
@@ -656,7 +662,9 @@ async function loadReviewsFeedPage(page = 1) {
     updateUnreadBadge();
   } catch (e) {
     console.error('loadReviewsFeedPage 失敗', e);
-    list.innerHTML = `<div class="rf-empty">載入失敗：${e.message}</div>`;
+    list.classList.remove('is-refreshing');
+    // 背景重抓失敗時維持原畫面，不要把使用者正在看的列表換成紅字
+    if (!keepView) list.innerHTML = `<div class="rf-empty">載入失敗：${e.message}</div>`;
   }
 }
 

@@ -1071,6 +1071,9 @@
   /* modals 全屏蓋過 nav bar（z-index 1010+），切頁時不需隱藏 */
   /* challenges-page modals（目前無，預留） */
   /* body.challenges-hidden .xxx { display: none !important; } */
+  /* 登入後背景重抓：保留舊畫面但暗一點＋擋點擊（挑戰頁 challengesList、貼文頁 rfList 共用）。
+     擋點擊是必要的——這段空窗期舊 DOM 仍是未登入時的「未完成」狀態，不擋會點得開送出 modal */
+  .is-refreshing { opacity: .55; pointer-events: none; transition: opacity .15s; }
 
   /* ── 首頁 (pageHome) ─────────────────────────────────────────────── */
   #pageHome { padding: 0 0 96px; box-sizing: border-box; }
@@ -2929,11 +2932,8 @@ async function loadData() {
     }
     render();
     if (typeof renderHome === 'function') renderHome();
-    if (auth.currentUser && typeof loadChallengesPage === 'function' && !_chPageLoaded) {
-      Promise.resolve(loadChallengesPage())
-        .then(() => { if (typeof renderHomeTaskBanner === 'function') renderHomeTaskBanner(); })
-        .catch(() => {});
-    }
+    // 挑戰進度的載入改由 auth.js 的 onAuthStateChanged 統一負責（包在 _onDataLoaded 裡等 ALL_DATA），
+    // 這裡不再重複觸發，否則已登入直接開頁時會抓兩遍（雙倍 Firestore 讀取）
     const bdShops = ALL_DATA.filter(s => isBirthday(s)).map(s => s['店名']);
     if (bdShops.length) {
       try { await _ffReady; } catch (e) {}   // 等 feature flags 載入，尊重後台煙火開關
