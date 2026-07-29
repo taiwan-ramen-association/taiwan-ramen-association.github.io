@@ -91,6 +91,17 @@ def git_capture(args, cwd, network=False):
     return result.returncode, (result.stdout or ''), (result.stderr or '')
 
 
+def upstream_of(cwd):
+    """回傳目前分支的 upstream（如 origin/main）；沒設定則回 None。
+
+    沒有 upstream 時 `@{u}` 會直接報錯，任何拿 @{u} 做比對的指令都會回空字串，
+    若不先檢查就會被誤判成「沒有差異」。
+    """
+    rc, out, _ = git_capture(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], cwd=cwd)
+    out = out.strip()
+    return out if rc == 0 and out else None
+
+
 def _hint_git_failure(kind, op, text=''):
     """依錯誤類型給一句對應的下一步提示。"""
     tl = (text or '').lower()
@@ -176,6 +187,16 @@ def _push_and_report(cwd):
 def git_push(cwd, label):
     section(f'Push — {label}')
 
+    # 沒有 upstream 就不能用 @{u} 比對，無參數 `git push` 也推不動。
+    # 不先擋掉的話，下面的 `git log @{u}..HEAD` 會失敗回空字串 →
+    # 被當成「沒有待推送的 commit」→ 明明沒推成功卻 return True 謊報成功。
+    if upstream_of(cwd) is None:
+        _, branch, _ = git_capture(['rev-parse', '--abbrev-ref', 'HEAD'], cwd=cwd)
+        branch = branch.strip() or '<branch>'
+        print(f'\n  ⚠  分支 `{branch}` 未設定 upstream，無法比對遠端，也無法直接 push。')
+        print(f'     請先手動執行一次：git push -u origin {branch}')
+        return False
+
     # 顯示目前狀態
     result = subprocess.run(
         ['git', 'status', '--short'],
@@ -185,8 +206,13 @@ def git_push(cwd, label):
 
     if not status:
         # 工作區乾淨 ≠ 沒東西要推：可能有「已 commit 但未 push」的 commit
-        _, ahead, _ = git_capture(['log', '--oneline', '@{u}..HEAD'], cwd=cwd)
+        arc, ahead, aerr = git_capture(['log', '--oneline', '@{u}..HEAD'], cwd=cwd)
         ahead = ahead.strip()
+        if arc != 0:
+            # 比對失敗時不能當成「沒東西要推」，否則會靜默謊報成功
+            print('\n  ⚠  無法比對遠端，中止以免誤報成功：')
+            print(f'    {aerr.strip()}')
+            return False
         if not ahead:
             print('  ℹ  無變更，也沒有待推送的 commit，略過')
             return True
@@ -275,8 +301,7 @@ def status_one(cwd, label):
     run_git(['status', '--short', '--branch'], cwd=cwd)
 
     # 3. 沒有 upstream 就沒得比（避免 @{u} 報錯後靜默誤判成「同步」）
-    urc, _, _ = git_capture(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], cwd=cwd)
-    if urc != 0:
+    if upstream_of(cwd) is None:
         print('\n  ⚠  此分支未設定 upstream，無法比對遠端。')
         return
 
