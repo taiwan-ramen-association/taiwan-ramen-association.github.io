@@ -416,6 +416,28 @@ def normalize_date(value):
 
     return v  # 無法辨識，原樣返回
 
+# 月精度開幕日（只知年月、不知日）→ 正規化為 YYYY-MM 並推導開幕月份。
+# 只套用在「開幕日」；歇業日維持只認完整日期（自動歇業判定需要日）。
+# 注意：以下四種寫法 normalize_date() 都會原樣返回，因此不會誤入 failed 清單。
+MONTH_ONLY_PATTERNS = (
+    r'^(\d{4})-(\d{1,2})$',      # 2014-07 / 2014-7
+    r'^(\d{4})/(\d{1,2})$',      # 2014/07 / 2014/7
+    r'^(\d{4})\.(\d{1,2})$',     # 2014.7
+    r'^(\d{4})年(\d{1,2})月$',   # 2014年7月
+)
+
+def parse_month_only(value):
+    """回傳 ('YYYY-MM', month) 或 None（無法辨識／月份不在 1-12）"""
+    if not value or not isinstance(value, str):
+        return None
+    v = value.strip()
+    for pat in MONTH_ONLY_PATTERNS:
+        m = re.match(pat, v)
+        if m:
+            mo = int(m.group(2))
+            return (f'{m.group(1)}-{mo:02d}', mo) if 1 <= mo <= 12 else None
+    return None
+
 def step_normalize_dates():
     section(6, '正規化開幕日 / 歇業日（→ YYYY-MM-DD）')
 
@@ -444,6 +466,16 @@ def step_normalize_dates():
             if row.get('開幕月份') != month:
                 row['開幕月份'] = month
                 updated += 1
+        else:
+            parsed = parse_month_only(d)
+            if parsed:
+                norm, month = parsed
+                if d != norm:
+                    row['開幕日'] = norm
+                    updated += 1
+                if row.get('開幕月份') != month:
+                    row['開幕月份'] = month
+                    updated += 1
 
     save_data(rows)
     print(f'\n  ✅ 完成：更新 {updated} 個欄位（共 {len(rows)} 筆）')
