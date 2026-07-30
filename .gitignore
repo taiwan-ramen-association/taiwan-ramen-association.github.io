@@ -1,5 +1,7 @@
 # 本機工具產生的暫存檔
 tools/data.xlsx
+tools/data_xlsx_backup_*.xlsx
+tools/.xlsx_stamp
 data/data_backup_*.json
 
 # 大型單機匯出檔（約 31MB，本機保留、不進版控）

@@ -44,11 +44,14 @@ except ImportError:
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-tools_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir  = os.path.dirname(tools_dir)
-json_path = os.path.join(root_dir, 'data', 'data.json')
-xlsx_path = os.path.join(tools_dir, 'data.xlsx')
-dist_path = os.path.join(root_dir, 'data', 'districts.json')
+tools_dir  = os.path.dirname(os.path.abspath(__file__))
+root_dir   = os.path.dirname(tools_dir)
+json_path  = os.path.join(root_dir, 'data', 'data.json')
+xlsx_path  = os.path.join(tools_dir, 'data.xlsx')
+dist_path  = os.path.join(root_dir, 'data', 'districts.json')
+stamp_path = os.path.join(tools_dir, '.xlsx_stamp')
+
+XLSX_BACKUP_KEEP = 5   # tools/data_xlsx_backup_*.xlsx 保留份數
 
 # ── 共用 I/O ──────────────────────────────────────────────────────────────────
 def load_data():
@@ -58,6 +61,55 @@ def load_data():
 def save_data(rows):
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(rows, f, ensure_ascii=False, indent=2)
+
+# ── data.xlsx 防覆寫：stamp 偵測 + 覆寫前備份 ─────────────────────────────────
+def _write_xlsx_stamp():
+    """記下本工具產生 data.xlsx 的 mtime，供 B 路徑判斷有無未回寫的編輯"""
+    try:
+        with open(stamp_path, 'w', encoding='utf-8') as f:
+            f.write(str(os.path.getmtime(xlsx_path)))
+    except Exception as e:
+        print(f'  ⚠  stamp 寫入失敗（不影響資料）：{e}')
+
+def _xlsx_edited_since_generated():
+    """data.xlsx 是否在本工具產生後被改過（= 有未回寫的 Excel 編輯）
+
+    沒有 stamp 或讀不到時一律回傳 True：寧可多問一次，不要默默蓋掉。
+    """
+    if not os.path.exists(xlsx_path):
+        return False
+    if not os.path.exists(stamp_path):
+        return True
+    try:
+        with open(stamp_path, 'r', encoding='utf-8') as f:
+            stamped = float(f.read().strip())
+    except Exception:
+        return True
+    # 容忍 1 秒檔案系統誤差；人工編輯不可能落在產生後 1 秒內
+    return abs(os.path.getmtime(xlsx_path) - stamped) > 1
+
+def _backup_xlsx():
+    """覆寫前無條件備份 data.xlsx → tools/data_xlsx_backup_<ts>.xlsx（留最近 N 份）"""
+    if not os.path.exists(xlsx_path):
+        return None
+    import datetime as _dt3
+    import glob as _glob2
+    ts     = _dt3.datetime.now().strftime('%Y%m%d_%H%M%S')
+    target = os.path.join(tools_dir, f'data_xlsx_backup_{ts}.xlsx')
+    try:
+        shutil.copy2(xlsx_path, target)
+    except Exception as e:
+        print(f'  ⚠  data.xlsx 備份失敗：{e}')
+        return None
+    print(f'  💾 已備份舊 Excel：tools/{os.path.basename(target)}')
+    # 檔名時間戳為固定寬度，字串排序即時間排序
+    olds = sorted(_glob2.glob(os.path.join(tools_dir, 'data_xlsx_backup_*.xlsx')))
+    for old in olds[:-XLSX_BACKUP_KEEP]:
+        try:
+            os.remove(old)
+        except Exception:
+            pass
+    return target
 
 def load_districts():
     if not os.path.exists(dist_path):
@@ -577,6 +629,7 @@ def step_json_to_excel():
     if not rows:
         print('  ❌ data.json 是空的')
         return False
+    _backup_xlsx()   # 任何路徑覆寫 data.xlsx 前都先留一份
     print(f'  📝 寫入 {len(rows)} 筆資料...')
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -631,6 +684,7 @@ def step_json_to_excel():
             ws.add_data_validation(dv)
         print('  ✅ 已套用下拉選單驗證')
     wb.save(xlsx_path)
+    _write_xlsx_stamp()
     print(f'  ✅ 完成！data.xlsx 已產生（共 {len(rows)} 筆）')
     print(f'  📍 {xlsx_path}')
     return True
@@ -869,6 +923,22 @@ def open_file(path):
 
 def run_path_b():
     print('\n▶ B【開始編輯】JSON → Excel → 開啟檔案')
+
+    # 防呆：data.xlsx 有未回寫的編輯就先攔住（B 會用 data.json 整份蓋掉它）
+    if _xlsx_edited_since_generated():
+        saved_at = time.strftime('%Y-%m-%d %H:%M:%S',
+                                 time.localtime(os.path.getmtime(xlsx_path)))
+        print()
+        print('  ' + '═' * 50)
+        print(f'  ⚠  data.xlsx 在產生後被修改過（最後存檔：{saved_at}）')
+        print('     B 會用 data.json 整份覆蓋，你在 Excel 裡的編輯會消失。')
+        print('     要把編輯寫回 data.json，請改按 C【完成編輯】。')
+        print('  ' + '═' * 50)
+        ans = input('  仍要覆蓋？輸入 yes 繼續，其他輸入取消：').strip().lower()
+        if ans != 'yes':
+            print('  ✅ 已取消，data.xlsx 保持原狀。')
+            return
+
     _backup_data()   # 編輯前先備份，C 路徑成功後自動刪除
     ok = step_json_to_excel()
     if ok:
