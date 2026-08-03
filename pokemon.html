@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>2026 第二期・寶可夢夏令營｜德麟老師親自帶班</title>
+
+<!-- 分享預覽：刻意不放 og:image / twitter:card，且全頁無圖片，讓 LINE、FB 抓不到任何縮圖 -->
+<meta property="og:type"        content="website">
+<meta property="og:title"       content="2026 第二期・寶可夢夏令營 開放報名">
+<meta property="og:description" content="特價 4800 元（原價 8000 元），德麟老師親自帶班，名額有限，額滿即止。">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:    #16233d;
+    --ink-2:  #3d4a63;
+    --orange: #e07b2c;
+    --orange-d: #c2621a;
+    --cream:  #fdf8f0;
+    --card:   #ffffff;
+    --line:   #ebe0cf;
+    --muted:  #8a8272;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 0 20px 64px; }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(160deg, #16233d 0%, #223761 100%);
+    color: #fff;
+    padding: 48px 20px 40px;
+    text-align: center;
+  }
+  .hero-inner { max-width: 560px; margin: 0 auto; }
+  .badge {
+    display: inline-block;
+    background: var(--orange);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    padding: 5px 14px;
+    border-radius: 999px;
+    margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-size: 30px;
+    font-weight: 900;
+    line-height: 1.35;
+    letter-spacing: .01em;
+  }
+  .hero h1 small { display: block; font-size: 17px; font-weight: 500; opacity: .8; margin-bottom: 6px; }
+  .hero p.sub {
+    margin-top: 14px;
+    font-size: 15px;
+    color: rgba(255,255,255,.78);
+  }
+
+  /* ── 價格 ── */
+  .price {
+    background: var(--card);
+    border: 2px solid var(--orange);
+    border-radius: 16px;
+    padding: 22px 20px;
+    text-align: center;
+    margin: -28px 0 28px;
+    box-shadow: 0 8px 28px rgba(22,35,61,.12);
+    position: relative;
+  }
+  .price .was { font-size: 15px; color: var(--muted); text-decoration: line-through; }
+  .price .now {
+    font-size: 40px;
+    font-weight: 900;
+    color: var(--orange-d);
+    line-height: 1.2;
+    margin: 2px 0 4px;
+  }
+  .price .now span { font-size: 18px; font-weight: 700; }
+  .price .note { font-size: 13px; color: var(--muted); }
+
+  /* ── 資訊表 ── */
+  .info {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 34px;
+  }
+  .info div {
+    display: flex;
+    gap: 14px;
+    padding: 13px 18px;
+    font-size: 15px;
+    border-bottom: 1px solid var(--line);
+  }
+  .info div:last-child { border-bottom: 0; }
+  .info b {
+    flex: 0 0 62px;
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 14px;
+  }
+  .info span { color: var(--ink-2); }
+  .info .hot { color: var(--orange-d); font-weight: 700; }
+
+  /* ── 亮點 ── */
+  h2.sec {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: .12em;
+    margin-bottom: 14px;
+  }
+  .pt {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--orange);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 14px;
+  }
+  .pt h3 { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
+  .pt h3 em {
+    font-style: normal;
+    color: var(--orange-d);
+    font-size: 13px;
+    font-weight: 700;
+    margin-right: 8px;
+    letter-spacing: .06em;
+  }
+  .pt p { font-size: 15px; color: var(--ink-2); }
+
+  /* ── CTA ── */
+  .cta {
+    display: block;
+    width: 100%;
+    margin-top: 30px;
+    padding: 17px;
+    background: var(--orange);
+    color: #fff;
+    font-family: inherit;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: .05em;
+    border: 0;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(224,123,44,.35);
+    transition: transform .12s, background .12s;
+  }
+  .cta:hover { background: var(--orange-d); }
+  .cta:active { transform: translateY(2px); }
+  .cta-note { text-align: center; font-size: 13px; color: var(--muted); margin-top: 10px; }
+
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 0 20px 40px; }
+
+  /* ── 彈窗 ── */
+  .mask {
+    position: fixed; inset: 0;
+    background: rgba(22,35,61,.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 50;
+  }
+  .mask.on { display: flex; }
+  .modal {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 30px 26px 24px;
+    max-width: 340px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,.3);
+    animation: pop .18s ease-out;
+  }
+  @keyframes pop { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal h3 { font-size: 21px; font-weight: 900; margin-bottom: 10px; }
+  .modal p { font-size: 15px; color: var(--ink-2); margin-bottom: 6px; }
+  .modal .tel {
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: .06em;
+    color: var(--orange-d);
+    margin: 12px 0 20px;
+  }
+  .modal button {
+    width: 100%;
+    padding: 12px;
+    background: var(--ink);
+    color: #fff;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    border: 0;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  @media (min-width: 600px) {
+    .hero h1 { font-size: 34px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="badge">🔥 2026 第二期</span>
+    <h1><small>德麟老師</small>寶可夢夏令營</h1>
+    <p class="sub">開放報名中｜名額有限，額滿即止</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="price">
+    <div class="was">原價 8,000 元</div>
+    <div class="now">4,800<span> 元</span></div>
+    <div class="note">早鳥特價・僅此一期</div>
+  </section>
+
+  <section class="info">
+    <div><b>日期</b><span>2026/08/15（六）– 08/17（一）　每日 09:30–16:30</span></div>
+    <div><b>地點</b><span>台北市・德麟老師家客廳（暫定）</span></div>
+    <div><b>對象</b><span>小學一年級以上，心智年齡不限</span></div>
+    <div><b>名額</b><span class="hot">限額 20 位，目前剩 3 位</span></div>
+  </section>
+
+  <h2 class="sec">課程亮點</h2>
+
+  <article class="pt">
+    <h3><em>亮點一</em>德麟老師親自帶班</h3>
+    <p>不是助教代打，全程由老師小班指導，每個孩子的節奏都被看見。</p>
+  </article>
+
+  <article class="pt">
+    <h3><em>亮點二</em>從零基礎到能上場對戰</h3>
+    <p>規則、牌組組建、實戰思路一次打通，沒接觸過也能安心入門。</p>
+  </article>
+
+  <article class="pt">
+    <h3><em>亮點三</em>結業賽 × 成就感帶著走</h3>
+    <p>營期最後舉辦內部對戰賽，孩子帶回家的不只是知識，還有獎狀與自信。</p>
+  </article>
+
+  <button class="cta" id="signup">立即報名</button>
+  <p class="cta-note">按下報名即代表你已經想清楚了</p>
+
+</div>
+
+<footer>本頁與任天堂、寶可夢公司及其關係企業均無任何關聯。<br>純屬玩笑，請勿當真。</footer>
+
+<div class="mask" id="mask">
+  <div class="modal">
+    <h3>額滿了！</h3>
+    <p>手腳太慢囉，這期已經沒位子了。</p>
+    <p>如有疑問請洽德麟老師本人：</p>
+    <div class="tel">0987-654-321</div>
+    <button id="close">我知道了</button>
+  </div>
+</div>
+
+<script>
+  var mask = document.getElementById('mask');
+  document.getElementById('signup').addEventListener('click', function () {
+    mask.classList.add('on');
+  });
+  document.getElementById('close').addEventListener('click', function () {
+    mask.classList.remove('on');
+  });
+  mask.addEventListener('click', function (e) {
+    if (e.target === mask) mask.classList.remove('on');
+  });
+</script>
+
+</body>
+</html>
