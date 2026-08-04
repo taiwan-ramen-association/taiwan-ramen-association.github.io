@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人氣投票 ─ 台灣拉麵協會</title>
+<link rel="canonical" href="https://www.taiwanramen.org/vote.html">
+<link rel="icon" href="assets/icons/03.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<meta name="description" content="台灣拉麵協會人氣投票，選出你心中最愛的那一碗。">
+<meta property="og:site_name" content="台灣拉麵協會">
+<meta property="og:type" content="website">
+<meta property="og:title" content="人氣投票 ─ 台灣拉麵協會">
+<meta property="og:description" content="選出你心中最愛的那一碗。">
+<meta property="og:url" content="https://www.taiwanramen.org/vote.html">
+<script>if(localStorage.getItem('darkMode')==='1')document.documentElement.classList.add('dark-early');</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --red: #C8272D; --red-dark: #9b1e23; --red-light: #f7eaea;
+  --ink: #1a1209; --paper: #faf7f2; --stone: #8a7d6e;
+  --line: #e8e0d4; --white: #ffffff; --muted: #a99e90;
+}
+body.dark {
+  --red: #e04848; --red-dark: #C8272D; --red-light: #2e1515;
+  --ink: #e8e2d8; --paper: #141210; --stone: #9a8d7e;
+  --line: #2e2820; --white: #1e1c18; --muted: #7d7365;
+}
+html.dark-early { background: #141210; }
+body {
+  font-family: 'Noto Sans TC', -apple-system, sans-serif;
+  background: var(--paper); color: var(--ink); min-height: 100vh;
+  -webkit-text-size-adjust: 100%;
+}
+
+header {
+  background: var(--red); color: var(--white);
+  padding: 13px 20px; display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2); position: sticky; top: 0; z-index: 100;
+}
+header h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+.hdr-right { display: flex; align-items: center; gap: 12px; }
+.hdr-right a { color: var(--white); font-size: 13px; text-decoration: none; opacity: 0.85; }
+.hdr-right a:hover { opacity: 1; }
+#loginBtn {
+  background: rgba(255,255,255,0.16); border: none; color: #fff;
+  font-size: 13px; padding: 5px 12px; border-radius: 999px; cursor: pointer; font-family: inherit;
+}
+#userAvatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; display: none; border: 1.5px solid rgba(255,255,255,0.6); }
+
+main { max-width: 720px; margin: 0 auto; padding: 18px 16px 60px; }
+
+/* 投票標頭 */
+.v-head { margin-bottom: 16px; }
+.v-title { font-size: 21px; font-weight: 800; line-height: 1.35; }
+.v-desc { font-size: 14px; color: var(--stone); line-height: 1.7; margin-top: 6px; }
+.v-window { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+/* 狀態橫幅：未登入 / 不合格 / 未開始 / 已結束 / 計票中 */
+.v-banner {
+  border: 1px solid var(--line); background: var(--white); border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 16px; font-size: 14px; line-height: 1.7; color: var(--ink);
+}
+.v-banner.alert { border-color: var(--red); background: var(--red-light); }
+.v-banner-title { font-weight: 700; margin-bottom: 4px; }
+.v-banner ul { margin: 6px 0 0; padding-left: 18px; color: var(--stone); font-size: 13px; }
+.v-banner li { margin-bottom: 2px; }
+.v-banner-btn {
+  margin-top: 10px; padding: 10px 18px; background: var(--red); color: #fff;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+}
+.v-banner-btn:active { opacity: 0.82; }
+
+/* 票匭分頁籤（比照挑戰排行榜 ch-rank-mtab）*/
+.v-tabs { display: flex; border-bottom: 1px solid var(--line); margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
+.v-tabs::-webkit-scrollbar { display: none; }
+.v-tab {
+  flex: 1; min-width: 84px; padding: 11px 8px; border: none; background: none;
+  font-size: 13px; color: var(--stone); cursor: pointer; white-space: nowrap;
+  border-bottom: 2px solid transparent; font-family: inherit;
+}
+.v-tab.active { color: var(--red); border-bottom-color: var(--red); font-weight: 700; }
+.v-tab .v-tab-done { font-size: 11px; color: var(--red); }
+
+.v-boxpanel { display: none; position: relative; }
+.v-boxpanel.active { display: block; }
+
+.v-search {
+  width: 100%; padding: 10px 14px; margin-bottom: 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--white);
+  color: var(--ink); font-size: 14px; font-family: inherit;
+}
+.v-count { font-size: 13px; color: var(--stone); margin-bottom: 10px; }
+.v-count b { color: var(--red); font-size: 15px; }
+
+/* 候選卡（比照挑戰圖鑑格）*/
+.v-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 14px 10px; }
+.v-card { position: relative; text-align: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.v-card.readonly { cursor: default; }
+.v-pic {
+  width: 100%; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+  background: var(--white); border: 3px solid transparent;
+  display: flex; align-items: center; justify-content: center; margin-bottom: 6px;
+  transition: border-color 0.18s, filter 0.25s;
+}
+.v-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.v-pic.no-img::after { content: '🍜'; font-size: 32px; opacity: 0.4; }
+.v-card.picked .v-pic { border-color: var(--red); }
+.v-card:not(.picked) .v-pic { filter: saturate(0.55); }
+.v-label { font-size: 13px; font-weight: 600; line-height: 1.35; }
+.v-sub { font-size: 11px; color: var(--stone); line-height: 1.35; margin-top: 1px; }
+.v-check {
+  position: absolute; top: 2px; right: 2px; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--red); color: #fff; font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: scale(0.6); transition: opacity 0.18s, transform 0.18s;
+}
+.v-card.picked .v-check { opacity: 1; transform: scale(1); }
+.v-empty { text-align: center; padding: 30px 16px; color: var(--stone); font-size: 13px; }
+
+/* 送出列（合格且未投時才出現）*/
+.v-submitbar {
+  position: sticky; bottom: 0; margin: 16px -16px -60px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--white); border-top: 1px solid var(--line);
+  display: flex; align-items: center; gap: 12px;
+}
+.v-submitbar .v-count { margin: 0; flex: 1; }
+.v-submit {
+  padding: 12px 26px; background: var(--red); color: #fff; border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; flex-shrink: 0;
+}
+.v-submit:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
+
+/* 已投遮罩（比照挑戰 ended 遮罩）*/
+.v-voted-wrap { position: relative; }
+.v-voted-mask {
+  position: absolute; inset: -8px; z-index: 4; border-radius: 12px;
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 40px;
+  background: rgba(250,247,242,0.72); backdrop-filter: saturate(0.4);
+  -webkit-backdrop-filter: saturate(0.4); cursor: default;
+}
+body.dark .v-voted-mask { background: rgba(20,18,16,0.74); }
+.v-voted-badge {
+  font-size: 15px; font-weight: 700; letter-spacing: 3px; color: var(--stone);
+  background: var(--white); border: 1px solid var(--line);
+  padding: 8px 20px; border-radius: 999px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  position: sticky; top: 70px;
+}
+.v-mychoice { font-size: 13px; color: var(--stone); margin-bottom: 12px; line-height: 1.7; }
+.v-mychoice b { color: var(--ink); }
+
+/* 結果長條圖 */
+.v-result-row { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.v-result-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
+.v-result-rank { font-size: 13px; font-weight: 800; color: var(--stone); width: 28px; flex-shrink: 0; }
+.v-result-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; }
+.v-result-name span { font-size: 11px; color: var(--stone); font-weight: 400; margin-left: 5px; }
+.v-result-num { font-size: 15px; font-weight: 800; color: var(--red); flex-shrink: 0; }
+.v-result-num small { font-size: 11px; color: var(--stone); font-weight: 400; margin-left: 2px; }
+.v-bar { height: 7px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.v-bar i { display: block; height: 100%; background: var(--red); border-radius: 999px; }
+.v-result-meta { font-size: 12px; color: var(--muted); margin: 10px 0 14px; line-height: 1.7; }
+
+/* 登入 modal（抄 finder privacyModal）*/
+.fullscreen-modal {
+  position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,0.65);
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.fullscreen-modal.open { display: flex; }
+.fmod-card {
+  background: var(--white); border-radius: 20px; width: 100%; max-width: 440px;
+  display: flex; flex-direction: column; max-height: calc(100dvh - 40px); overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+}
+.fmod-header { padding: 24px 24px 16px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.fmod-title { font-size: 17px; font-weight: 800; }
+.fmod-subtitle { font-size: 13px; color: var(--stone); margin-top: 4px; }
+.fmod-scroll { flex: 1; overflow-y: auto; padding: 16px 24px; -webkit-overflow-scrolling: touch; }
+.fmod-section { margin-bottom: 16px; }
+.fmod-section:last-child { margin-bottom: 0; }
+.fmod-section-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.fmod-section p { font-size: 13px; color: var(--stone); line-height: 1.6; }
+.fmod-footer {
+  padding: 16px 24px 20px; border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; align-items: center; gap: 12px; flex-shrink: 0;
+}
+.fmod-google-btn {
+  width: 100%; padding: 13px 16px; background: var(--red); color: #fff; border: none;
+  border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px; font-family: inherit;
+}
+.fmod-google-btn:active { opacity: 0.82; }
+.fmod-skip { font-size: 13px; color: var(--stone); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+/* 送出確認 modal */
+.v-confirm-list { font-size: 14px; line-height: 1.9; }
+.v-confirm-list li { margin-left: 18px; }
+.v-warn { color: var(--red); font-weight: 700; }
+.fmod-cancel {
+  width: 100%; padding: 12px; background: none; border: 1px solid var(--line);
+  border-radius: 12px; font-size: 14px; color: var(--stone); cursor: pointer; font-family: inherit;
+}
+
+.toast {
+  position: fixed; left: 50%; bottom: 78px; transform: translateX(-50%) translateY(12px);
+  background: rgba(26,18,9,0.94); color: #fff; padding: 11px 18px; border-radius: 10px;
+  font-size: 13.5px; line-height: 1.6; max-width: min(420px, calc(100vw - 32px)); text-align: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.22s, transform 0.22s; z-index: 4000;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.v-loading { text-align: center; padding: 60px 16px; color: var(--stone); font-size: 14px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🗳 人氣投票</h1>
+  <div class="hdr-right">
+    <a href="finder.html">← 拉麵搜尋器</a>
+    <button id="loginBtn">登入</button>
+    <img id="userAvatar" alt="">
+  </div>
+</header>
+
+<main>
+  <div id="app"><div class="v-loading">載入中…</div></div>
+</main>
+
+<!-- 登入前說明（抄 finder privacyModal） -->
+<div class="fullscreen-modal" id="privacyModal">
+  <div class="fmod-card">
+    <div class="fmod-header">
+      <p class="fmod-title">登入前請詳閱說明</p>
+      <p class="fmod-subtitle">請確認您同意以下事項後再繼續</p>
+    </div>
+    <div class="fmod-scroll">
+      <div class="fmod-section">
+        <p class="fmod-section-title">帳號連結用途</p>
+        <p>您的 Google 帳號僅用於識別身份，我們記錄您的顯示名稱及 Email，用於提供收藏、踩點等個人化服務。</p>
+      </div>
+      <div class="fmod-section">
+        <p class="fmod-section-title">投票紀錄</p>
+        <p>為了防止重複投票並供計票查核，協會會記錄「您投了什麼」。<strong>僅公布統計結果，不會公布個人的投票選擇。</strong></p>
+      </div>
+      <div class="fmod-section">
+        <p class="fmod-section-title">個資蒐集聲明</p>
+        <p>我們蒐集您在本站的踩點紀錄、收藏清單及評論，不會販售或提供予第三方。</p>
+      </div>
+      <div class="fmod-section">
+        <p class="fmod-section-title">退出與刪除</p>
+        <p>您可隨時登出。如需刪除帳號資料，請聯繫台灣拉麵協會。</p>
+      </div>
+    </div>
+    <div class="fmod-footer">
+      <button class="fmod-google-btn" id="privacyGoogleBtn">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57C21.36 18.5 22.56 15.68 22.56 12.25z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        使用 Google 帳號登入
+      </button>
+      <span class="fmod-skip" id="privacySkipBtn">先不登入</span>
+    </div>
+  </div>
+</div>
+
+<!-- 送出確認：不可改票，誤觸即定終身，所以一定要攔一次 -->
+<div class="fullscreen-modal" id="confirmModal">
+  <div class="fmod-card">
+    <div class="fmod-header">
+      <p class="fmod-title">確認投票內容</p>
+      <p class="fmod-subtitle" id="confirmSub"></p>
+    </div>
+    <div class="fmod-scroll">
+      <ul class="v-confirm-list" id="confirmList"></ul>
+      <p style="margin-top:14px;font-size:13px;line-height:1.7" class="v-warn">送出後無法更改或撤回，請確認後再送出。</p>
+    </div>
+    <div class="fmod-footer">
+      <button class="fmod-google-btn" id="confirmSubmitBtn">確認送出</button>
+      <button class="fmod-cancel" id="confirmCancelBtn">再想想</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// vote.html — 公開人氣投票頁（規格：ramen-finder-notes/voting-system.md）
+//
+// 刻意「不整頁鎖登入」：流量來自 IG，登入牆會殺掉漏斗，且結果頁要能直接分享。
+// 登入狀態與 finder 自動共用——auth.js 未呼叫 setPersistence，compat SDK 預設
+// browserLocalPersistence，且本頁與 finder.html 同源。
+// ─────────────────────────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBdN0AYZMM2AU66QcH4BVNJHx1plwQBBYc",
+  authDomain: "taiwan-ramen-association.web.app",
+  projectId: "taiwan-ramen-association",
+  storageBucket: "taiwan-ramen-association.firebasestorage.app",
+  messagingSenderId: "66234065738",
+  appId: "1:66234065738:web:eb9fc4348a942da66ad7b3"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+const provider = new firebase.auth.GoogleAuthProvider();
+
+const SEARCH_THRESHOLD = 30;   // 候選超過這個數量才顯示搜尋框（規格 §一-16）
+
+let _vote = null;        // votes/{id} 文件
+let _voteId = null;
+let _boxes = [];         // [{ id, name, votesPerUser, pickCount, options }]
+let _user = null;
+let _eligible = null;    // { ok:boolean, reasons:[string] } — null＝尚未判定（未登入）
+let _myBallots = {};     // boxId → { choices:[optionId] }｜未投為 undefined
+let _picks = {};         // boxId → Set(optionId)，尚未送出的暫存
+let _activeBox = null;
+let _results = null;     // voteResults/{id}
+let _pendingSubmitBoxId = null;
+
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+let _toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+function fmtTs(ts) {
+  if (!ts || !ts.toDate) return '';
+  const d = ts.toDate();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// ── 登入 ────────────────────────────────────────────────────────────────────
+function doGoogleSignIn() {
+  document.getElementById('privacyModal').classList.remove('open');
+  auth.signInWithPopup(provider).catch(err => {
+    if (err.code === 'auth/popup-blocked') {
+      auth.signInWithRedirect(provider).catch(e => console.error('[vote] redirect failed', e));
+    } else if (err.code !== 'auth/popup-closed-by-user') {
+      console.error('[vote] 登入失敗', err);
+      toast('登入失敗：' + (err.message || err.code));
+    }
+  });
+}
+document.getElementById('privacyGoogleBtn').addEventListener('click', doGoogleSignIn);
+document.getElementById('privacySkipBtn').addEventListener('click',
+  () => document.getElementById('privacyModal').classList.remove('open'));
+document.getElementById('loginBtn').addEventListener('click', () => {
+  if (_user) { auth.signOut(); return; }
+  document.getElementById('privacyModal').classList.add('open');
+});
+auth.getRedirectResult().catch(err => {
+  if (err.code && err.code !== 'auth/no-auth-event') console.error('[vote] getRedirectResult', err.code, err.message);
+});
+
+// ── 載入 ────────────────────────────────────────────────────────────────────
+// ?id= 深連結優先（規格 §一-2：靠深連結保住舊場次的結果頁），否則讀當前場次
+async function resolveVoteId() {
+  const q = new URLSearchParams(location.search).get('id');
+  if (q) return q;
+  try {
+    const cfg = await db.collection('meta').doc('votingConfig').get();
+    return cfg.exists ? (cfg.data().currentVoteId || null) : null;
+  } catch (e) {
+    // 讀不到（例如 meta/votingConfig 的 rules 尚未部署）就當「沒有進行中的投票」。
+    // 不吞例外的話整頁會停在「載入中…」，比誠實說沒有投票更糟。
+    console.error('[vote] 讀取 votingConfig 失敗', e);
+    return null;
+  }
+}
+
+async function loadVote() {
+  _voteId = await resolveVoteId();
+  if (!_voteId) { renderFatal('目前沒有進行中的投票'); return; }
+
+  let doc;
+  try {
+    doc = await db.collection('votes').doc(_voteId).get();
+  } catch (e) {
+    // draft 場次對非 admin 是 permission-denied，不是「不存在」
+    renderFatal('這場投票目前無法瀏覽');
+    return;
+  }
+  if (!doc.exists) { renderFatal('找不到這場投票'); return; }
+  _vote = doc.data();
+
+  const order = Array.isArray(_vote.boxOrder) ? _vote.boxOrder : [];
+  let snaps;
+  try {
+    snaps = await Promise.all(order.map(bid =>
+      db.collection('votes').doc(_voteId).collection('boxes').doc(bid).get()));
+  } catch (e) {
+    // 少載一個票匭＝那一區的人無票可投卻看不出原因，所以整頁失敗比部分顯示誠實
+    console.error('[vote] 票匭載入失敗', e);
+    _vote = null;
+    renderFatal('候選資料載入失敗', '這是暫時性的讀取問題，請重新整理頁面再試一次。');
+    return;
+  }
+  _boxes = snaps.filter(s => s.exists).map(s => ({
+    id: s.id,
+    name: s.data().name || '',
+    votesPerUser: Number(s.data().votesPerUser) || 1,
+    pickCount: s.data().pickCount ?? null,
+    options: Array.isArray(s.data().options) ? s.data().options : [],
+  }));
+  _boxes.forEach(b => { if (!_picks[b.id]) _picks[b.id] = new Set(); });
+  if (!_activeBox || !_boxes.some(b => b.id === _activeBox)) _activeBox = _boxes[0] ? _boxes[0].id : null;
+
+  if (_vote.status === 'published') {
+    try {
+      const r = await db.collection('voteResults').doc(_voteId).get();
+      _results = r.exists ? r.data() : null;
+    } catch (e) { _results = null; }
+  }
+  // 這裡刻意不 render()：已登入者的資格還沒判定，先畫一次會閃一下「登入後即可投票」。
+  // 由 onAuthStateChanged 在 loadUserState() 之後統一畫。
+}
+
+// 已登入才跑：判定資格 ＋ 撈自己投過什麼
+async function loadUserState(uid) {
+  _myBallots = {};
+  await Promise.all(_boxes.map(async b => {
+    try {
+      const d = await db.collection('votes').doc(_voteId).collection('boxes').doc(b.id)
+        .collection('ballots').doc(uid).get();
+      if (d.exists) _myBallots[b.id] = d.data();
+    } catch (e) { /* 讀不到就當未投；真的投過送出時 rules 會擋 */ }
+  }));
+  _eligible = await checkEligibility(uid);
+}
+
+// 前台的資格判定要與 rules 同一套條件，但目的不同：
+// rules 負責「擋」，這裡負責「講清楚是哪一條沒過」。只說「無資格」等於沒說。
+async function checkEligibility(uid) {
+  const reasons = [];
+  try {
+    const uDoc = await db.collection('users').doc(uid).get();
+    const createdAt = uDoc.exists ? uDoc.data().createdAt : null;
+    if (!createdAt || !createdAt.toMillis) {
+      // rules 讀不到 createdAt 會直接 error → deny。若這裡也只說「不符資格」，
+      // 當事人永遠查不出原因，所以單獨列成一條可行動的訊息。
+      reasons.push('您的帳號資料缺少建立日期，無法判定投票資格，請聯繫協會協助處理。');
+    } else if (_vote.accountCreatedBefore && createdAt.toMillis() >= _vote.accountCreatedBefore.toMillis()) {
+      reasons.push(`本場投票限 ${fmtTs(_vote.accountCreatedBefore)} 前註冊的帳號參加。`);
+    }
+  } catch (e) {
+    reasons.push('無法讀取您的帳號資料，請重新整理再試。');
+  }
+
+  const needStamps = Number(_vote.requireStamps) > 0 ? Number(_vote.requireStamps) : 0;
+  if (needStamps) {
+    try {
+      const v = await db.collection('userVisits').doc(uid).get();
+      // 與 rules 同一種算法：數 visits 的鍵數（含值為 0 的紀錄）
+      const n = v.exists ? Object.keys(v.data().visits || {}).length : 0;
+      if (n < needStamps) reasons.push(`本場投票需先集章至少 ${needStamps} 家，您目前 ${n} 家。`);
+    } catch (e) {
+      reasons.push('無法讀取您的集章紀錄，請重新整理再試。');
+    }
+  }
+
+  const cid = _vote.requireChallengeId || null;
+  if (cid) {
+    try {
+      const p = await db.collection('userChallengeProgress').doc(uid).collection('challenges').doc(cid).get();
+      if (!p.exists) reasons.push('本場投票限參加過指定活動的會員，您尚未有該活動的通過紀錄。');
+    } catch (e) {
+      reasons.push('無法讀取您的活動紀錄，請重新整理再試。');
+    }
+  }
+  return { ok: reasons.length === 0, reasons };
+}
+
+// ── 時間窗 ──────────────────────────────────────────────────────────────────
+// 注意：這裡用的是「裝置時鐘」，rules 用的是 server 時間。兩者可能差幾分鐘，
+// 所以畫面說可投不代表送得出去——送出失敗的處理見 submitBallot()。
+function windowState() {
+  if (_vote.status === 'published') return 'published';
+  if (_vote.status !== 'live') return 'notopen';
+  const now = Date.now();
+  if (_vote.startAt && now < _vote.startAt.toMillis()) return 'notopen';
+  if (_vote.endAt && now > _vote.endAt.toMillis()) return 'closed';
+  return 'open';
+}
+
+// ── 畫面 ────────────────────────────────────────────────────────────────────
+// hint 預設講「找不到這場投票」的成因；載入失敗屬於另一回事，由呼叫端換掉，
+// 否則會把「暫時讀取失敗」說成「已被移除」
+function renderFatal(msg, hint) {
+  const h = hint || '如果你是從分享連結進來的，該場投票可能尚未公開或已被移除。';
+  document.getElementById('app').innerHTML =
+    `<div class="v-banner"><div class="v-banner-title">${esc(msg)}</div>
+     <p style="font-size:13px;color:var(--stone);margin-top:4px">${esc(h)}</p></div>`;
+}
+
+function render() {
+  const app = document.getElementById('app');
+  const ws = windowState();
+  app.innerHTML =
+    renderHead(ws) +
+    renderBanner(ws) +
+    (_boxes.length > 1 ? renderTabs(ws) : '') +
+    _boxes.map(b => renderBoxPanel(b, ws)).join('');
+  bindApp();
+}
+
+function renderHead(ws) {
+  const win = (_vote.startAt && _vote.endAt)
+    ? `投票期間：${fmtTs(_vote.startAt)} — ${fmtTs(_vote.endAt)}` : '';
+  return `<div class="v-head">
+    <div class="v-title">${esc(_vote.title || '人氣投票')}</div>
+    ${_vote.description ? `<div class="v-desc">${esc(_vote.description)}</div>` : ''}
+    ${win ? `<div class="v-window">${esc(win)}</div>` : ''}
+  </div>`;
+}
+
+function renderBanner(ws) {
+  if (ws === 'published') {
+    return _results ? '' : `<div class="v-banner"><div class="v-banner-title">計票中</div>投票已結束，結果整理完成後會在此公布。</div>`;
+  }
+  if (ws === 'notopen') {
+    // status 還不是 live 時不能報 startAt——draft 場次的時間往往是隨手填的，
+    // 講「將於（已過去的時間）開始」比不講更糟。此分支只有 admin 預覽 draft 會走到。
+    if (_vote.status !== 'live') {
+      return `<div class="v-banner"><div class="v-banner-title">投票尚未上線</div>本場投票還在準備中，目前僅供預覽。</div>`;
+    }
+    const when = _vote.startAt ? `將於 ${fmtTs(_vote.startAt)} 開始。` : '尚未開始。';
+    return `<div class="v-banner"><div class="v-banner-title">投票尚未開始</div>${esc(when)}先看看有哪些候選吧。</div>`;
+  }
+  if (ws === 'closed') {
+    return `<div class="v-banner"><div class="v-banner-title">投票已結束</div>計票中，結果公布後可在此查看。</div>`;
+  }
+  // ws === 'open'
+  if (!_user) {
+    return `<div class="v-banner">
+      <div class="v-banner-title">登入後即可投票</div>
+      現在可以先瀏覽所有候選。投票需要登入以避免重複投票。
+      <button class="v-banner-btn" id="bannerLoginBtn">登入投票</button>
+    </div>`;
+  }
+  if (_eligible && !_eligible.ok) {
+    return `<div class="v-banner alert">
+      <div class="v-banner-title">您目前不符合本場投票資格</div>
+      <ul>${_eligible.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
+    </div>`;
+  }
+  return '';
+}
+
+function renderTabs(ws) {
+  return `<div class="v-tabs">${_boxes.map(b => {
+    const voted = !!_myBallots[b.id];
+    return `<button class="v-tab${b.id === _activeBox ? ' active' : ''}" data-box="${esc(b.id)}">
+      ${esc(b.name || b.id)}${voted && ws === 'open' ? ' <span class="v-tab-done">已投</span>' : ''}
+    </button>`;
+  }).join('')}</div>`;
+}
+
+function renderBoxPanel(b, ws) {
+  const active = _boxes.length === 1 || b.id === _activeBox;
+  const inner = (ws === 'published' && _results) ? renderResults(b) : renderCandidates(b, ws);
+  return `<div class="v-boxpanel${active ? ' active' : ''}" data-boxpanel="${esc(b.id)}">${inner}</div>`;
+}
+
+function renderCandidates(b, ws) {
+  const voted = _myBallots[b.id];
+  // 可投＝時間窗內 ＋ 已登入 ＋ 合格 ＋ 這個票匭還沒投
+  const canVote = ws === 'open' && !!_user && !!(_eligible && _eligible.ok) && !voted;
+  const picked = _picks[b.id] || new Set();
+  const showSearch = b.options.length > SEARCH_THRESHOLD;
+
+  const cards = b.options.map(o => {
+    // 已投票時「選中」代表自己投過的那幾個，未投時代表暫存的勾選
+    const on = voted ? (voted.choices || []).includes(o.id) : picked.has(o.id);
+    const img = o.image
+      ? `<div class="v-pic"><img src="${esc(o.image)}" alt="" loading="lazy" onerror="this.parentElement.classList.add('no-img');this.remove()"></div>`
+      : `<div class="v-pic no-img"></div>`;
+    return `<div class="v-card${on ? ' picked' : ''}${canVote ? '' : ' readonly'}"
+                 data-opt="${esc(o.id)}" data-box="${esc(b.id)}"
+                 data-search="${esc(((o.label || '') + ' ' + (o.subLabel || '')).toLowerCase())}">
+      ${img}
+      <div class="v-label">${esc(o.label || o.id)}</div>
+      ${o.subLabel ? `<div class="v-sub">${esc(o.subLabel)}</div>` : ''}
+      <div class="v-check">✓</div>
+    </div>`;
+  }).join('');
+
+  const grid = `<div class="v-grid" data-grid="${esc(b.id)}">${cards}</div>
+    <div class="v-empty" data-empty="${esc(b.id)}" style="display:none">找不到符合的候選</div>`;
+
+  if (voted) {
+    const names = (voted.choices || [])
+      .map(id => (b.options.find(o => o.id === id) || {}).label || id);
+    return `<div class="v-mychoice">您投給了：<b>${names.map(esc).join('、')}</b></div>
+      <div class="v-voted-wrap">
+        <div class="v-voted-mask"><span class="v-voted-badge">已投票</span></div>
+        ${grid}
+      </div>`;
+  }
+
+  return (showSearch ? `<input class="v-search" data-search-for="${esc(b.id)}" placeholder="搜尋候選名稱…" autocomplete="off">` : '')
+    + (canVote ? '' : `<div class="v-count">共 ${b.options.length} 個候選${b.votesPerUser > 1 ? `，每人可投 ${b.votesPerUser} 票` : ''}</div>`)
+    + grid
+    + (canVote ? `<div class="v-submitbar">
+        <div class="v-count" data-counter="${esc(b.id)}">已選 <b>${picked.size}</b> / ${b.votesPerUser}</div>
+        <button class="v-submit" data-submit="${esc(b.id)}" ${picked.size ? '' : 'disabled'}>送出</button>
+      </div>` : '');
+}
+
+function renderResults(b) {
+  const r = (_results.boxes || {})[b.id];
+  if (!r) return `<div class="v-empty">此票匭尚無結果</div>`;
+  const counts = r.counts || {};
+  let rows = b.options
+    .map(o => ({ o, n: Number(counts[o.id]) || 0 }))
+    .sort((a, z) => z.n - a.n);
+  const cut = _vote.resultMode === 'topN' && Number(_vote.topN) > 0 ? Number(_vote.topN) : 0;
+  const hidden = cut ? Math.max(0, rows.length - cut) : 0;
+  if (cut) rows = rows.slice(0, cut);
+  const max = rows.reduce((m, x) => Math.max(m, x.n), 0) || 1;
+
+  return `<div class="v-result-meta">
+      有效票數 ${Number(r.totalBallots) || 0} 張${_results.voterCount != null ? `，投票人數 ${_results.voterCount} 人` : ''}${_results.publishedAt ? `｜公布於 ${fmtTs(_results.publishedAt)}` : ''}
+    </div>` +
+    rows.map((x, i) => `<div class="v-result-row">
+      <div class="v-result-head">
+        <div class="v-result-rank">${i + 1}</div>
+        <div class="v-result-name">${esc(x.o.label || x.o.id)}${x.o.subLabel ? `<span>${esc(x.o.subLabel)}</span>` : ''}</div>
+        <div class="v-result-num">${x.n}<small>票</small></div>
+      </div>
+      <div class="v-bar"><i style="width:${(x.n / max * 100).toFixed(1)}%"></i></div>
+    </div>`).join('') +
+    (hidden ? `<div class="v-result-meta">本場僅公布前 ${cut} 名，其餘 ${hidden} 個候選不公布名次。</div>` : '');
+}
+
+// ── 互動 ────────────────────────────────────────────────────────────────────
+function bindApp() {
+  const app = document.getElementById('app');
+
+  const bl = document.getElementById('bannerLoginBtn');
+  if (bl) bl.addEventListener('click', () => document.getElementById('privacyModal').classList.add('open'));
+
+  app.querySelectorAll('.v-tab').forEach(t => t.addEventListener('click', () => {
+    _activeBox = t.dataset.box;
+    app.querySelectorAll('.v-tab').forEach(x => x.classList.toggle('active', x === t));
+    app.querySelectorAll('.v-boxpanel').forEach(p =>
+      p.classList.toggle('active', p.dataset.boxpanel === _activeBox));
+  }));
+
+  app.querySelectorAll('.v-card:not(.readonly)').forEach(card => {
+    card.addEventListener('click', () => togglePick(card.dataset.box, card.dataset.opt, card));
+  });
+
+  app.querySelectorAll('.v-search').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const q = inp.value.trim().toLowerCase();
+      const bid = inp.dataset.searchFor;
+      const grid = app.querySelector(`[data-grid="${CSS.escape(bid)}"]`);
+      let shown = 0;
+      grid.querySelectorAll('.v-card').forEach(c => {
+        const hit = !q || c.dataset.search.includes(q);
+        c.style.display = hit ? '' : 'none';
+        if (hit) shown++;
+      });
+      app.querySelector(`[data-empty="${CSS.escape(bid)}"]`).style.display = shown ? 'none' : '';
+    });
+  });
+
+  app.querySelectorAll('[data-submit]').forEach(btn =>
+    btn.addEventListener('click', () => openConfirm(btn.dataset.submit)));
+}
+
+function togglePick(boxId, optId, cardEl) {
+  const b = _boxes.find(x => x.id === boxId);
+  const set = _picks[boxId];
+  if (set.has(optId)) {
+    set.delete(optId);
+  } else {
+    if (set.size >= b.votesPerUser) {
+      toast(b.votesPerUser === 1 ? '本票匭只能選 1 個，請先取消原本的選擇' : `最多只能選 ${b.votesPerUser} 個`);
+      return;
+    }
+    set.add(optId);
+  }
+  cardEl.classList.toggle('picked', set.has(optId));
+  const counter = document.querySelector(`[data-counter="${CSS.escape(boxId)}"]`);
+  if (counter) counter.innerHTML = `已選 <b>${set.size}</b> / ${b.votesPerUser}`;
+  const btn = document.querySelector(`[data-submit="${CSS.escape(boxId)}"]`);
+  if (btn) btn.disabled = set.size === 0;
+}
+
+// 送出前一定要攔一次：rules 把 update / delete 完全封死，投出即定終身
+function openConfirm(boxId) {
+  const b = _boxes.find(x => x.id === boxId);
+  const set = _picks[boxId];
+  if (!set || !set.size) return;
+  _pendingSubmitBoxId = boxId;
+  document.getElementById('confirmSub').textContent =
+    _boxes.length > 1 ? `${b.name || b.id}．共 ${set.size} 票` : `共 ${set.size} 票`;
+  document.getElementById('confirmList').innerHTML = [...set]
+    .map(id => (b.options.find(o => o.id === id) || {}))
+    .map(o => `<li>${esc(o.label || o.id)}${o.subLabel ? `　<span style="color:var(--stone);font-size:12px">${esc(o.subLabel)}</span>` : ''}</li>`)
+    .join('');
+  document.getElementById('confirmModal').classList.add('open');
+}
+document.getElementById('confirmCancelBtn').addEventListener('click', () => {
+  document.getElementById('confirmModal').classList.remove('open');
+  _pendingSubmitBoxId = null;
+});
+document.getElementById('confirmSubmitBtn').addEventListener('click', submitBallot);
+
+async function submitBallot() {
+  const boxId = _pendingSubmitBoxId;
+  if (!boxId || !_user) return;
+  const btn = document.getElementById('confirmSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = '送出中…';
+  const choices = [...(_picks[boxId] || [])];
+  try {
+    // 欄位必須剛好是 choices + votedAt（rules hasOnly），
+    // 且 votedAt 必須是伺服器時間（rules 比對 request.time），不能用 new Date()
+    await db.collection('votes').doc(_voteId).collection('boxes').doc(boxId)
+      .collection('ballots').doc(_user.uid).set({
+        choices,
+        votedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    _myBallots[boxId] = { choices };
+    _picks[boxId] = new Set();
+    document.getElementById('confirmModal').classList.remove('open');
+    _pendingSubmitBoxId = null;
+    render();
+    toast('✅ 投票完成，感謝參與！');
+  } catch (e) {
+    document.getElementById('confirmModal').classList.remove('open');
+    _pendingSubmitBoxId = null;
+    console.error('[vote] 送出失敗', e);
+    // rules 一律回 permission-denied，看不出是哪一條沒過。裝置時鐘與 server 差幾分鐘
+    // 就會出現「畫面說可投、送出被拒」，所以這裡給的是「重新整理」這個可行動的指示，
+    // 而不是把原始錯誤丟給使用者。
+    if (e.code === 'permission-denied') {
+      toast('送出失敗：投票已結束、您已投過這個票匭，或不符合資格。請重新整理頁面確認最新狀態。');
+      await reloadUserState();
+    } else {
+      toast('送出失敗：' + (e.message || e.code || '未知錯誤'));
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '確認送出';
+  }
+}
+
+async function reloadUserState() {
+  if (!_user) return;
+  await loadUserState(_user.uid);
+  render();
+}
+
+// ── 啟動 ────────────────────────────────────────────────────────────────────
+auth.onAuthStateChanged(async user => {
+  _user = user || null;
+  const loginBtn = document.getElementById('loginBtn');
+  const avatar = document.getElementById('userAvatar');
+  if (user) {
+    loginBtn.textContent = '登出';
+    if (user.photoURL) { avatar.src = user.photoURL; avatar.style.display = ''; }
+  } else {
+    loginBtn.textContent = '登入';
+    avatar.style.display = 'none';
+    _eligible = null;
+    _myBallots = {};
+  }
+  // 投票資料只載一次；登入狀態變動時只重跑跟「這個人」有關的部分
+  try {
+    if (!_vote) {
+      await loadVote();
+      if (!_vote) return;
+    }
+    if (user) await loadUserState(user.uid);
+    render();
+  } catch (e) {
+    // 安全網：這個 handler 是 async，未捕捉的例外只會變成 unhandled rejection，
+    // 畫面會永遠停在「載入中…」，使用者連「出錯了」都看不到
+    console.error('[vote] 初始化失敗', e);
+    renderFatal('載入失敗', '這是暫時性的讀取問題，請重新整理頁面再試一次。');
+  }
+});
+
+(function initDark() {
+  if (localStorage.getItem('darkMode') === '1') document.body.classList.add('dark');
+  document.documentElement.classList.remove('dark-early');
+})();
+</script>
+</body>
+</html>
