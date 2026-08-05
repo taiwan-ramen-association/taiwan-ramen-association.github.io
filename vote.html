@@ -455,23 +455,19 @@ async function checkEligibility(uid) {
     reasons.push('無法讀取您的帳號資料，請重新整理再試。');
   }
 
-  const needStamps = Number(_vote.requireStamps) > 0 ? Number(_vote.requireStamps) : 0;
-  if (needStamps) {
-    try {
-      const v = await db.collection('userVisits').doc(uid).get();
-      // 與 rules 同一種算法：數 visits 的鍵數（含值為 0 的紀錄）
-      const n = v.exists ? Object.keys(v.data().visits || {}).length : 0;
-      if (n < needStamps) reasons.push(`本場投票需先集章至少 ${needStamps} 家，您目前 ${n} 家。`);
-    } catch (e) {
-      reasons.push('無法讀取您的集章紀錄，請重新整理再試。');
-    }
-  }
-
   const cid = _vote.requireChallengeId || null;
   if (cid) {
+    const need = Math.max(1, Number(_vote.requireChallengeCount) || 1);
     try {
       const p = await db.collection('userChallengeProgress').doc(uid).collection('challenges').doc(cid).get();
-      if (!p.exists) reasons.push('本場投票限參加過指定活動的會員，您尚未有該活動的通過紀錄。');
+      // 與 rules 同一種算法：completedTaskIds 長度＝圖鑑上蓋章的品項數（不是 submissionCount）
+      const done = p.exists ? ((p.data().completedTaskIds) || []).length : 0;
+      if (done < need) {
+        const name = _vote.requireChallengeTitle || '指定活動';
+        reasons.push(need > 1
+          ? `本場投票需在「${name}」完成至少 ${need} 個品項，您目前 ${done} 個。`
+          : `本場投票限參加過「${name}」的會員，您尚未有該活動的通過紀錄。`);
+      }
     } catch (e) {
       reasons.push('無法讀取您的活動紀錄，請重新整理再試。');
     }
