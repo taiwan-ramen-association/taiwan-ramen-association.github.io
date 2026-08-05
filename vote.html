@@ -54,7 +54,8 @@ header h1 { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
 main { max-width: 720px; margin: 0 auto; padding: 18px 16px 60px; }
 
 /* 投票標頭 */
-.v-head { margin-bottom: 16px; }
+.v-head { margin-bottom: 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.v-head-main { min-width: 0; }
 .v-title { font-size: 21px; font-weight: 800; line-height: 1.35; }
 .v-desc { font-size: 14px; color: var(--stone); line-height: 1.7; margin-top: 6px; }
 .v-window { font-size: 12px; color: var(--muted); margin-top: 8px; }
@@ -121,6 +122,31 @@ main { max-width: 720px; margin: 0 auto; padding: 18px 16px 60px; }
 }
 .v-card.picked .v-check { opacity: 1; transform: scale(1); }
 .v-empty { text-align: center; padding: 30px 16px; color: var(--stone); font-size: 13px; }
+
+/* 檢視切換（圖示／列表）：只切換 .v-grid 上的 class，DOM 不動。
+   搜尋過濾、已投遮罩、勾選狀態因此不必為第二種版型再維護一套邏輯。 */
+.v-viewtoggle { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.v-viewtoggle button {
+  border: none; background: none; font-family: inherit; cursor: pointer;
+  padding: 6px 10px; color: var(--stone); display: flex; align-items: center;
+  transition: background 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent;
+}
+.v-viewtoggle button.on { background: var(--red); color: #fff; }
+.v-text { min-width: 0; }
+
+.v-grid.v-list { display: block; }
+.v-grid.v-list .v-card {
+  display: flex; align-items: center; gap: 12px; text-align: left;
+  padding: 9px 4px; border-bottom: 1px solid var(--line);
+}
+.v-grid.v-list .v-card:last-child { border-bottom: none; }
+.v-grid.v-list .v-pic { width: 52px; height: 52px; flex: none; margin-bottom: 0; border-width: 2px; }
+.v-grid.v-list .v-pic.no-img::after { font-size: 22px; }
+.v-grid.v-list .v-text { flex: 1; }
+.v-grid.v-list .v-label { font-size: 14px; }
+.v-grid.v-list .v-sub { margin-top: 2px; }
+/* 列表模式下勾選改成靠右的固定欄位；未選中時保留空間，避免整列左右跳動 */
+.v-grid.v-list .v-check { position: static; flex: none; width: 24px; height: 24px; font-size: 13px; }
 
 /* 送出列（合格且未投時才出現）*/
 .v-submitbar {
@@ -318,6 +344,10 @@ let _picks = {};         // boxId → Set(optionId)，尚未送出的暫存
 let _activeBox = null;
 let _results = null;     // voteResults/{id}
 let _pendingSubmitBoxId = null;
+// 候選檢視模式：'grid'（圓形圖示，預設）／'list'（條列）。跨場次共用同一個偏好，
+// 因為它是使用者的瀏覽習慣而非某場投票的屬性。
+const VIEW_KEY = 'vote_view';
+let _view = localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
 
 const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -508,13 +538,30 @@ function render() {
   bindApp();
 }
 
+const ICON_GRID = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
+const ICON_LIST = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><line x1="4" y1="6" x2="4.01" y2="6"/><line x1="4" y1="12" x2="4.01" y2="12"/><line x1="4" y1="18" x2="4.01" y2="18"/></svg>';
+
+// 只在「畫面上真的有候選清單」時才出現：已公布結果走的是另一套條列式模板，
+// 不需要切換；沒有任何候選時按鈕也沒有作用對象。
+function showViewToggle(ws) {
+  if (ws === 'published' && _results) return false;
+  return _boxes.some(b => (b.options || []).length > 0);
+}
+
 function renderHead(ws) {
   const win = (_vote.startAt && _vote.endAt)
     ? `投票期間：${fmtTs(_vote.startAt)} — ${fmtTs(_vote.endAt)}` : '';
+  const toggle = showViewToggle(ws) ? `<div class="v-viewtoggle" id="vViewToggle">
+      <button type="button" data-view="grid" class="${_view === 'grid' ? 'on' : ''}" aria-label="圖示檢視" aria-pressed="${_view === 'grid'}">${ICON_GRID}</button>
+      <button type="button" data-view="list" class="${_view === 'list' ? 'on' : ''}" aria-label="列表檢視" aria-pressed="${_view === 'list'}">${ICON_LIST}</button>
+    </div>` : '';
   return `<div class="v-head">
-    <div class="v-title">${esc(_vote.title || '人氣投票')}</div>
-    ${_vote.description ? `<div class="v-desc">${esc(_vote.description)}</div>` : ''}
-    ${win ? `<div class="v-window">${esc(win)}</div>` : ''}
+    <div class="v-head-main">
+      <div class="v-title">${esc(_vote.title || '人氣投票')}</div>
+      ${_vote.description ? `<div class="v-desc">${esc(_vote.description)}</div>` : ''}
+      ${win ? `<div class="v-window">${esc(win)}</div>` : ''}
+    </div>
+    ${toggle}
   </div>`;
 }
 
@@ -583,13 +630,15 @@ function renderCandidates(b, ws) {
                  data-opt="${esc(o.id)}" data-box="${esc(b.id)}"
                  data-search="${esc(((o.label || '') + ' ' + (o.subLabel || '')).toLowerCase())}">
       ${img}
-      <div class="v-label">${esc(o.label || o.id)}</div>
-      ${o.subLabel ? `<div class="v-sub">${esc(o.subLabel)}</div>` : ''}
+      <div class="v-text">
+        <div class="v-label">${esc(o.label || o.id)}</div>
+        ${o.subLabel ? `<div class="v-sub">${esc(o.subLabel)}</div>` : ''}
+      </div>
       <div class="v-check">✓</div>
     </div>`;
   }).join('');
 
-  const grid = `<div class="v-grid" data-grid="${esc(b.id)}">${cards}</div>
+  const grid = `<div class="v-grid${_view === 'list' ? ' v-list' : ''}" data-grid="${esc(b.id)}">${cards}</div>
     <div class="v-empty" data-empty="${esc(b.id)}" style="display:none">找不到符合的候選</div>`;
 
   if (voted) {
@@ -672,6 +721,26 @@ function bindApp() {
 
   app.querySelectorAll('[data-submit]').forEach(btn =>
     btn.addEventListener('click', () => openConfirm(btn.dataset.submit)));
+
+  const vt = document.getElementById('vViewToggle');
+  if (vt) {
+    vt.querySelectorAll('button[data-view]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const v = btn.dataset.view === 'list' ? 'list' : 'grid';
+        if (v === _view) return;
+        _view = v;
+        try { localStorage.setItem(VIEW_KEY, v); } catch (e) { /* 無痕模式寫不進去；不影響本次切換 */ }
+        // 就地換 class，不呼叫 render()——重繪會清掉搜尋框內容與捲動位置，
+        // 使用者只是想換個排版，不該連篩選結果一起被重設
+        vt.querySelectorAll('button[data-view]').forEach(b2 => {
+          const on = b2.dataset.view === v;
+          b2.classList.toggle('on', on);
+          b2.setAttribute('aria-pressed', String(on));
+        });
+        app.querySelectorAll('.v-grid').forEach(g => g.classList.toggle('v-list', v === 'list'));
+      });
+    });
+  }
 }
 
 function togglePick(boxId, optId, cardEl) {
