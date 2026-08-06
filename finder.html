@@ -4369,7 +4369,17 @@ let homeActiveChallenge = null;  // active 挑戰（公開讀取，供首頁挑�
 async function loadHomeFeatured() {
   try {
     const snap = await db.collection('meta').doc('homeFeatured').get();
-    homeFeaturedItems = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items : [];
+    const d = snap.exists ? snap.data() : null;
+    const items = (d && Array.isArray(d.items)) ? d.items.slice() : [];
+    // 後台勾「隨機顯示」時打亂順序（Fisher-Yates）。只洗記憶體這份，Firestore 的 items 順序不動；
+    // 洗牌放在載入而非渲染，一次冷啟動只洗一次 —— 切分頁回首頁順序不變，renderHomeFeature 的 _lastSig 防閃爍才有效
+    if (d && d.shuffle) {
+      for (let i = items.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+      }
+    }
+    homeFeaturedItems = items;
   } catch (e) { homeFeaturedItems = []; }
   if (_currentPage === 'home') renderHomeFeature();
 }
