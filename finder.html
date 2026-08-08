@@ -4279,15 +4279,14 @@ function _homeShopCardHTML(shop) {
   </div>`;
 }
 // 挑戰卡（Design A）：顯示 active 挑戰的 banner 圖＋標題；進行中紅框、未開始/未登入灰框
-function _homeChallengeCardHTML() {
-  const ch = homeActiveChallenge;
+function _homeChallengeCardHTML(ch) {
   if (!ch) return '';  // 沒有進行中的活動就不顯示
   const prog = (typeof _chUserProgress !== 'undefined' && _chUserProgress) ? _chUserProgress[ch.id] : null;
   const inProgress = !!(auth.currentUser && prog && (prog.completedTaskIds || []).length > 0);
   const img = ch.image
     ? `<img class="home-act-img" src="${escapeAttr(_homeImgSrc(ch.image))}" alt="" loading="lazy">`
     : '';
-  return `<div class="home-act-card home-chal-card${ch.image ? '' : ' home-act-noimg'}" id="homeBanner">
+  return `<div class="home-act-card home-chal-card${ch.image ? '' : ' home-act-noimg'}">
     ${img}
     <div class="home-act-overlay">
       <div class="home-act-eyebrow">${inProgress ? '進行中的挑戰任務' : '挑戰任務'}</div>
@@ -4321,8 +4320,11 @@ function renderHomeTaskBanner() {
   const slot = document.getElementById('homeBannerSlot');
   if (!slot) return;
   const cards = [];
-  const chal = _homeChallengeCardHTML();
-  if (chal) cards.push(chal);
+  // 所有 active 挑戰各一張卡，排在活動 banner 前面
+  (Array.isArray(homeActiveChallenges) ? homeActiveChallenges : []).forEach(ch => {
+    const chal = _homeChallengeCardHTML(ch);
+    if (chal) cards.push(chal);
+  });
   const acts = Array.isArray(homeBannerActivities)
     ? homeBannerActivities.filter(a => a && (a.name || a.photoUrl || a.timeText || a.linkUrl)) : [];
   acts.forEach(a => cards.push(_homeActCardHTML(a)));
@@ -4365,7 +4367,7 @@ function renderHomeNearby() {
 let homeFeaturedItems = [];
 // 首頁 banner 活動：後台策展（admin「首頁精選」頁編輯 meta/homeBanner.activities = [{photoUrl,name,timeText}]）
 let homeBannerActivities = [];
-let homeActiveChallenge = null;  // active 挑戰（公開讀取，供首頁挑戰圖卡；未登入亦可顯示）
+let homeActiveChallenges = [];  // 所有 active 挑戰（公開讀取，供首頁挑戰圖卡；未登入亦可顯示）
 async function loadHomeFeatured() {
   try {
     const snap = await db.collection('meta').doc('homeFeatured').get();
@@ -4394,9 +4396,13 @@ async function loadHomeChallenge() {
   try {
     const snap = await db.collection('challenges').where('status', '==', 'active').get();
     const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    list.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-    homeActiveChallenge = list[0] || null;
-  } catch (e) { homeActiveChallenge = null; }
+    // 排序沿用挑戰頁的 chCompareOrder（sortOrder 小在前、未填沉底、再依 createdAt 新→舊），
+    // 免得首頁與挑戰頁兩套規則不一致；challenges.js 尚未載入時退回單純的 sortOrder 排序
+    list.sort(typeof chCompareOrder === 'function'
+      ? chCompareOrder
+      : (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    homeActiveChallenges = list;
+  } catch (e) { homeActiveChallenges = []; }
   renderHomeTaskBanner();
 }
 
@@ -4524,7 +4530,7 @@ document.getElementById('pageHome')?.addEventListener('wheel', e => {
 
 // 首頁事件委派
 document.getElementById('pageHome')?.addEventListener('click', e => {
-  if (e.target.closest('#homeBanner'))      { switchPage('challenges'); return; }
+  if (e.target.closest('.home-chal-card'))  { switchPage('challenges'); return; }
   const actLink = e.target.closest('.home-act-link');
   if (actLink) { const u = actLink.dataset.link; if (u) window.open(u, '_blank', 'noopener'); return; }
   if (e.target.closest('#homeLocBtn'))      return;
