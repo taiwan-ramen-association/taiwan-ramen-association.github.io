@@ -9,7 +9,7 @@ Firebase（Firestore、Auth、Storage、FCM）、Leaflet.js、Vanilla JS
 
 ## 關鍵檔案
 - 前台正式版：`finder.html`
-- 前台測試版：`finder-beta.html`
+（前台測試版 `finder-beta.html` 已於 2026-07-24 刪除，commit `8099c23`）
 - 後台（一般）：`admin.html`（bundle 從 Firebase Storage 載入）
 - 後台（備援）：`console.html`（bundle 從 GitHub private repo 載入）
 - Firebase Rules：`ramen-finder-notes/firestore.rules`

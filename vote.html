@@ -344,6 +344,9 @@ let _picks = {};         // boxId → Set(optionId)，尚未送出的暫存
 let _activeBox = null;
 let _results = null;     // voteResults/{id}
 let _pendingSubmitBoxId = null;
+let _ffVote = null;      // meta/featureFlags.vote → { vis, perm }；null＝無設定＝不限制
+let _ffLoaded = false;
+let _myRole = null;      // users/{uid}.role；未登入為 null
 // 候選檢視模式：'grid'（圓形圖示，預設）／'list'（條列）。跨場次共用同一個偏好，
 // 因為它是使用者的瀏覽習慣而非某場投票的屬性。
 const VIEW_KEY = 'vote_view';
@@ -390,6 +393,50 @@ document.getElementById('loginBtn').addEventListener('click', () => {
 auth.getRedirectResult().catch(err => {
   if (err.code && err.code !== 'auth/no-auth-event') console.error('[vote] getRedirectResult', err.code, err.message);
 });
+
+// ── 功能權限（meta/featureFlags.vote）──────────────────────────────────────
+// 本頁不吃 js/auth.js（獨立頁、自帶 Firebase init），故在此複製 auth.js 的角色階層。
+// ⚠️ 兩處必須一致：改 js/auth.js 的 ROLE_LEVEL / getRoleLevel 時記得同步這裡。
+//   vis＝看不看得到投票所（不足→整頁擋掉）
+//   perm＝門開不開（不足→可瀏覽候選，但不能投；windowState 回 'gated'）
+// 這是 UI 層的門，真正的防線是 firestore.rules 的 ballots create 條件。
+const ROLE_LEVEL   = { all: 0, viewer: 1, member: 2, director: 3, admin: 4 };
+const MEMBER_ROLES = ['member_individual', 'member_group', 'member_sponsor', 'member_honorary'];
+
+function roleLevel(role) {
+  if (role === 'admin')    return 4;
+  if (role === 'director') return 3;
+  if (MEMBER_ROLES.includes(role)) return 2;
+  if (role === 'viewer' || role === 'store') return 1;
+  return 0;
+}
+function ffCanView() {
+  if (!_ffVote) return true;
+  return roleLevel(_myRole) >= (ROLE_LEVEL[_ffVote.vis] ?? 1);
+}
+function ffCanUse() {
+  if (!_ffVote) return true;
+  return roleLevel(_myRole) >= (ROLE_LEVEL[_ffVote.perm] ?? 1);
+}
+async function loadVoteFlag() {
+  try {
+    const s = await db.collection('meta').doc('featureFlags').get();
+    _ffVote = s.exists ? (s.data().vote || null) : null;
+  } catch (e) {
+    // 讀不到就不擋：寧可讓人進得來（rules 仍會擋投票），也不要因一次讀取失敗把整個投票所鎖死
+    console.error('[vote] featureFlags 讀取失敗', e);
+    _ffVote = null;
+  }
+}
+async function loadMyRole(uid) {
+  try {
+    const u = await db.collection('users').doc(uid).get();
+    _myRole = u.exists ? (u.data().role || null) : null;
+  } catch (e) {
+    console.error('[vote] 讀取角色失敗', e);
+    _myRole = null;
+  }
+}
 
 // ── 載入 ────────────────────────────────────────────────────────────────────
 // ?id= 深連結優先（規格 §一-2：靠深連結保住舊場次的結果頁），否則讀當前場次
@@ -510,6 +557,9 @@ async function checkEligibility(uid) {
 // 所以畫面說可投不代表送得出去——送出失敗的處理見 submitBallot()。
 function windowState() {
   if (_vote.status === 'published') return 'published';
+  // perm 門檻不足＝「看得到投票所，但門還沒開」。結果頁不受此限（published 先回傳），
+  // 因為公布後的結果本來就是公開資訊，用權限擋住沒有意義。
+  if (!ffCanUse()) return 'gated';
   if (_vote.status !== 'live') return 'notopen';
   const now = Date.now();
   if (_vote.startAt && now < _vote.startAt.toMillis()) return 'notopen';
@@ -577,6 +627,16 @@ function renderBanner(ws) {
     }
     const when = _vote.startAt ? `將於 ${fmtTs(_vote.startAt)} 開始。` : '尚未開始。';
     return `<div class="v-banner"><div class="v-banner-title">投票尚未開始</div>${esc(when)}先看看有哪些候選吧。</div>`;
+  }
+  if (ws === 'gated') {
+    // 「門還沒開」與「投票尚未開始」是兩回事：後者是時間問題、會自己到，
+    // 前者是工作人員手動開關，講成時間問題會讓人白等，故分開講。
+    return _user
+      ? `<div class="v-banner"><div class="v-banner-title">投票尚未對外開放</div>
+         目前僅開放工作人員操作，你可以先瀏覽所有候選。開放後再回來投票即可。</div>`
+      : `<div class="v-banner"><div class="v-banner-title">投票尚未對外開放</div>
+         現在可以先瀏覽所有候選。開放後需登入才能投票。
+         <button class="v-banner-btn" id="bannerLoginBtn">登入</button></div>`;
   }
   if (ws === 'closed') {
     return `<div class="v-banner"><div class="v-banner-title">投票已結束</div>計票中，結果公布後可在此查看。</div>`;
@@ -785,6 +845,9 @@ document.getElementById('confirmSubmitBtn').addEventListener('click', submitBall
 async function submitBallot() {
   const boxId = _pendingSubmitBoxId;
   if (!boxId || !_user) return;
+  // 防呆：管理員在使用者開著頁面時關掉 perm，這裡擋住已展開的送出流程
+  // （rules 不看 featureFlags，FF 純粹是 UI 層的門，故只需要這一道客戶端檢查）
+  if (!ffCanUse()) { toast('投票尚未對外開放'); return; }
   const btn = document.getElementById('confirmSubmitBtn');
   btn.disabled = true;
   btn.textContent = '送出中…';
@@ -811,8 +874,12 @@ async function submitBallot() {
     // 就會出現「畫面說可投、送出被拒」，所以這裡給的是「重新整理」這個可行動的指示，
     // 而不是把原始錯誤丟給使用者。
     if (e.code === 'permission-denied') {
-      toast('送出失敗：投票已結束、您已投過這個票匭，或不符合資格。請重新整理頁面確認最新狀態。');
+      // 先重讀狀態再決定講什麼：多裝置／多分頁重複送出是最常見的失敗原因，
+      // 但通用訊息會讓當事人以為是自己不合格。重讀後票若已存在，就直說。
       await reloadUserState();
+      toast(_myBallots[boxId]
+        ? '您已在其他裝置或分頁投過囉！'
+        : '送出失敗：投票已結束或不符合資格。請重新整理頁面確認最新狀態。');
     } else {
       toast('送出失敗：' + (e.message || e.code || '未知錯誤'));
     }
@@ -844,6 +911,17 @@ auth.onAuthStateChanged(async user => {
   }
   // 投票資料只載一次；登入狀態變動時只重跑跟「這個人」有關的部分
   try {
+    if (!_ffLoaded) { await loadVoteFlag(); _ffLoaded = true; }
+    if (user) await loadMyRole(user.uid); else _myRole = null;
+
+    // vis 門檻：整頁擋掉。未登入者仍看得到 header 的登入鈕，登入後這段會重跑一次。
+    if (!ffCanView()) {
+      renderFatal('投票功能尚未開放', user
+        ? '此頁面目前僅開放特定身份瀏覽。'
+        : '此頁面目前僅開放特定身份瀏覽，請先登入再試。');
+      return;
+    }
+
     if (!_vote) {
       await loadVote();
       if (!_vote) return;
