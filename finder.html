@@ -1152,9 +1152,15 @@
   .home-feat-shop { font-size: 11.5px; color: var(--stone); margin-top: 4px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .home-feature { flex: 1; min-width: 0; border-radius: 12px; padding: 12px 13px; cursor: pointer; border: 1px solid var(--line); }
+  /* 壽星多筆時整排會有 3 張以上（一年約 40 天），均分寬度會把每張壓到看不清，
+     故 renderHomeFeature 於 ≥3 張時加掛 .home-hscroll 改固定寬橫捲；
+     寬度刻意與今日精選卡 .home-feat-card 相同。≤2 張仍走上面的 flex:1 均分滿版 */
+  .home-feature-row.home-hscroll .home-feature { flex: 0 0 auto; width: calc((78% - 10px) / 2); max-width: 205px; }
   .home-feature .hf-label { font-size: 11px; font-weight: 700; }
+  /* 固定寬（手機約 136px）時「近 3 個月 19 間新店」單行會被截，故放寬到 2 行；
+     滿版模式本來就只佔 1 行，不受影響 */
   .home-feature .hf-main { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-top: 4px;
-    display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   .home-feature.hf-bd { background: #fbeaf0; border-color: #ed93b1; }
   .home-feature.hf-bd .hf-label { color: #993556; }
   .home-feature.hf-new { background: var(--red-light); border-color: var(--red); }
@@ -1460,7 +1466,7 @@
     body { overflow: hidden; background: #e7e0d4; }
     body.dark { background: #0b0a09; }
 
-    /* 首頁橫滑列（banner／今日精選／附近營業中）滑鼠配套：hover 顯示左右箭頭；
+    /* 首頁橫滑列（banner／今日精選／附近營業中／壽星列）滑鼠配套：hover 顯示左右箭頭；
        捲到端點的箭頭加 .off 隱藏（_attachHsArrows 維護） */
     .hs-wrap .hs-arrow {
       display: flex; align-items: center; justify-content: center;
@@ -1474,8 +1480,6 @@
     .hs-wrap:hover .hs-arrow { opacity: 1; }
     .hs-wrap .hs-arrow:hover { background: rgba(20,16,12,0.68); }
     .hs-wrap .hs-arrow.off { display: none; }
-    /* 滾輪逐量橫捲與 mandatory snap 互搶會抖動，桌面放寬為 proximity */
-    .home-banner-scroll { scroll-snap-type: x proximity; }
 
     /* header 與所有頁面層限寬置中，兩側露出品牌底色 */
     header {
@@ -4431,14 +4435,16 @@ function renderHomeFeature() {
   }
 
   // 2) 今日壽星 + 新開幕（近 3 個月）文字卡
-  const bd = ALL_DATA.find(s => typeof isBirthday === 'function' && isBirthday(s));
+  // 同一天可能有多間壽星（現有資料最多 6 間），全部列出才與 loadData 的煙火一致（那邊本來就是 filter）
+  const bds = ALL_DATA.filter(s => typeof isBirthday === 'function' && isBirthday(s));
   const newCount = ALL_DATA.filter(s => typeof isNewOpen === 'function' && isNewOpen(s)).length;
-  const textCards = [];
-  if (bd) textCards.push(`<div class="home-feature hf-bd" data-shop-id="${escapeAttr(bd['ID'] || '')}">
+  const textCards = bds.map(bd => `<div class="home-feature hf-bd" data-shop-id="${escapeAttr(bd['ID'] || '')}">
     <div class="hf-label">🎂 本日壽星</div><div class="hf-main">${escapeHtml(bd['店名'] || '')}</div></div>`);
   if (newCount) textCards.push(`<div class="home-feature hf-new" data-newopen="1">
     <div class="hf-label">NEW OPEN</div><div class="hf-main">近 3 個月 ${newCount} 間新店</div></div>`);
-  if (textCards.length) parts.push(`<div class="home-feature-row">${textCards.join('')}</div>`);
+  // 3 張起改固定寬橫捲（樣式見 .home-feature-row.home-hscroll），2 張以內維持均分滿版
+  if (textCards.length) parts.push(
+    `<div class="home-feature-row${textCards.length >= 3 ? ' home-hscroll' : ''}">${textCards.join('')}</div>`);
 
   if (!parts.length) { sec.style.display = 'none'; return; }
   sec.style.display = '';
@@ -4448,6 +4454,7 @@ function renderHomeFeature() {
     box._lastSig = html;
     box.innerHTML = html;
     _attachHsArrows(box.querySelector('.home-feat-scroll'));
+    _attachHsArrows(box.querySelector('.home-feature-row.home-hscroll'));  // 壽星列 <3 張時無此元素，傳 null 直接 return
   }
 }
 function renderHomeFactions() {
@@ -4484,8 +4491,8 @@ function renderHome() {
   renderHomeRecent();
 }
 
-// ── 首頁橫滑列桌面配套（滾輪橫捲＋hover 箭頭；<900px 箭頭由 CSS 隱藏，手機行為不變）──
-// banner／精選每次 render 都重建容器、附近店家為固定容器換內容，故此函式可重入：
+// ── 首頁橫滑列桌面配套（hover 箭頭；<900px 箭頭由 CSS 隱藏，手機靠手勢橫滑不變）──
+// banner／精選／壽星列每次 render 都重建容器、附近店家為固定容器換內容，故此函式可重入：
 // 已初始化者只刷新箭頭顯示狀態
 function _attachHsArrows(sc) {
   if (!sc) return;
@@ -4516,17 +4523,8 @@ function _attachHsArrows(sc) {
   sc.addEventListener('scroll', sc._hsUpdate, { passive: true });
   sc._hsUpdate();
 }
-// 滾輪橫捲：游標在橫滑列上時把垂直滾輪量轉成橫向捲動；已到邊界則放行給頁面垂直捲動，
-// 觸控板橫滑（deltaX 為主）不攔截維持原生手感
-document.getElementById('pageHome')?.addEventListener('wheel', e => {
-  const sc = e.target.closest('.home-hscroll, .home-banner-scroll');
-  if (!sc) return;
-  const max = sc.scrollWidth - sc.clientWidth;
-  if (max <= 2 || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
-  if ((e.deltaY < 0 && sc.scrollLeft <= 0) || (e.deltaY > 0 && sc.scrollLeft >= max - 1)) return;
-  e.preventDefault();
-  sc.scrollLeft += e.deltaY;
-}, { passive: false });
+// 註：曾有一段「滾輪橫捲」（游標在橫滑列上時把垂直滾輪量轉成橫向捲動）已移除——
+// 滑鼠使用者只想垂直捲頁卻被橫向拐走。桌面改滑鼠時走 hover 箭頭，手機仍靠手勢橫滑。
 
 // 首頁事件委派
 document.getElementById('pageHome')?.addEventListener('click', e => {
