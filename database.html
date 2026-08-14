@@ -514,8 +514,8 @@ function renderCard(shop) {
     shop['點餐方式'] ? {l:'點餐', v:shop['點餐方式']} : null,
     shop['醬底']     ? {l:'醬底', v:shop['醬底']}     : null,
     (shop['吧台數'] || shop['桌位數']) ? {l:'座位', v:
-      [shop['吧台數'] ? `吧台 ${shop['吧台數']}` : '',
-       shop['桌位數'] ? `桌位 ${shop['桌位數']}` : ''].filter(Boolean).join('　')} : null,
+      [shop['吧台數'] && shop['吧台數'] !== '0' ? `吧台 ${shop['吧台數']}` : '',
+       shop['桌位數'] && shop['桌位數'] !== '0' ? `桌位 ${shop['桌位數']}` : ''].filter(Boolean).join('　')} : null,
   ].filter(Boolean);
 
   const links = [];

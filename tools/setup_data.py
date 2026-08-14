@@ -287,8 +287,9 @@ def step_geocode():
                     lat = lng = None
 
             if lat:
-                row['lat'] = lat
-                row['lng'] = lng
+                # 存成字串，與 step_excel_to_json 的輸出型別一致
+                row['lat'] = str(lat)
+                row['lng'] = str(lng)
                 updated   += 1
                 consecutive = 0
             else:

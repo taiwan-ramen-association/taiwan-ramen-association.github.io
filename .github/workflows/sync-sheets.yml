@@ -52,7 +52,11 @@ jobs:
           sh = gc.open_by_key(SPREADSHEET_ID)
           ws = sh.worksheet('總表csv')
 
-          rows = ws.get_all_records(default_blank='')
+          # numericise_ignore=['all']：一律不做數字轉換，全部維持字串。
+          # 沒有這個參數時 gspread 會把 lat/lng、吧台數、桌位數等自動轉成 float/int，
+          # 與本機 tools/setup_data.py 產出的字串格式衝突，導致 data.json 每次同步
+          # 都有約 2290 行純型別翻轉的雜訊，把真正的資料變更淹沒。
+          rows = ws.get_all_records(default_blank='', numericise_ignore=['all'])
           rows = [r for r in rows if str(r.get('店名','')).strip()]
 
           # 各種日期格式 → YYYY-MM-DD
@@ -276,8 +280,9 @@ jobs:
                   lat, lng = geocode_nominatim(address)
 
               if lat:
-                  row['lat'] = lat
-                  row['lng'] = lng
+                  # 存成字串，與 get_all_records(numericise_ignore) 的輸出型別一致
+                  row['lat'] = str(lat)
+                  row['lng'] = str(lng)
                   updated += 1
                   print(f"  ✓ {name}: {lat:.5f}, {lng:.5f}")
               else:
