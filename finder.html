@@ -2866,6 +2866,9 @@ let locMode          = 'none';      // 'none' | 'device' | 'custom'
 let customLocLabel   = '';          // 指定位置的地名
 let showNonActive    = false;
 let showUnvisited    = false;
+// 主題懶人包：目前套用中的集合。null＝未套用；套用時為
+// { id, title, idSet:Set<shopId> }——用 Set 而非陣列，getFiltered 每筆都要查一次。
+let activeCollection = null;
 const BD_SKIP_KEY    = 'tw-ramen-bd-skip';
 
 function serverNow() { return new Date(Date.now() + serverTimeOffset); }

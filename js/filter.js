@@ -3,7 +3,7 @@
 // 依賴全域變數（finder.html 主 script 提供）：
 //   ALL_DATA, NON_ACTIVE_DATA, favSet, stampMap
 //   showNonActive, showUnvisited, selectedCities, selectedTypes,
-//   selectedDays, mealTime, isNowOpen, locEnabled, locRadius,
+//   selectedDays, mealTime, isNowOpen, locEnabled, locRadius, activeCollection,
 //   userLat, userLng, currentView
 // 依賴全域函式：
 //   toMins, isOpenAt, isNewOpen, isThisMonth, isBirthday,
@@ -34,6 +34,9 @@ function getFiltered() {
   const nonActiveQuery = query === '非營業' || query === '非現存';
   const source = (showNonActive || nonActiveQuery) ? [...ALL_DATA, ...NON_ACTIVE_DATA] : ALL_DATA;
   const result = source.filter(shop => {
+    // 主題懶人包：限定在集合的 shopIds 內。放最前面先縮小範圍，其餘條件可再往上疊。
+    if (activeCollection && !activeCollection.idSet.has(shop['ID'])) return false;
+
     if (showUnvisited && (stampMap[shop['ID']] ?? 0) >= 1) return false;
 
     // 地區（多選 OR）
@@ -224,6 +227,7 @@ function applySfFilters() {
 }
 
 function clearSfFilters() {
+  activeCollection = null;
   selectedCities.clear();
   selectedTypes.clear();
   selectedDays.clear();
@@ -266,6 +270,7 @@ function updateSfTrigger() {
   const query    = (document.getElementById('searchInput') || {}).value?.trim() || '';
 
   const tags = [];
+  if (activeCollection)                 tags.push('📋 ' + activeCollection.title);
   if (query)                            tags.push(query);
   if (isNowOpen)                        tags.push('現在營業中');
   if (selectedCities.size)             [...selectedCities].forEach(c => tags.push(c));
@@ -285,6 +290,7 @@ function updateSfTrigger() {
   if (showUnvisited)                    tags.push('未踩點');
 
   let count = 0;
+  if (activeCollection)                 count++;
   if (query)                            count++;
   if (isNowOpen)                        count++;
   else { if (selectedDays.size) count++; if (mealTime) count++; }
@@ -311,6 +317,7 @@ function renderFilterChips() {
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const query = (document.getElementById('searchInput') || {}).value?.trim() || '';
   const chips = [];
+  if (activeCollection)    chips.push({ label: '📋 ' + activeCollection.title, type: 'collection' });
   if (query)               chips.push({ label: query, type: 'query' });
   if (isNowOpen)           chips.push({ label: '🟢 現在營業中', type: 'nowOpen' });
   if (selectedCities.size) [...selectedCities].forEach(c => chips.push({ label: c, type: 'city', value: c }));
@@ -337,6 +344,7 @@ function renderFilterChips() {
 
 function removeFilterChip(type, value) {
   switch (type) {
+    case 'collection': activeCollection = null; break;
     case 'query':     { const i = document.getElementById('searchInput'); if (i) i.value = ''; break; }
     case 'nowOpen':   isNowOpen = false; selectedDays.clear(); mealTime = ''; break;
     case 'city':      selectedCities.delete(value); break;
