@@ -4145,8 +4145,8 @@ if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.
 window.addEventListener('keydown', e => {
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
   if (document.querySelector('.sf-modal.open, .rv-modal.open, .fmod.open')) return;
-  const el = window.innerWidth >= 900
-    ? document.getElementById('cardList')
+  const el = (typeof _homeActiveScroller === 'function')
+    ? _homeActiveScroller()
     : document.getElementById('mainContent');
   if (!el) return;
   const h = el.clientHeight;
@@ -4183,6 +4183,20 @@ function renderFavorites() {
   const shops = _favShopsNewestFirst();
   updateFavCount();
   favList.render(shops);
+}
+
+// 愛心字元是渲染當下寫死進 DOM 的，兩個清單各有各的 DOM——在收藏頁取消收藏後，
+// 搜尋頁那張卡（若已渲染）仍顯示 ♥。舊架構下切回搜尋頁會 render() 整份重畫、
+// 順手刷新愛心，問題被掩蓋；現在不重畫了就會露出來。
+// 只改 textContent、不碰節點結構，故不會造成高度塌縮（實測 140 張卡約 0.7ms）。
+function syncFavHearts() {
+  if (typeof favSet === 'undefined') return;
+  document.querySelectorAll('.fav-btn').forEach(btn => {
+    const id = btn.dataset.id;
+    if (!id) return;
+    const want = favSet.has(id) ? '♥' : '♡';
+    if (btn.textContent !== want) btn.textContent = want;
+  });
 }
 
 // 空狀態的「去找店家」鈕：委派綁定（按鈕每次 render 都重建，不能直接 addEventListener）
@@ -4258,6 +4272,8 @@ function switchPage(page) {
     document.getElementById('bnavChallenges').classList.add('active');
     if (typeof loadChallengesPage === 'function' && !_chPageLoaded) loadChallengesPage();
   }
+  // 跨清單的愛心狀態同步（收藏頁取消收藏後，搜尋頁那張卡要跟著變空心）
+  if (typeof syncFavHearts === 'function') syncFavHearts();
   if (window._updateScrollTopFab) window._updateScrollTopFab();
 }
 
@@ -4285,11 +4301,15 @@ document.getElementById('bnavHome').addEventListener('click', () => {
 });
 
 // ── 懸浮回頂鈕 ────────────────────────────────────────────────────────────────
+// 各分頁的實際捲動容器。
+// 註：舊版在 >=900px 回傳 #cardList，但 #cardList 是 overflow:visible、
+// scrollHeight === clientHeight，根本不能捲——桌機的回頂鈕因此一直失效。
+// 實際捲動容器在所有寬度下都是 #mainContent。
 function _homeActiveScroller() {
   if (_currentPage === 'reviews')    return document.getElementById('pageReviews');
   if (_currentPage === 'challenges') return document.getElementById('pageChallenges');
   if (_currentPage === 'home')       return document.getElementById('pageHome');
-  if (window.innerWidth >= 900)      return document.getElementById('cardList');
+  if (_currentPage === 'favorites')  return document.getElementById('pageFavorites');
   return document.getElementById('mainContent');
 }
 (function initScrollTopFab() {
@@ -4299,7 +4319,7 @@ function _homeActiveScroller() {
     const s = _homeActiveScroller();
     fab.classList.toggle('show', !!s && s.scrollTop > 320);
   };
-  ['pageHome', 'mainContent', 'pageReviews', 'pageChallenges', 'cardList'].forEach(id => {
+  ['pageHome', 'mainContent', 'pageFavorites', 'pageReviews', 'pageChallenges'].forEach(id => {
     document.getElementById(id)?.addEventListener('scroll', update, { passive: true });
   });
   fab.addEventListener('click', () => {
