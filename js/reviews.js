@@ -3,7 +3,7 @@
 // 依賴全域變數（main script 提供）：
 //   db, auth, storage, firebase
 //   currentUserRole, currentDisplayName, currentAvatarUrl, userAvatar
-//   stampMap, reviewMap, showFavOnly, isWarned
+//   stampMap, reviewMap, isWarned
 // 依賴全域函式：
 //   escapeHtml, showStampToast, canView, canUse, showAccessToast
 //   render, getShopById, openSfModal, lockScroll, unlockScroll

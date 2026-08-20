@@ -1772,7 +1772,6 @@
   }
 
   /* ── FAV MODE ── */
-  #mainContent.fav-mode .filter-bar { display: none; }
 
   /* ── BOTTOM NAV ── */
   .bottom-nav {
@@ -2851,7 +2850,6 @@ let locEnabled       = false;       // GPS locate enabled
 let locRadius        = 0;           // meters, 0 = 不限
 let locMode          = 'none';      // 'none' | 'device' | 'custom'
 let customLocLabel   = '';          // 指定位置的地名
-let showFavOnly      = false;
 let showNonActive    = false;
 let showUnvisited    = false;
 const BD_SKIP_KEY    = 'tw-ramen-bd-skip';
@@ -4166,26 +4164,28 @@ function renderFavorites() {
   favList.render(shops);
 }
 
+// 空狀態的「去找店家」鈕：委派綁定（按鈕每次 render 都重建，不能直接 addEventListener）
+document.getElementById('favCardList')?.addEventListener('click', e => {
+  if (e.target.closest('#favEmptyCta')) switchPage('finder');
+});
+
 // ── Bottom Nav ────────────────────────────────────────────────────────────────
 function switchPage(page) {
   _currentPage = page;
   const homeEl       = document.getElementById('pageHome');
   const finderEl     = document.getElementById('mainContent');
+  const favoritesEl  = document.getElementById('pageFavorites');
   const reviewsEl    = document.getElementById('pageReviews');
   const challengesEl = document.getElementById('pageChallenges');
-
-  // 退出 favorites 模式
-  if (page !== 'favorites') {
-    if (showFavOnly) { showFavOnly = false; render(); }
-    finderEl.classList.remove('fav-mode');
-  }
 
   // 重置所有頁面和 nav
   homeEl?.classList.remove('page-active', 'page-left', 'page-right');
   finderEl.classList.remove('page-active', 'page-left', 'page-right');
+  favoritesEl?.classList.remove('page-active', 'page-left', 'page-right');
   reviewsEl.classList.remove('page-active', 'page-left', 'page-right');
   challengesEl.classList.remove('page-active', 'page-left', 'page-right');
   homeEl?.classList.add('page-right');
+  favoritesEl?.classList.add('page-right');
   ['bnavHome', 'bnavFinder', 'bnavFavorites', 'bnavPosts', 'bnavChallenges'].forEach(id =>
     document.getElementById(id)?.classList.remove('active')
   );
@@ -4200,14 +4200,15 @@ function switchPage(page) {
     document.getElementById('bnavHome')?.classList.add('active');
     if (typeof renderHome === 'function') renderHome();
   } else if (page === 'favorites') {
-    document.body.classList.remove('finder-hidden');
-    document.body.classList.add('reviews-hidden');
-    document.body.classList.add('challenges-hidden');
-    finderEl.classList.add('page-active', 'fav-mode');
+    // 獨立頁面：搜尋頁的 DOM 完全不動，故其捲動位置與已載入批次天然保留
+    document.body.classList.add('finder-hidden', 'reviews-hidden', 'challenges-hidden');
+    favoritesEl?.classList.remove('page-right');
+    favoritesEl?.classList.add('page-active');
+    finderEl.classList.add('page-left');
     reviewsEl.classList.add('page-right');
     challengesEl.classList.add('page-right');
     document.getElementById('bnavFavorites')?.classList.add('active');
-    if (!showFavOnly) { showFavOnly = true; render(); }
+    if (typeof renderFavorites === 'function') renderFavorites();
   } else if (page === 'finder') {
     document.body.classList.remove('finder-hidden');
     document.body.classList.add('reviews-hidden');

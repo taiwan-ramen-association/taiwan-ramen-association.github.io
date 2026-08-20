@@ -2,7 +2,7 @@
 // 搜尋篩選模組：Filter 邏輯、Search Filter Modal、Autocomplete
 // 依賴全域變數（finder.html 主 script 提供）：
 //   ALL_DATA, NON_ACTIVE_DATA, favSet, stampMap
-//   showNonActive, showFavOnly, showUnvisited, selectedCities, selectedTypes,
+//   showNonActive, showUnvisited, selectedCities, selectedTypes,
 //   selectedDays, mealTime, isNowOpen, locEnabled, locRadius,
 //   userLat, userLng, currentView
 // 依賴全域函式：
@@ -34,7 +34,6 @@ function getFiltered() {
   const nonActiveQuery = query === '非營業' || query === '非現存';
   const source = (showNonActive || nonActiveQuery) ? [...ALL_DATA, ...NON_ACTIVE_DATA] : ALL_DATA;
   const result = source.filter(shop => {
-    if (showFavOnly   && !favSet.has(shop['ID'])) return false;
     if (showUnvisited && (stampMap[shop['ID']] ?? 0) >= 1) return false;
 
     // 地區（多選 OR）
@@ -231,7 +230,6 @@ function clearSfFilters() {
   mealTime     = '';
   isNowOpen    = false;
   showNonActive  = false;
-  showFavOnly    = false;
   showUnvisited  = false;
   document.querySelectorAll('.sf-chip.active').forEach(c => c.classList.remove('active'));
   document.querySelectorAll('#sfDayChips .sf-chip').forEach(c => { c.disabled = false; });

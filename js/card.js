@@ -11,7 +11,7 @@
 // 依賴全域（finder.html 主 inline script）：
 //   shopDist, formatDayStr, isValidUrl, isNewOpen, isBirthday, nonActiveLabel,
 //   formatDist, escapeAttr, findShopById, refreshQueueSection,
-//   openQueueModal, openIrModal, showFavOnly, currentView
+//   openQueueModal, openIrModal, currentView
 // 提供全域：
 //   renderCard, render, _filtered, expandedCard（其他模組未直接讀寫，僅 card.js 內部用）
 //
@@ -25,7 +25,7 @@
 // ── 清單實例工廠 ─────────────────────────────────────────────────────────────
 // opts.batchSize   每批渲染筆數（預設 20）；Infinity = 一次渲染完、不掛 IntersectionObserver
 // opts.emptyHTML   空清單時顯示的內容
-// opts.onFavToggle 收藏鈕按下後的自訂行為（收藏頁用；未給則沿用舊的 showFavOnly 邏輯）
+// opts.onFavToggle 收藏鈕按下後的額外行為（收藏頁用；Phase 4 接灰卡）
 function createCardList(containerId, opts = {}) {
   const batchSize = opts.batchSize ?? 20;
   const emptyHTML = opts.emptyHTML
@@ -142,7 +142,6 @@ function createCardList(containerId, opts = {}) {
         await toggleFav(id);
         btn.textContent = favSet.has(id) ? '\u2665' : '\u2661';
         if (typeof opts.onFavToggle === 'function') opts.onFavToggle(id, btn);
-        else if (showFavOnly) render();
       });
     });
     scope.querySelectorAll('.stamp-btn').forEach(btn => {

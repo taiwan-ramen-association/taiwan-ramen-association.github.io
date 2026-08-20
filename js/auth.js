@@ -5,7 +5,7 @@
 //   compressImage（reviews.js）
 //   favSet, stampMap, reviewMap（stamps.js）
 // 依賴全域（主 inline script）：
-//   showFavOnly, render, _currentPage, switchPage, checkUnreadBadge,
+//   render, _currentPage, switchPage, checkUnreadBadge,
 //   _onDataLoaded, _onBdAnimDone, openOnboardingModal
 // 提供全域：
 //   auth, db, storage, provider, firebase (透過 initializeApp)
@@ -403,11 +403,9 @@ auth.onAuthStateChanged(async user => {
       _localAvatarUid = null;
       favSet = new Set();
       stampMap = {}; reviewMap = {};
-      showFavOnly   = false;
       showUnvisited = false;
       const _sfUnvisitedRow = document.getElementById('sfShowUnvisitedRow');
       if (_sfUnvisitedRow) _sfUnvisitedRow.style.display = 'none';
-      document.getElementById('mainContent').classList.remove('fav-mode');
       if (_currentPage === 'favorites') switchPage('finder');
       closeProfileDropdown();
       await _ffReady;

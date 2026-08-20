@@ -1,7 +1,7 @@
 // ── stamps.js ────────────────────────────────────────────────────────────────
 // 踩點、收藏、Toast 通知
 // 依賴全域變數（finder.html 主 script 提供）：
-//   db, auth, firebase, isWarned, showFavOnly
+//   db, auth, firebase, isWarned
 // 依賴全域函式：
 //   render, lockScroll, unlockScroll
 // 提供全域變數：
