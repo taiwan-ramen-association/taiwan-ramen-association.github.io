@@ -1186,6 +1186,20 @@
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .home-feat-shop { font-size: 11.5px; color: var(--stone); margin-top: 4px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 主題懶人包卡：沿用今日精選的視覺語彙，但卡寬與圖高放大——
+     懶人包代表「一整組店」，分量感要比單一品項重。 */
+  .home-coll-card {
+    flex: 0 0 auto; width: calc((88% - 10px) / 2); max-width: 240px; background: var(--white);
+    border: 1px solid var(--line); border-radius: 12px; overflow: hidden; cursor: pointer;
+  }
+  .home-coll-img { width: 100%; height: 130px; object-fit: cover; display: block; background: var(--paper); }
+  .home-coll-noimg { display: flex; align-items: center; justify-content: center; font-size: 40px; }
+  .home-coll-body { padding: 9px 11px; }
+  .home-coll-title { font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.35;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .home-coll-sub { font-size: 11.5px; color: var(--stone); margin-top: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
   .home-feature { flex: 1; min-width: 0; border-radius: 12px; padding: 12px 13px; cursor: pointer; border: 1px solid var(--line); }
   /* 壽星多筆時整排會有 3 張以上（一年約 40 天），均分寬度會把每張壓到看不清，
      故 renderHomeFeature 於 ≥3 張時加掛 .home-hscroll 改固定寬橫捲；
@@ -2222,6 +2236,10 @@
       <div class="home-sec-head"><span class="home-sec-title">今日精選</span></div>
       <div id="homeFeature"></div>
     </div>
+    <div class="home-sec" id="homeCollectionSec" style="display:none">
+      <div class="home-sec-head"><span class="home-sec-title">主題懶人包</span></div>
+      <div class="home-hscroll" id="homeCollections"></div>
+    </div>
     <div class="home-sec" id="homeNearbySec" style="display:none">
       <div class="home-sec-head"><span class="home-sec-title">附近營業中</span><span class="home-sec-link" id="homeNearbyLink" style="display:none">開啟地圖</span></div>
       <div class="home-hscroll" id="homeNearby"></div>
@@ -2915,6 +2933,7 @@ async function loadData() {
   loadQueueSettings();  // 非同步背景載入，不阻塞主流程
   loadHomeFeatured();   // 今日精選策展資料（meta/homeFeatured），背景載入
   loadHomeBanner();     // 首頁 banner 活動（meta/homeBanner），背景載入
+  loadHomeCollections();// 主題懶人包（meta/homeCollections），背景載入
   loadHomeChallenge();  // active 挑戰（challenges，公開讀取），供首頁挑戰圖卡
   // loadFeatureFlags() 已在 auth.js 底部於頁面解析時立即觸發（_ffReady）
 
@@ -4467,6 +4486,9 @@ function renderHomeNearby() {
 let homeFeaturedItems = [];
 // 首頁 banner 活動：後台策展（admin「首頁精選」頁編輯 meta/homeBanner.activities = [{photoUrl,name,timeText}]）
 let homeBannerActivities = [];
+// 主題懶人包：後台策展（admin「首頁精選」頁編輯 meta/homeCollections.items）
+// = [{id,title,subtitle,photoUrl,shopIds:[],visible}]
+let homeCollections = [];
 let homeActiveChallenges = [];  // 所有 active 挑戰（公開讀取，供首頁挑戰圖卡；未登入亦可顯示）
 async function loadHomeFeatured() {
   try {
@@ -4491,6 +4513,72 @@ async function loadHomeBanner() {
     homeBannerActivities = (snap.exists && Array.isArray(snap.data().activities)) ? snap.data().activities : [];
   } catch (e) { homeBannerActivities = []; }
   renderHomeTaskBanner();
+}
+async function loadHomeCollections() {
+  try {
+    const snap = await db.collection('meta').doc('homeCollections').get();
+    homeCollections = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items : [];
+  } catch (e) { homeCollections = []; }
+  if (_currentPage === 'home') renderHomeCollections();
+}
+
+// 集合內「目前營業中」的店。手動 ID 清單會隨時間變舊（店歇業後仍留在清單裡），
+// 故前台一律以 ALL_DATA 過濾——卡片上的「N 間」與點進去的結果因此永遠一致。
+function _collectionShops(coll) {
+  if (!coll || !Array.isArray(coll.shopIds) || !Array.isArray(ALL_DATA)) return [];
+  const want = new Set(coll.shopIds);
+  return ALL_DATA.filter(s => want.has(s['ID']));
+}
+
+function renderHomeCollections() {
+  const sec = document.getElementById('homeCollectionSec');
+  const box = document.getElementById('homeCollections');
+  if (!sec || !box || !Array.isArray(ALL_DATA)) return;
+
+  // visible 為 false 的不顯示；過濾後 0 間的也不顯示（避免點進去看到空清單）
+  const list = (Array.isArray(homeCollections) ? homeCollections : [])
+    .filter(c => c && c.visible !== false && c.title)
+    .map(c => ({ coll: c, shops: _collectionShops(c) }))
+    .filter(x => x.shops.length > 0);
+
+  if (!list.length) { sec.style.display = 'none'; box.innerHTML = ''; return; }
+  sec.style.display = '';
+
+  const html = list.map(({ coll, shops }) => {
+    const img = coll.photoUrl
+      ? `<img class="home-coll-img" src="${escapeAttr(_homeImgSrc(coll.photoUrl))}" alt="" loading="lazy">`
+      : '<div class="home-coll-img home-coll-noimg">📋</div>';
+    const sub = coll.subtitle || (shops.length + ' 間');
+    return `<div class="home-coll-card" data-collection-id="${escapeAttr(coll.id || coll.title)}">
+      ${img}
+      <div class="home-coll-body">
+        <div class="home-coll-title">${escapeHtml(coll.title)}</div>
+        <div class="home-coll-sub">${escapeHtml(sub)}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // 內容相同就不重設 innerHTML，避免切回首頁時 <img> 重建造成閃爍（同 renderHomeFeature）
+  if (box._lastSig !== html) {
+    box._lastSig = html;
+    box.innerHTML = html;
+    _attachHsArrows(box);
+  }
+}
+
+// 點懶人包 → 清掉現有篩選、只留這個集合，跳到搜尋頁
+function openCollection(collId) {
+  const coll = (homeCollections || []).find(c => (c.id || c.title) === collId);
+  if (!coll) return;
+  const shops = _collectionShops(coll);
+  if (!shops.length) return;
+  if (typeof clearSfFilters === 'function') clearSfFilters();   // 內含 deactivateLocate()
+  activeCollection = { id: coll.id || coll.title, title: coll.title,
+                       idSet: new Set(shops.map(s => s['ID'])) };
+  switchPage('finder');
+  if (typeof syncSfModal === 'function') syncSfModal();
+  updateSfTrigger();
+  render();
 }
 async function loadHomeChallenge() {
   try {
@@ -4583,6 +4671,7 @@ function renderHome() {
   renderHomeTaskBanner();
   renderHomeNearby();
   renderHomeFeature();
+  renderHomeCollections();
   renderHomeFactions();
   renderHomeRecent();
 }
@@ -4628,6 +4717,8 @@ document.getElementById('pageHome')?.addEventListener('click', e => {
   const actLink = e.target.closest('.home-act-link');
   if (actLink) { const u = actLink.dataset.link; if (u) window.open(u, '_blank', 'noopener'); return; }
   if (e.target.closest('#homeLocBtn'))      return;
+  const coll = e.target.closest('[data-collection-id]');
+  if (coll) { openCollection(coll.dataset.collectionId); return; }
   const card = e.target.closest('[data-shop-id]');
   if (card) {
     const s = _homeShopById(card.dataset.shopId);
