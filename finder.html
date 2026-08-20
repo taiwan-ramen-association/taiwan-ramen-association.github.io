@@ -1040,6 +1040,27 @@
   .empty-state { text-align: center; padding: 60px 20px; color: var(--stone); }
   .empty-state .big { font-size: 38px; margin-bottom: 10px; }
   .empty-state p { font-size: 14px; }
+  /* 空狀態行動鈕（收藏頁「去找店家」）：沿用 retry-btn 的視覺語彙 */
+  .empty-state .empty-cta {
+    margin-top: 16px; padding: 9px 20px;
+    background: var(--red); color: #fff; border: none; border-radius: 8px;
+    font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+
+  /* ── 收藏頁（2026-08-20 獨立成頁）──────────────────────────────────
+     頂部列沿用 rf-title-row 的分隔線語彙，但不放搜尋欄／篩選 chip
+     —— 收藏頁不吃篩選條件，放了會有「按了沒反應」的控制項。 */
+  .fav-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 14px 12px 10px; margin: 0 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .fav-head-title {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 17px; font-weight: 700; color: var(--ink);
+  }
+  .fav-head-count { font-size: 12.5px; color: var(--stone); }
+  body.dark .fav-head { border-color: #3a3330; }
 
   /* ── PAGE STACK ─────────────────────────────────────────────────── */
   #mainContent { display: none; }
@@ -2213,6 +2234,16 @@
 <div class="card-list" id="cardList"></div>
   <div id="mapContainer"></div>
 </div><!-- end #mainContent -->
+
+<!-- 收藏頁（2026-08-20 從 mainContent + showFavOnly 篩選旗標獨立出來）。
+     自己的 card-list 容器，狀態與搜尋頁完全分離，切頁時互不重畫。 -->
+<div id="pageFavorites" class="page-layer page-right">
+  <div class="fav-head">
+    <span class="fav-head-title">♡ 我的收藏</span>
+    <span class="fav-head-count" id="favCount"></span>
+  </div>
+  <div class="card-list" id="favCardList"></div>
+</div>
 
 <div id="pageReviews" class="page-layer page-right">
   <div class="rf-page-card">
@@ -4114,6 +4145,26 @@ window.addEventListener('keydown', e => {
     case 'PageDown': e.preventDefault(); el.scrollTop += h * 0.85; break;
   }
 });
+
+// ── 收藏頁 ─────────────────────────────────────────────────────────────────
+// 排序：收藏時間新的在前。Firestore 的 favorites 是純 ID 陣列、無時間戳，
+// 但 arrayUnion 讓新加的附在陣列尾端、favSet 保留該順序，故反轉即為「新→舊」。
+function _favShopsNewestFirst() {
+  if (typeof favSet === 'undefined' || !Array.isArray(ALL_DATA)) return [];
+  const out = [];
+  [...favSet].reverse().forEach(id => {
+    const s = findShopById(id);
+    if (s) out.push(s);                 // 找不到＝已歇業移出 ALL_DATA，靜默略過
+  });
+  return out;
+}
+
+function renderFavorites() {
+  const shops = _favShopsNewestFirst();
+  const cnt = document.getElementById('favCount');
+  if (cnt) cnt.textContent = shops.length ? shops.length + ' 間' : '';
+  favList.render(shops);
+}
 
 // ── Bottom Nav ────────────────────────────────────────────────────────────────
 function switchPage(page) {

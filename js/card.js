@@ -189,6 +189,15 @@ function createCardList(containerId, opts = {}) {
 // 搜尋頁的清單實例（分批 20 筆 + 無限捲動）
 const mainList = createCardList('cardList', { batchSize: 20 });
 
+// 收藏頁的清單實例。不分批：實測全站最多收藏者為 32 家（≥50 家 0 人），
+// 一次渲染完就永遠不會有高度塌縮、捲動位置天然穩定。
+const favList = createCardList('favCardList', {
+  batchSize: Infinity,
+  emptyHTML: '<div class="empty-state"><div class="big">♡</div>'
+    + '<p>還沒有收藏的店家<br>在搜尋頁點愛心就能加入</p>'
+    + '<button class="empty-cta" id="favEmptyCta">去找店家</button></div>',
+});
+
 // 相容層：舊全域名稱維持存在並代理到 mainList，讓既有呼叫端與偵錯習慣不變。
 // 這三個是「鏡像值」，於渲染/展開狀態變動時由 _syncCardListGlobals() 同步。
 var _filtered        = [];
