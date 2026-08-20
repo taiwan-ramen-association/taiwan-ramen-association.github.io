@@ -1062,6 +1062,20 @@
   .fav-head-count { font-size: 12.5px; color: var(--stone); }
   body.dark .fav-head { border-color: #3a3330; }
 
+  /* 收藏頁「已取消收藏」的卡片：不立刻移除，改為灰底半透明留在原位。
+     不整份重畫是刻意的——重畫會讓容器高度塌縮、捲動位置被瀏覽器夾掉，
+     正是這次重構要消滅的行為。真正移除延到下次進入收藏頁。 */
+  .card.fav-removed {
+    background: var(--paper);
+    opacity: 0.5;
+    cursor: default;
+    transition: opacity 0.5s ease, background-color 0.5s ease;
+  }
+  /* 卡片本體與其他按鈕鎖住，只留愛心可再按一次復原。
+     整張卡關閉 pointer-events，再把愛心單獨開回來——比逐一列出子元素更不易漏。 */
+  .card.fav-removed             { pointer-events: none; }
+  .card.fav-removed .fav-btn    { pointer-events: auto; cursor: pointer; }
+
   /* ── PAGE STACK ─────────────────────────────────────────────────── */
   #mainContent { display: none; }
   #mainContent.mc-show { display: block; }
@@ -4157,10 +4171,17 @@ function _favShopsNewestFirst() {
   return out;
 }
 
+// 收藏頁頂部計數。取消收藏時卡片仍留在畫面上（灰卡），但計數要即時反映真實收藏數。
+function updateFavCount() {
+  const cnt = document.getElementById('favCount');
+  if (!cnt) return;
+  const n = (typeof favSet !== 'undefined') ? favSet.size : 0;
+  cnt.textContent = n ? n + ' 間' : '';
+}
+
 function renderFavorites() {
   const shops = _favShopsNewestFirst();
-  const cnt = document.getElementById('favCount');
-  if (cnt) cnt.textContent = shops.length ? shops.length + ' 間' : '';
+  updateFavCount();
   favList.render(shops);
 }
 

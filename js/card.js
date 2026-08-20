@@ -195,6 +195,13 @@ const favList = createCardList('favCardList', {
   emptyHTML: '<div class="empty-state"><div class="big">♡</div>'
     + '<p>還沒有收藏的店家<br>在搜尋頁點愛心就能加入</p>'
     + '<button class="empty-cta" id="favEmptyCta">去找店家</button></div>',
+  // 在收藏頁取消收藏：卡片留在原位變灰，不整份重畫（重畫會塌高度、吃掉捲動位置）。
+  // 再按一次愛心即復原；真正移除延到下次進入收藏頁時的 renderFavorites()。
+  onFavToggle: (id, btn) => {
+    const card = btn.closest('.card');
+    if (card) card.classList.toggle('fav-removed', !favSet.has(id));
+    if (typeof updateFavCount === 'function') updateFavCount();
+  },
 });
 
 // 相容層：舊全域名稱維持存在並代理到 mainList，讓既有呼叫端與偵錯習慣不變。
