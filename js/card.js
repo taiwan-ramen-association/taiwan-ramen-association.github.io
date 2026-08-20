@@ -14,12 +14,190 @@
 //   openQueueModal, openIrModal, showFavOnly, currentView
 // 提供全域：
 //   renderCard, render, _filtered, expandedCard（其他模組未直接讀寫，僅 card.js 內部用）
+//
+// 【2026-08-20 重構】清單渲染改為「可實例化」：createCardList(containerId, opts) 工廠，
+// 每個實例各自持有 items / displayedCount / scrollObserver / expanded。
+// 動機：收藏頁要獨立成頁，需要第二份互不干擾的清單狀態；
+//       舊寫法這四個狀態是模組層單一變數、容器 id 又寫死 #cardList，全站只能有一份清單。
+// 對外介面不變：render() / _appendCards() / _filtered / _displayedCount / expandedCard
+// 仍是同名全域，由下方薄包裝代理到 mainList 實例，其餘 19 處呼叫端一行都不用改。
+
+// ── 清單實例工廠 ─────────────────────────────────────────────────────────────
+// opts.batchSize   每批渲染筆數（預設 20）；Infinity = 一次渲染完、不掛 IntersectionObserver
+// opts.emptyHTML   空清單時顯示的內容
+// opts.onFavToggle 收藏鈕按下後的自訂行為（收藏頁用；未給則沿用舊的 showFavOnly 邏輯）
+function createCardList(containerId, opts = {}) {
+  const batchSize = opts.batchSize ?? 20;
+  const emptyHTML = opts.emptyHTML
+    ?? '<div class="empty-state"><div class="big">\u{1F35C}</div><p>找不到符合的店家<br>請調整篩選條件</p></div>';
+
+  // 以下四個以前是模組層全域，現在是「這個實例自己的」
+  let items          = [];
+  let displayedCount = 0;
+  let scrollObserver = null;
+  let expanded       = null;
+
+  const getList = () => document.getElementById(containerId);
+
+  function renderList(newItems) {
+    if (scrollObserver) { scrollObserver.disconnect(); scrollObserver = null; }
+    items = newItems || [];
+    const list = getList();
+    if (!list) return;
+    expanded = null;
+    list.innerHTML = '';
+    displayedCount = 0;
+    if (!items.length) { list.innerHTML = emptyHTML; return; }
+    appendCards();
+  }
+
+  function appendCards() {
+    if (scrollObserver) { scrollObserver.disconnect(); scrollObserver = null; }
+    const list = getList();
+    if (!list) return;
+    const batch = items.slice(displayedCount, displayedCount + batchSize);
+    if (!batch.length) return;
+
+    const frag = document.createElement('div');
+    frag.innerHTML = batch.map(renderCard).join('');
+    bindCardEvents(frag);
+    while (frag.firstChild) list.appendChild(frag.firstChild);
+    displayedCount += batch.length;
+    // 相容層鏡像值同步。必須放在這裡而非只在薄包裝裡：無限捲動是由 observer
+    // 直接呼叫 appendCards()、不經過 _appendCards() 包裝，漏掉就會讓 _displayedCount 卡在舊值。
+    if (typeof _syncCardListGlobals === 'function') _syncCardListGlobals();
+
+    if (displayedCount < items.length) {
+      const sentinel = document.createElement('div');
+      sentinel.className = 'scroll-sentinel';
+      list.appendChild(sentinel);
+      scrollObserver = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting) appendCards();
+      }, { rootMargin: '200px' });
+      scrollObserver.observe(sentinel);
+    }
+  }
+
+  // 卡片內事件綁定。展開狀態 expanded 是實例私有的，故定義在工廠內。
+  function bindCardEvents(scope) {
+    scope.querySelectorAll('.card').forEach(card => {
+      card.addEventListener('click', e => {
+        if (e.target.closest('a') || e.target.closest('.fav-btn') || e.target.closest('.stamp-btn') || e.target.closest('.queue-report-btn') || e.target.closest('.write-review-btn') || e.target.closest('.review-del-btn') || e.target.closest('.review-photo-thumb') || e.target.closest('.review-load-more') || e.target.closest('.review-comment-form') || e.target.closest('.review-comments-more') || e.target.closest('.card-tab') || e.target.closest('.mnu-thumb') || e.target.closest('.mnu-del-btn') || e.target.closest('.photo-grid-item')) return;
+        // 已展開時點 card-detail 內部不縮起
+        if (card.classList.contains('expanded') && e.target.closest('.card-detail')) return;
+        if (expanded && expanded !== card) expanded.classList.remove('expanded');
+        card.classList.toggle('expanded');
+        expanded = card.classList.contains('expanded') ? card : null;
+        _syncCardListGlobals();
+        if (expanded) {
+          setTimeout(() => card.scrollIntoView({behavior:'smooth',block:'nearest'}), 50);
+          const shopId = card.dataset.shopId;
+          if (shopId) refreshQueueSection(shopId);
+        }
+      });
+      card.querySelectorAll('.card-tab').forEach(tab => {
+        tab.addEventListener('click', e => {
+          e.stopPropagation();
+          if (tab.classList.contains('ff-locked')) { showAccessToast(); return; }
+          const target = tab.dataset.tabTarget;
+          const detail = card.querySelector('.card-detail');
+          detail.querySelectorAll('.card-tab').forEach(t => t.classList.toggle('active', t.dataset.tabTarget === target));
+          detail.querySelectorAll('.card-tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tabPanel === target));
+          if (target === 'info') {
+            const shopId = card.dataset.shopId;
+            if (shopId) refreshQueueSection(shopId);
+          }
+          if (target === 'menu' && canView('menuTab')) {
+            const shopId = card.dataset.shopId;
+            const shop = findShopById(shopId);
+            const menuPanel = detail.querySelector('[data-tab-panel="menu"] .menu-tab-inner');
+            if (shop && menuPanel && !menuPanel.dataset.loaded) {
+              menuPanel.dataset.loaded = '1';
+              loadShopMenu(shop, menuPanel);
+            }
+          }
+          if (target === 'photos' && canView('photosTab')) {
+            const shopId = card.dataset.shopId;
+            const shop = findShopById(shopId);
+            const photoPanel = detail.querySelector('[data-tab-panel="photos"]');
+            if (shop && photoPanel) loadShopPhotos(shop, photoPanel);
+          }
+          if (target === 'reviews') {
+            const shopId = card.dataset.shopId;
+            const rvPanel = detail.querySelector('[data-tab-panel="reviews"]');
+            if (shopId && rvPanel && canView('reviews') && !rvPanel.dataset.loaded) {
+              rvPanel.dataset.loaded = '1';
+              loadReviews(shopId, rvPanel);
+            }
+          }
+        });
+      });
+    });
+    scope.querySelectorAll('.fav-btn').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        if (btn.classList.contains('locked')) { showAccessToast(); return; }
+        const id = btn.dataset.id;
+        if (!id) return;
+        await toggleFav(id);
+        btn.textContent = favSet.has(id) ? '\u2665' : '\u2661';
+        if (typeof opts.onFavToggle === 'function') opts.onFavToggle(id, btn);
+        else if (showFavOnly) render();
+      });
+    });
+    scope.querySelectorAll('.stamp-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (btn.classList.contains('locked')) { showAccessToast(); return; }
+        openStampModal(btn.dataset.id, btn.dataset.name);
+      });
+    });
+    scope.querySelectorAll('.queue-report-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (btn.classList.contains('ff-locked')) { showAccessToast(); return; }
+        openQueueModal(btn.dataset.id, btn.dataset.name);
+      });
+    });
+  }
+
+  // 容器層事件委派：ir-btn-card + 店家主頁連結。
+  // 取代舊的「對 #cardList 寫死一次」，改成每個實例綁自己的容器。
+  const listEl = getList();
+  if (listEl) {
+    listEl.addEventListener('click', e => {
+      // 店家主頁連結：perm 不足（ff-locked）時攔截導頁 + 提示
+      if (e.target.closest('.shop-link-btn.ff-locked')) { e.preventDefault(); showAccessToast(); return; }
+      const btn = e.target.closest('.ir-btn-card');
+      if (!btn) return;
+      if (btn.classList.contains('ff-locked')) { showAccessToast(); return; }
+      openIrModal(btn.dataset.id, btn.dataset.name);
+    });
+  }
+
+  return {
+    render: renderList,
+    appendCards,
+    get items()          { return items; },
+    get displayedCount() { return displayedCount; },
+    get expandedCard()   { return expanded; },
+    set expandedCard(v)  { expanded = v; },
+  };
+}
 
 // ── State ────────────────────────────────────────────────────────────────────
+// 搜尋頁的清單實例（分批 20 筆 + 無限捲動）
+const mainList = createCardList('cardList', { batchSize: 20 });
+
+// 相容層：舊全域名稱維持存在並代理到 mainList，讓既有呼叫端與偵錯習慣不變。
+// 這三個是「鏡像值」，於渲染/展開狀態變動時由 _syncCardListGlobals() 同步。
 var _filtered        = [];
 let _displayedCount  = 0;
-let _scrollObserver  = null;
 let expandedCard     = null;
+function _syncCardListGlobals() {
+  expandedCard    = mainList.expandedCard;
+  _displayedCount = mainList.displayedCount;
+}
 
 // ── 1. renderCard：產生單一卡片 HTML ─────────────────────────────────────────
 function renderCard(shop) {
@@ -134,8 +312,8 @@ function renderCard(shop) {
 }
 
 // ── 2. render：主入口（清單 / 地圖切換 + 重新渲染） ─────────────────────────
+// 薄包裝：對外行為與重構前相同，實際渲染委派給 mainList 實例。
 function render() {
-  if (_scrollObserver) { _scrollObserver.disconnect(); _scrollObserver = null; }
   _filtered = getFiltered();
   document.getElementById('resultCount').textContent = _filtered.length;
 
@@ -143,131 +321,12 @@ function render() {
     renderMap();
     return;
   }
-
-  const list = document.getElementById('cardList');
-  expandedCard = null;
-  list.innerHTML = '';
-  _displayedCount = 0;
-
-  if (!_filtered.length) {
-    list.innerHTML = `<div class="empty-state"><div class="big">🍜</div><p>找不到符合的店家<br>請調整篩選條件</p></div>`;
-    return;
-  }
-  _appendCards();
+  mainList.render(_filtered);
+  _syncCardListGlobals();
 }
 
-// ── 3. _appendCards：分批渲染 + 無限滾動 ─────────────────────────────────────
+// ── 3. _appendCards：薄包裝（維持舊全域名，代理到 mainList） ────────────────
 function _appendCards() {
-  if (_scrollObserver) { _scrollObserver.disconnect(); _scrollObserver = null; }
-  const list = document.getElementById('cardList');
-  const batch = _filtered.slice(_displayedCount, _displayedCount + 20);
-  if (!batch.length) return;
-
-  const frag = document.createElement('div');
-  frag.innerHTML = batch.map(renderCard).join('');
-  _bindCardEvents(frag);
-  while (frag.firstChild) list.appendChild(frag.firstChild);
-  _displayedCount += batch.length;
-
-  if (_displayedCount < _filtered.length) {
-    const sentinel = document.createElement('div');
-    sentinel.className = 'scroll-sentinel';
-    list.appendChild(sentinel);
-    _scrollObserver = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) _appendCards();
-    }, { rootMargin: '200px' });
-    _scrollObserver.observe(sentinel);
-  }
+  mainList.appendCards();
+  _syncCardListGlobals();
 }
-
-// ── 4. _bindCardEvents：卡片內所有事件綁定 ───────────────────────────────────
-function _bindCardEvents(scope) {
-  scope.querySelectorAll('.card').forEach(card => {
-    card.addEventListener('click', e => {
-      if (e.target.closest('a') || e.target.closest('.fav-btn') || e.target.closest('.stamp-btn') || e.target.closest('.queue-report-btn') || e.target.closest('.write-review-btn') || e.target.closest('.review-del-btn') || e.target.closest('.review-photo-thumb') || e.target.closest('.review-load-more') || e.target.closest('.review-comment-form') || e.target.closest('.review-comments-more') || e.target.closest('.card-tab') || e.target.closest('.mnu-thumb') || e.target.closest('.mnu-del-btn') || e.target.closest('.photo-grid-item')) return;
-      // 已展開時點 card-detail 內部不縮起
-      if (card.classList.contains('expanded') && e.target.closest('.card-detail')) return;
-      if (expandedCard && expandedCard !== card) expandedCard.classList.remove('expanded');
-      card.classList.toggle('expanded');
-      expandedCard = card.classList.contains('expanded') ? card : null;
-      if (expandedCard) {
-        setTimeout(() => card.scrollIntoView({behavior:'smooth',block:'nearest'}), 50);
-        const shopId = card.dataset.shopId;
-        if (shopId) refreshQueueSection(shopId);
-      }
-    });
-    card.querySelectorAll('.card-tab').forEach(tab => {
-      tab.addEventListener('click', e => {
-        e.stopPropagation();
-        if (tab.classList.contains('ff-locked')) { showAccessToast(); return; }
-        const target = tab.dataset.tabTarget;
-        const detail = card.querySelector('.card-detail');
-        detail.querySelectorAll('.card-tab').forEach(t => t.classList.toggle('active', t.dataset.tabTarget === target));
-        detail.querySelectorAll('.card-tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tabPanel === target));
-        if (target === 'info') {
-          const shopId = card.dataset.shopId;
-          if (shopId) refreshQueueSection(shopId);
-        }
-        if (target === 'menu' && canView('menuTab')) {
-          const shopId = card.dataset.shopId;
-          const shop = findShopById(shopId);
-          const menuPanel = detail.querySelector('[data-tab-panel="menu"] .menu-tab-inner');
-          if (shop && menuPanel && !menuPanel.dataset.loaded) {
-            menuPanel.dataset.loaded = '1';
-            loadShopMenu(shop, menuPanel);
-          }
-        }
-        if (target === 'photos' && canView('photosTab')) {
-          const shopId = card.dataset.shopId;
-          const shop = findShopById(shopId);
-          const photoPanel = detail.querySelector('[data-tab-panel="photos"]');
-          if (shop && photoPanel) loadShopPhotos(shop, photoPanel);
-        }
-        if (target === 'reviews') {
-          const shopId = card.dataset.shopId;
-          const rvPanel = detail.querySelector('[data-tab-panel="reviews"]');
-          if (shopId && rvPanel && canView('reviews') && !rvPanel.dataset.loaded) {
-            rvPanel.dataset.loaded = '1';
-            loadReviews(shopId, rvPanel);
-          }
-        }
-      });
-    });
-  });
-  scope.querySelectorAll('.fav-btn').forEach(btn => {
-    btn.addEventListener('click', async e => {
-      e.stopPropagation();
-      if (btn.classList.contains('locked')) { showAccessToast(); return; }
-      const id = btn.dataset.id;
-      if (!id) return;
-      await toggleFav(id);
-      btn.textContent = favSet.has(id) ? '♥' : '♡';
-      if (showFavOnly) render();
-    });
-  });
-  scope.querySelectorAll('.stamp-btn').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      if (btn.classList.contains('locked')) { showAccessToast(); return; }
-      openStampModal(btn.dataset.id, btn.dataset.name);
-    });
-  });
-  scope.querySelectorAll('.queue-report-btn').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      if (btn.classList.contains('ff-locked')) { showAccessToast(); return; }
-      openQueueModal(btn.dataset.id, btn.dataset.name);
-    });
-  });
-}
-
-// ── 5. ir-btn-card 事件委派（整個 cardList） ─────────────────────────────────
-document.getElementById('cardList').addEventListener('click', e => {
-  // 店家主頁連結：perm 不足（ff-locked）時攔截導頁 + 提示
-  if (e.target.closest('.shop-link-btn.ff-locked')) { e.preventDefault(); showAccessToast(); return; }
-
-  const btn = e.target.closest('.ir-btn-card');
-  if (!btn) return;
-  if (btn.classList.contains('ff-locked')) { showAccessToast(); return; }
-  openIrModal(btn.dataset.id, btn.dataset.name);
-});
