@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>照片 EXIF 天花板測試 — probe</title>
+<style>
+  :root{ --bg:#111; --fg:#eee; --dim:#999; --line:#333; --ok:#4ade80; --bad:#f87171; --warn:#fbbf24; --acc:#60a5fa; }
+  *{box-sizing:border-box}
+  body{margin:0;padding:16px 14px 60px;background:var(--bg);color:var(--fg);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif;}
+  h1{font-size:18px;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:13px;margin:0 0 18px}
+  fieldset{border:1px solid var(--line);border-radius:10px;margin:0 0 14px;padding:12px}
+  legend{color:var(--acc);font-size:13px;padding:0 6px}
+  label{display:block;padding:7px 0}
+  input[type=radio]{transform:scale(1.3);margin-right:10px}
+  input[type=number]{background:#1c1c1c;color:var(--fg);border:1px solid var(--line);
+       border-radius:6px;padding:7px 9px;width:80px;font-size:15px}
+  code{background:#1c1c1c;padding:1px 5px;border-radius:4px;font-size:12px;color:var(--warn)}
+  #pickWrap{margin:6px 0 2px}
+  #pickWrap input[type=file]{font-size:15px;width:100%}
+  button{background:#1f2937;color:var(--fg);border:1px solid var(--line);border-radius:8px;
+       padding:11px 16px;font-size:15px;width:100%;margin-top:8px}
+  button:active{background:#374151}
+  #bar{height:6px;background:#1c1c1c;border-radius:3px;overflow:hidden;margin:10px 0 6px}
+  #barFill{height:100%;width:0;background:var(--acc);transition:width .12s}
+  #live{font-size:13px;color:var(--dim);min-height:1.6em}
+  pre{background:#0a0a0a;border:1px solid var(--line);border-radius:8px;padding:11px;
+      font-size:12px;line-height:1.55;overflow-x:auto;white-space:pre;margin:10px 0 0}
+  .bad{color:var(--bad)}
+  .note{font-size:12px;color:var(--dim);margin-top:8px}
+</style>
+</head>
+<body>
+
+<h1>照片 EXIF 天花板測試</h1>
+<p class="sub">全程在本機瀏覽器執行，照片與座標不會離開這台裝置。只讀 EXIF 標頭，不解圖、不上傳。</p>
+
+<fieldset>
+  <legend>1. accept 設定（會改變 iOS 給原檔還是轉碼檔）</legend>
+  <label><input type="radio" name="acc" value="" checked> 不設 accept<span class="note"> — 最可能拿到原始 HEIC</span></label>
+  <label><input type="radio" name="acc" value="image/*"> <code>image/*</code><span class="note"> — 最可能被轉碼成 JPEG</span></label>
+  <label><input type="radio" name="acc" value="image/heic,image/heif,image/jpeg"> <code>image/heic,image/heif,image/jpeg</code></label>
+</fieldset>
+
+<fieldset>
+  <legend>2. 並行數（影響記憶體壓力）</legend>
+  <input type="number" id="conc" value="4" min="1" max="16">
+  <span class="note">建議先用 4；若中途整頁被殺，改 1 再試一次。</span>
+</fieldset>
+
+<fieldset>
+  <legend>3. 選照片</legend>
+  <div id="pickWrap"></div>
+  <div class="note">建議分階段疊上去找斷點：100 → 500 → 1000 → 2000 → 全選。</div>
+  <div id="bar"><div id="barFill"></div></div>
+  <div id="live">尚未開始</div>
+  <button id="copyBtn" type="button">複製結果</button>
+</fieldset>
+
+<pre id="out">（結果會出現在這裡）</pre>
+<div id="prev"></div>
+
+<script src="vendor/exifr.full.umd.js"></script>
+<script>
+'use strict';
+
+var CK = 'probe_checkpoint_v1';
+var out  = document.getElementById('out');
+var live = document.getElementById('live');
+var fill = document.getElementById('barFill');
+var running = false;
+var lastReport = '';
+
+// ---- 選檔元件：每次換 accept 就重建，避免 iOS 沿用舊設定 ----
+function buildInput(){
+  var wrap = document.getElementById('pickWrap');
+  var acc  = document.querySelector('input[name=acc]:checked').value;
+  wrap.innerHTML = '';
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.multiple = true;
+  if (acc) inp.accept = acc;
+  inp.addEventListener('change', function(){
+    if (inp.files && inp.files.length) run(inp.files, acc);
+  });
+  wrap.appendChild(inp);
+}
+Array.prototype.forEach.call(document.querySelectorAll('input[name=acc]'), function(r){
+  r.addEventListener('change', buildInput);
+});
+buildInput();
+
+// ---- EXIF 取值輔助 ----
+function toDeg(v, ref){
+  if (typeof v === 'number' && isFinite(v)) return (ref === 'S' || ref === 'W') ? -v : v;
+  if (Object.prototype.toString.call(v) === '[object Array]' && v.length >= 2){
+    var d = Number(v[0]), m = Number(v[1]), s = Number(v[2] || 0);
+    if (!isFinite(d) || !isFinite(m) || !isFinite(s)) return null;
+    var dec = d + m / 60 + s / 3600;
+    return (ref === 'S' || ref === 'W') ? -dec : dec;
+  }
+  return null;
+}
+
+// GPSDateStamp("2026:01:15") + GPSTimeStamp([4,30,0]) -> "2026-01-15T04:30:00Z"（本身就是 UTC）
+function utcFromGps(ds, ts){
+  if (typeof ds !== 'string') return null;
+  var m = ds.match(/^(\d{4})[:\-](\d{2})[:\-](\d{2})/);
+  if (!m) return null;
+  if (Object.prototype.toString.call(ts) !== '[object Array]' || ts.length < 3) return null;
+  var h = Number(ts[0]), mi = Number(ts[1]), se = Number(ts[2]);
+  if (!isFinite(h) || !isFinite(mi) || !isFinite(se)) return null;
+  var p = function(n){ n = Math.floor(n); return (n < 10 ? '0' : '') + n; };
+  return m[1] + '-' + m[2] + '-' + m[3] + 'T' + p(h) + ':' + p(mi) + ':' + p(se) + 'Z';
+}
+
+// DateTimeOriginal("2026:01:15 12:30:00") -> 毫秒（僅供「最舊/最新」統計，無時區）
+function localMs(dto){
+  if (dto instanceof Date) return dto.getTime();
+  if (typeof dto !== 'string') return null;
+  var m = dto.match(/^(\d{4})[:\-](\d{2})[:\-](\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+  if (!m) return null;
+  return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+}
+
+var PARSE_OPTS = {
+  tiff: true, ifd0: true, exif: true, gps: true,
+  interop: false, thumbnail: false, iptc: false, xmp: false, icc: false, jfif: false,
+  translateKeys: true, translateValues: false, reviveValues: false,
+  mergeOutput: true, silentErrors: true
+};
+
+// 主解析用嚴格選項；讀不到 GPS 的再用 exifr.gps() 補救。
+// 目的是避免「選項設錯」被誤判成「照片沒有 GPS」——那種偽陰性會做出錯誤的去留決定。
+async function one(file, st){
+  var type = file.type || '(空白)';
+  var tags = null;
+  try { tags = await exifr.parse(file, PARSE_OPTS); } catch (e){ st.parseErr++; }
+
+  var lat = null, lng = null;
+  if (tags){
+    lat = toDeg(tags.GPSLatitude,  tags.GPSLatitudeRef);
+    lng = toDeg(tags.GPSLongitude, tags.GPSLongitudeRef);
+  }
+  if (lat === null || lng === null){
+    try {
+      var g = await exifr.gps(file);
+      if (g && isFinite(g.latitude) && isFinite(g.longitude)){
+        lat = g.latitude; lng = g.longitude; st.recovered++;
+      }
+    } catch (e){}
+  }
+
+  if (lat !== null && lng !== null){
+    st.gps++;
+    var iso = tags ? utcFromGps(tags.GPSDateStamp, tags.GPSTimeStamp) : null;
+    if (iso) st.gpsTime++; else st.gpsNoTime++;
+    if (tags && tags.OffsetTimeOriginal) st.offsetTag++;
+  }
+
+  if (tags){
+    var ms = localMs(tags.DateTimeOriginal);
+    if (ms !== null){
+      st.dated++;
+      if (st.oldest === null || ms < st.oldest) st.oldest = ms;
+      if (st.newest === null || ms > st.newest) st.newest = ms;
+    }
+    if (tags.Make || tags.Model) st.hasMake++;
+  }
+
+  st.types[type] = (st.types[type] || 0) + 1;
+  st.bytes += file.size;
+  st.done++;
+}
+
+async function run(files, accLabel){
+  if (running) return;
+  running = true;
+  var conc  = Math.max(1, Math.min(16, parseInt(document.getElementById('conc').value, 10) || 4));
+  var total = files.length;
+  var st = {
+    total: total, done: 0, gps: 0, gpsTime: 0, gpsNoTime: 0, recovered: 0,
+    parseErr: 0, dated: 0, hasMake: 0, offsetTag: 0, bytes: 0,
+    oldest: null, newest: null, types: {}, accept: accLabel || '(未設)', conc: conc, sec: 0
+  };
+
+  var t0 = performance.now();
+  var idx = 0;
+
+  async function worker(){
+    while (idx < total){
+      var i = idx++;
+      await one(files[i], st);
+      if (st.done % 10 === 0 || st.done === total){
+        fill.style.width = (st.done / total * 100).toFixed(1) + '%';
+        live.textContent = st.done + ' / ' + total + '　有 GPS ' + st.gps +
+                           '　已耗時 ' + ((performance.now() - t0) / 1000).toFixed(1) + ' 秒';
+      }
+      // 每 25 張寫一次存檔點：整頁若被 iOS 終止，重開才知道死在第幾張
+      if (st.done % 25 === 0){
+        try {
+          localStorage.setItem(CK, JSON.stringify({
+            at: new Date().toISOString(), accept: st.accept, conc: conc,
+            done: st.done, total: total, gps: st.gps,
+            sec: +((performance.now() - t0) / 1000).toFixed(1)
+          }));
+        } catch (e){}
+      }
+    }
+  }
+
+  var pool = [];
+  for (var w = 0; w < conc; w++) pool.push(worker());
+  await Promise.all(pool);
+
+  st.sec = (performance.now() - t0) / 1000;
+  report(st);
+  try { localStorage.removeItem(CK); } catch (e){}
+  running = false;
+}
+
+function pctOf(n, d){ return d ? (n / d * 100).toFixed(1) + '%' : '—'; }
+function fmtDate(ms){ return ms === null ? '—' : new Date(ms).toISOString().slice(0, 16).replace('T', ' '); }
+
+function report(st){
+  var L = [];
+  L.push('=== 設定 ===');
+  L.push('accept        : ' + st.accept);
+  L.push('並行數        : ' + st.conc);
+  L.push('');
+  L.push('=== 規模 ===');
+  L.push('總張數        : ' + st.total);
+  L.push('完成          : ' + st.done + '  (' + pctOf(st.done, st.total) + ')');
+  L.push('總位元組      : ' + (st.bytes / 1048576).toFixed(1) + ' MB');
+  L.push('耗時          : ' + st.sec.toFixed(1) + ' 秒   (' +
+         (st.sec / Math.max(1, st.done) * 1000).toFixed(1) + ' ms/張)');
+  L.push('');
+  L.push('=== Safari 給了什麼（關鍵）===');
+  var keys = Object.keys(st.types).sort(function(a, b){ return st.types[b] - st.types[a]; });
+  keys.forEach(function(k){
+    L.push('  ' + k + '  ×' + st.types[k] + '  (' + pctOf(st.types[k], st.done) + ')');
+  });
+  var heic = 0, jpeg = 0;
+  keys.forEach(function(k){
+    if (/heic|heif/i.test(k)) heic += st.types[k];
+    if (/jpe?g/i.test(k))     jpeg += st.types[k];
+  });
+  L.push('  → 原始 HEIC ' + heic + ' 張，JPEG ' + jpeg + ' 張');
+  L.push(heic > 0
+    ? '  → 判定：拿得到原檔，未被轉碼（有利，A 路線可行）'
+    : '  → 判定：全部是 JPEG，可能被 Safari 轉碼過（張數上限會低）');
+  L.push('');
+  L.push('=== EXIF 命中率 ===');
+  L.push('有 GPS 座標   : ' + st.gps + '  (' + pctOf(st.gps, st.done) + ')');
+  L.push('  其中有 GPS 時間戳（可產 UTC）: ' + st.gpsTime + '  (' + pctOf(st.gpsTime, st.gps) + ')');
+  L.push('  有座標但無 GPS 時間戳        : ' + st.gpsNoTime);
+  L.push('  靠 fallback 才救回來的       : ' + st.recovered +
+         (st.recovered ? '   ← 主要解析選項有問題' : ''));
+  L.push('有 DateTimeOriginal : ' + st.dated + '  (' + pctOf(st.dated, st.done) + ')');
+  L.push('有 OffsetTimeOriginal（備援時區）: ' + st.offsetTag);
+  L.push('有相機廠牌/型號     : ' + st.hasMake);
+  L.push('解析丟例外          : ' + st.parseErr);
+  L.push('');
+  L.push('=== 時間跨度（步驟 1 的答案）===');
+  L.push('最舊照片      : ' + fmtDate(st.oldest));
+  L.push('最新照片      : ' + fmtDate(st.newest));
+  L.push('');
+  L.push('=== 結論 ===');
+  if (st.done < st.total)    L.push('※ 沒跑完，斷在第 ' + st.done + ' 張');
+  else if (st.gpsTime === 0) L.push('※ 一張都產不出 UTC 時間戳 → 這批照片做不出 Timeline.json');
+  else                       L.push('※ 可產出 ' + st.gpsTime + ' 筆帶 UTC 時間戳的座標點');
+  lastReport = L.join('\n');
+  out.textContent = lastReport;
+}
+
+// 開頁時顯示上次的存檔點：若上次整頁被 iOS 殺掉，這裡就是死亡位置
+try {
+  var ck = localStorage.getItem(CK);
+  if (ck){
+    var c = JSON.parse(ck);
+    document.getElementById('prev').innerHTML =
+      '<pre class="bad">⚠ 上次沒跑完（整頁可能被 iOS 終止）\n' +
+      '  時間    : ' + c.at + '\n' +
+      '  accept  : ' + c.accept + '　並行數 ' + c.conc + '\n' +
+      '  斷在    : ' + c.done + ' / ' + c.total + ' 張（已耗時 ' + c.sec + ' 秒）\n' +
+      '  ← 這就是天花板</pre>';
+  }
+} catch (e){}
+
+document.getElementById('copyBtn').addEventListener('click', function(){
+  var t = lastReport || out.textContent;
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(
+      function(){ live.textContent = '已複製'; },
+      function(){ live.textContent = '複製失敗，請長按上方文字選取'; }
+    );
+  } else {
+    live.textContent = '請長按上方文字選取複製';
+  }
+});
+</script>
+</body>
+</html>

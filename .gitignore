@@ -38,3 +38,6 @@ serviceAccountKey.json
 *.key
 .env
 .env.*
+
+# Office 開檔時的暫存鎖定檔
+~$*
