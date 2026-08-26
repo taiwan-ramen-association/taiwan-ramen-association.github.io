@@ -76,6 +76,10 @@
   .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;
         background:var(--open-bg);color:var(--open-txt);margin-left:6px}
   .pill.closed{background:var(--red-light);color:var(--red)}
+  .pill.dup{background:var(--pause-bg);color:var(--pause-txt)}
+  .meal.off{opacity:.5}
+  .meal-pick{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--stone)}
+  .meal-pick input{width:20px;height:20px}
 
   #saveBar{position:fixed;left:0;right:0;bottom:0;background:var(--white);
            border-top:1px solid var(--line);padding:10px 14px;
@@ -115,6 +119,14 @@
 </header>
 
 <main>
+
+<section id="secAuth">
+  <h2>0. 登入</h2>
+  <div id="authState" class="hint">檢查登入狀態…</div>
+  <button id="loginBtn" class="btn-primary" style="display:none;margin-top:8px">用 Google 登入</button>
+  <button id="logoutBtn" style="display:none;margin-top:8px">登出</button>
+  <p class="hint">未登入也能解析照片、確認每一餐；<b>只有儲存需要登入</b>。</p>
+</section>
 
 <section id="secPick">
   <h2>1. 選擇照片</h2>
@@ -178,6 +190,9 @@
   <div id="photoCap">點畫面空白處關閉</div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="vendor/exifr.full.umd.js"></script>
 <script>
 'use strict';
@@ -389,6 +404,7 @@ async function run(files){
   renderStat(total, pts.length, noGps, noTime, _groups.length, sec);
   buildMeals();
   busy = false;
+  checkDuplicates();
 }
 
 // 先按時間排序，再貪婪分群：與前一張時間差 <= 20 分且距離 <= 200m → 同一餐
@@ -436,7 +452,7 @@ function buildMeals(){
       iso: g[0].iso, photoCount: g.length, lat: cLat, lng: cLng,
       cands: cands, region: region,
       shopId: (region === 'ok' && cands.length) ? cands[0].shop.id : '',
-      itemName: '', price: '', source: 'photo-import',
+      itemName: '', price: '', source: 'photo-import', selected: true, dup: false,
       files: g.map(function(p){ return p.file; }), thumbs: []
     });
   }
@@ -566,9 +582,13 @@ function renderMeals(){
     }
 
     html +=
-      '<div class="meal" data-i="' + i + '">' +
+      '<div class="meal' + (m.selected === false ? ' off' : '') + '" data-i="' + i + '">' +
         '<div class="meal-head">' +
-          '<span class="meal-no">第 ' + (i+1) + ' 餐</span>' +
+          '<label class="meal-pick">' +
+            '<input type="checkbox" class="f-pick"' + (m.selected === false ? '' : ' checked') + '>' +
+            '<span class="meal-no">第 ' + (i+1) + ' 餐</span>' +
+            (m.dup ? '<span class="pill dup">已匯入過</span>' : '') +
+          '</label>' +
           '<span class="meal-time">' + esc(fmtLocal(m.iso)) + '　' + m.photoCount + ' 張照片</span>' +
         '</div>' +
         '<div class="thumbs">' + tHtml + '</div>' +
@@ -594,7 +614,7 @@ function renderMeals(){
     '還有 ' + PENDING + ' 餐超過本批上限（' + getLimit() + ' 餐）。存完這批之後再匯入一次即可。';
 
   $('saveBar').style.display = 'flex';
-  $('saveCnt').textContent = MEALS.length + ' 餐';
+  refreshSaveBar();
   bindMeals();
   setupThumbObserver();
   renderOut();
@@ -611,6 +631,11 @@ function bindMeals(){
     });
     card.querySelector('.f-price').addEventListener('input', function(e){
       MEALS[i].price = e.target.value; saveDraft(); renderOut();
+    });
+    card.querySelector('.f-pick').addEventListener('change', function(e){
+      MEALS[i].selected = e.target.checked;
+      card.classList.toggle('off', !e.target.checked);
+      saveDraft(); refreshSaveBar(); renderOut();
     });
     card.querySelector('.f-search').addEventListener('click', function(){ openSearch(i); });
     card.querySelector('.f-del').addEventListener('click', function(){
@@ -721,6 +746,7 @@ function buildRecords(){
   var recs = [];
   for (var i = 0; i < MEALS.length; i++){
     var m = MEALS[i];
+    if (m.selected === false) continue;     // 未勾選的不匯入
     var s = shopById(m.shopId);
     if (!s) continue;                       // 尚未選店的餐不輸出
     recs.push({
@@ -737,10 +763,14 @@ function buildRecords(){
 }
 function renderOut(){
   var recs = buildRecords();
-  var skipped = MEALS.length - recs.length;
+  var noShop = MEALS.filter(function(m){ return m.selected !== false && !shopById(m.shopId); }).length;
+  var unpicked = MEALS.filter(function(m){ return m.selected === false; }).length;
+  var notes = [];
+  if (noShop)   notes.push(noShop + ' 餐尚未選擇店家');
+  if (unpicked) notes.push(unpicked + ' 餐未勾選');
   $('secOut').style.display = MEALS.length ? 'block' : 'none';
   $('out').textContent = JSON.stringify(recs, null, 2) +
-    (skipped ? '\n\n（另有 ' + skipped + ' 餐尚未選擇店家，不會被匯入）' : '');
+    (notes.length ? '\n\n（另有 ' + notes.join('、') + '，不會被匯入）' : '');
 }
 
 // ── 草稿 ─────────────────────────────────────────────────────────────────────
@@ -749,7 +779,8 @@ function saveDraft(){
     var slim = MEALS.map(function(m){
       return { iso:m.iso, photoCount:m.photoCount, lat:m.lat, lng:m.lng,
                cands:m.cands, region:m.region, shopId:m.shopId,
-               itemName:m.itemName, price:m.price, source:m.source };
+               itemName:m.itemName, price:m.price, source:m.source,
+               selected:m.selected, dup:m.dup };
     });
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ at:Date.now(), pending:PENDING, meals:slim }));
   } catch(e){}
@@ -765,7 +796,11 @@ function offerDraft(){
   if (!d || !d.meals || !d.meals.length) return;
   if (confirm('上次有 ' + d.meals.length + ' 餐還沒存完（' + new Date(d.at).toLocaleString() +
               '）。\n要接續編輯嗎？\n\n按「取消」會丟棄那份草稿。')){
-    MEALS = d.meals.map(function(m){ m.files = []; m.thumbs = []; return m; });
+    MEALS = d.meals.map(function(m){
+      m.files = []; m.thumbs = [];
+      if (m.selected === undefined) m.selected = true;
+      return m;
+    });
     PENDING = d.pending || 0;
     $('draftNote').style.display = 'block';
     renderMeals();
@@ -774,11 +809,151 @@ function offerDraft(){
   }
 }
 
-$('saveBtn').addEventListener('click', function(){
+// ── Firebase ─────────────────────────────────────────────────────────────────
+var firebaseConfig = {
+  apiKey: "AIzaSyBdN0AYZMM2AU66QcH4BVNJHx1plwQBBYc",
+  authDomain: "taiwan-ramen-association.web.app",
+  projectId: "taiwan-ramen-association",
+  storageBucket: "taiwan-ramen-association.firebasestorage.app",
+  messagingSenderId: "66234065738",
+  appId: "1:66234065738:web:eb9fc4348a942da66ad7b3"
+};
+firebase.initializeApp(firebaseConfig);
+var auth = firebase.auth();
+var db   = firebase.firestore();
+var _user = null;
+
+function mealsCol(uid){ return db.collection('userMeals').doc(uid).collection('meals'); }
+
+auth.onAuthStateChanged(function(u){
+  _user = u || null;
+  if (_user){
+    $('authState').innerHTML = '已登入：<b>' + esc(_user.displayName || _user.email || _user.uid) + '</b>';
+    $('loginBtn').style.display = 'none';
+    $('logoutBtn').style.display = 'inline-block';
+    checkDuplicates();                 // 登入後才查得到既有紀錄
+  } else {
+    $('authState').textContent = '尚未登入 — 可以先解析與確認，儲存前再登入即可。';
+    $('loginBtn').style.display = 'inline-block';
+    $('logoutBtn').style.display = 'none';
+  }
+  refreshSaveBar();
+});
+
+$('loginBtn').addEventListener('click', function(){
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(function(e){ alert('登入失敗：' + e.message); });
+});
+$('logoutBtn').addEventListener('click', function(){ auth.signOut(); });
+
+// ── 去重：只撈這批照片的時間範圍。單欄位範圍查詢，不需複合索引，
+//    也不會把重度使用者幾千筆歷史全拉下來（那是實打實的讀取費用）。
+async function checkDuplicates(){
+  if (!_user || !MEALS.length) return;
+  var times = MEALS.map(function(m){ return Date.parse(m.iso); }).filter(isFinite);
+  if (!times.length) return;
+  var lo = new Date(Math.min.apply(null, times) - 60000);
+  var hi = new Date(Math.max.apply(null, times) + 60000);
+  try {
+    var snap = await mealsCol(_user.uid)
+      .where('diningTime', '>=', firebase.firestore.Timestamp.fromDate(lo))
+      .where('diningTime', '<=', firebase.firestore.Timestamp.fromDate(hi))
+      .get();
+    var seen = {};
+    snap.forEach(function(d){ var k = d.data().dedupKey; if (k) seen[k] = true; });
+    var n = 0;
+    for (var i = 0; i < MEALS.length; i++){
+      var m = MEALS[i], sh = shopById(m.shopId);
+      m.dup = !!(sh && seen[dedupKeyOf(sh.id, m.iso)]);
+      if (m.dup){ m.selected = false; n++; }   // 預設不勾，但使用者仍可勾回來
+    }
+    if (n){ saveDraft(); renderMeals(); }
+  } catch(e){
+    console.warn('[dedup] ' + e.message);
+  }
+}
+
+// ── 儲存 ─────────────────────────────────────────────────────────────────────
+function refreshSaveBar(){
   var recs = buildRecords();
-  if (!recs.length){ alert('目前沒有可儲存的紀錄（每一餐都要先選好店家）。'); return; }
-  alert('Phase 1 第一步尚未接上 Firebase。\n\n' + recs.length + ' 餐已整理完成，' +
-        '內容請看下方「將寫入的紀錄」。\n確認格式無誤後，下一步才接 Firestore 寫入。');
+  $('saveCnt').textContent = recs.length + ' / ' + MEALS.length + ' 餐';
+  var btn = $('saveBtn');
+  btn.disabled = !_user || !recs.length;
+  btn.textContent = !_user ? '請先登入才能儲存'
+                  : !recs.length ? '沒有勾選任何一餐'
+                  : '儲存這 ' + recs.length + ' 餐';
+}
+
+// 制霸地圖同步：null/0/0.2 → 1；1–10 不動；20（從業過）絕對不動。
+// 覆寫 20 等於把店家從業者降級成一般客人，現存資料裡真的有 23 筆。
+function visitUpdates(existing, shopIds){
+  var out = {}, n = 0;
+  for (var i = 0; i < shopIds.length; i++){
+    var id = shopIds[i], cur = existing[id];
+    if (cur === 20) continue;
+    if (cur === null || cur === undefined || cur === 0 || cur === 0.2){ out[id] = 1; n++; }
+  }
+  return { updates: out, count: n };
+}
+
+$('saveBtn').addEventListener('click', async function(){
+  if (!_user) return;
+  var recs = buildRecords();
+  if (!recs.length) return;
+  var btn = $('saveBtn');
+  btn.disabled = true; btn.textContent = '儲存中…';
+
+  try {
+    // 1) 批次寫入用餐紀錄（Firestore 上限 500 ops，我們最多 50）
+    var batch = db.batch();
+    var now = firebase.firestore.FieldValue.serverTimestamp();
+    recs.forEach(function(r){
+      batch.set(mealsCol(_user.uid).doc(), {
+        shopId: r.shopId, shopName: r.shopName,
+        itemName: r.itemName, price: r.price,
+        diningTime: firebase.firestore.Timestamp.fromDate(new Date(r.diningTime)),
+        photoCount: r.photoCount, dedupKey: r.dedupKey,
+        source: r.source, createdAt: now
+      });
+    });
+    await batch.commit();
+
+    // 2) 同步點亮制霸地圖
+    var ids = {};
+    recs.forEach(function(r){ ids[r.shopId] = true; });
+    var shopIds = Object.keys(ids);
+    var vRef = db.collection('userVisits').doc(_user.uid);
+    var vSnap = await vRef.get();
+    var visits = (vSnap.exists && vSnap.data().visits) || {};
+    var vu = visitUpdates(visits, shopIds);
+    var lit = 0;
+    if (vu.count){
+      await vRef.set({ visits: vu.updates }, { merge: true });
+      lit = vu.count;
+      for (var k in vu.updates) visits[k] = vu.updates[k];
+      var cnt = Object.keys(visits).filter(function(id){
+        var v = visits[id];
+        return v != null && (v >= 1 || v === 20);
+      }).length;
+      db.collection('userProfiles').doc(_user.uid)
+        .set({ conqueredCount: cnt }, { merge: true }).catch(function(){});
+    }
+
+    // 3) 收尾
+    releaseAllThumbs();
+    MEALS = []; _groups = []; PENDING = 0;
+    clearDraft();
+    renderMeals();
+    $('secOut').style.display = 'none';
+    $('saveBar').style.display = 'none';
+    alert('已儲存 ' + recs.length + ' 餐。' +
+          '\n制霸地圖新點亮 ' + lit + ' 家店。' +
+          (!lit ? '\n（這些店你先前都已踩過點，所以數字沒變）' : ''));
+  } catch(e){
+    alert('儲存失敗：' + e.message + '\n\n草稿還在，可以再試一次。');
+    console.error(e);
+    refreshSaveBar();
+  }
 });
 
 // ── 啟動 ─────────────────────────────────────────────────────────────────────
