@@ -36,6 +36,8 @@
   .hint{font-size:12px;color:var(--stone);margin:6px 0 0}
   .warn{background:var(--pause-bg);color:var(--pause-txt);border-radius:8px;padding:10px;font-size:13px}
   .info{background:var(--prep-bg);color:var(--prep-txt);border-radius:8px;padding:10px;font-size:13px}
+  .alert{background:var(--red-light);color:var(--red);border-radius:8px;padding:8px 10px;
+         font-size:12.5px;margin:8px 0 0}
 
   input[type=file]{font-size:15px;width:100%}
   input[type=text],input[type=number],select{
@@ -47,6 +49,9 @@
   .btn-primary{background:var(--red);color:#fff;border-color:var(--red);font-weight:700}
   .btn-primary:disabled{opacity:.45}
   .btn-link{border:none;background:none;color:var(--red);padding:4px 0;text-decoration:underline;font-size:13px}
+  .field{display:flex;align-items:center;gap:10px;margin-top:4px}
+  .field label{font-size:13px;color:var(--stone);white-space:nowrap}
+  .field select{flex:0 0 auto;width:auto}
 
   #bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:10px 0 6px}
   #barFill{height:100%;width:0;background:var(--red);transition:width .12s}
@@ -56,6 +61,12 @@
   .meal-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
   .meal-time{font-size:13px;color:var(--stone)}
   .meal-no{font-weight:700;color:var(--red)}
+  .thumbs{display:flex;gap:6px;margin:0 0 10px;flex-wrap:wrap}
+  .thumb{width:56px;height:56px;border-radius:7px;object-fit:cover;background:var(--line);
+         border:1px solid var(--line);display:block}
+  .thumb-more{width:56px;height:56px;border-radius:7px;background:var(--line);color:var(--stone);
+              display:flex;align-items:center;justify-content:center;font-size:13px}
+  .thumb-none{font-size:12px;color:var(--stone);padding:4px 0}
   .row{display:flex;gap:8px;margin-top:8px}
   .row>*{flex:1}
   .meal-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
@@ -74,11 +85,23 @@
   #saveBar button{flex:1}
 
   #searchOverlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:50}
-  #searchBox{position:absolute;left:0;right:0;top:0;bottom:0;background:var(--paper);
+  #searchBox{position:absolute;inset:0;background:var(--paper);
              display:flex;flex-direction:column;padding:12px;padding-top:calc(12px + env(safe-area-inset-top))}
   #searchList{flex:1;overflow-y:auto;margin-top:10px}
   .sr{padding:11px 10px;border-bottom:1px solid var(--line);font-size:14px}
   .sr small{color:var(--stone);display:block;font-size:12px}
+
+  /* 放大檢視：同時間只有一張全圖在記憶體，關閉即釋放 */
+  #photoOverlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;z-index:60;
+                align-items:center;justify-content:center}
+  #photoOverlay img{max-width:88vw;max-height:62vh;border-radius:10px;display:block}
+  #photoOverlay .nav{position:absolute;top:50%;transform:translateY(-50%);
+        background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:50%;
+        width:44px;height:44px;font-size:26px;line-height:1;padding:0}
+  #photoPrev{left:10px} #photoNext{right:10px}
+  #photoOverlay .nav:disabled{opacity:.25}
+  #photoCap{position:absolute;bottom:calc(22px + env(safe-area-inset-bottom));left:0;right:0;
+            text-align:center;color:#fff;font-size:12.5px;opacity:.85}
 
   pre{background:var(--white);border:1px solid var(--line);border-radius:8px;padding:11px;
       font-size:11px;line-height:1.5;overflow-x:auto;white-space:pre;margin:10px 0 0}
@@ -99,6 +122,15 @@
   <p class="hint">
     建議先在 iOS 相簿的<b>搜尋列打「拉麵」</b>再全選，選出來的張數少、等待短，也不會混進無關照片。
   </p>
+  <div class="field">
+    <label for="limitSel">一批最多</label>
+    <select id="limitSel">
+      <option value="20">20 餐</option>
+      <option value="30">30 餐</option>
+      <option value="40">40 餐</option>
+      <option value="50">50 餐</option>
+    </select>
+  </div>
   <div id="estimate" class="warn" style="display:none"></div>
   <div id="bar"><div id="barFill"></div></div>
   <div id="live"></div>
@@ -111,6 +143,9 @@
 
 <section id="secMeals" style="display:none">
   <h2>3. 確認每一餐</h2>
+  <div id="draftNote" class="info" style="display:none">
+    這是還原的草稿。照片檔在關閉分頁後就不在了，所以<b>沒有縮圖</b>，但其他資料都在。
+  </div>
   <div id="meals"></div>
   <div id="overflow" class="info" style="display:none"></div>
 </section>
@@ -136,18 +171,33 @@
   <div id="searchList"></div>
 </div></div>
 
+<div id="photoOverlay">
+  <button id="photoPrev" class="nav">‹</button>
+  <img id="photoImg" alt="">
+  <button id="photoNext" class="nav">›</button>
+  <div id="photoCap">點畫面空白處關閉</div>
+</div>
+
 <script src="vendor/exifr.full.umd.js"></script>
 <script>
 'use strict';
 
-// ── 常數 ──────────────────────────────────────────────────────────────────────
+// ── 可調常數 ──────────────────────────────────────────────────────────────────
 var GROUP_MINUTES  = 20;      // 同店 20 分鐘內視為同一餐
 var GROUP_METERS   = 200;     // 分群的空間門檻（室內 GPS 誤差可達 100m）
 var CANDIDATES     = 5;       // 候選店家數
-var MAX_MEALS      = 20;      // 一批上限
+var DEFAULT_LIMIT  = 30;      // 一批上限預設值（頁面上可改）
+var THUMBS_PER_MEAL= 2;       // 每餐最多產生幾張縮圖（每張約需解一次圖，不宜多）
+var EAGER_MEALS    = 3;       // 開頭幾餐的縮圖立刻產生，其餘等捲到才做
+var FAR_METERS     = 10000;   // 超過這個距離視為「這家店可能還沒收錄」
 var CONCURRENCY    = 4;
-var DRAFT_KEY      = 'ramen_import_draft_v1';
-var SPEED_KEY      = 'ramen_import_ms_per_photo';
+
+// 台灣（含澎湖、金門、馬祖）的粗略邊界；落在框外視為海外
+var TW_BOX = { latMin:21.5, latMax:26.5, lngMin:118.0, lngMax:122.2 };
+
+var DRAFT_KEY = 'ramen_import_draft_v1';
+var SPEED_KEY = 'ramen_import_ms_per_photo';
+var LIMIT_KEY = 'ramen_import_batch_limit';
 
 var PARSE_OPTS = {
   tiff:true, ifd0:true, exif:true, gps:true,
@@ -156,9 +206,10 @@ var PARSE_OPTS = {
   mergeOutput:true, silentErrors:true
 };
 
-var SHOPS = [];   // { id, name, city, town, status, lat, lng }
-var MEALS = [];   // 確認中的餐
-var PENDING = 0;  // 超過 20 筆的餘量
+var SHOPS   = [];   // { id, name, city, town, status, lat, lng }
+var MEALS   = [];   // 確認中的餐
+var _groups = [];   // 本次匯入的完整分群結果（供改上限時重切）
+var PENDING = 0;
 var busy = false;
 
 // ── 工具 ──────────────────────────────────────────────────────────────────────
@@ -186,9 +237,16 @@ function fmtLocal(iso){
   return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) +
          ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
 }
-// dedupKey 用 UTC 分鐘精度，跨時區重跑仍是同一把鑰匙
 function dedupKeyOf(shopId, iso){
   return shopId + '_' + iso.slice(0,16).replace(/[-:T]/g,'');
+}
+function inTaiwan(lat, lng){
+  return lat >= TW_BOX.latMin && lat <= TW_BOX.latMax &&
+         lng >= TW_BOX.lngMin && lng <= TW_BOX.lngMax;
+}
+function getLimit(){
+  var v = parseInt(localStorage.getItem(LIMIT_KEY) || '', 10);
+  return (v === 20 || v === 30 || v === 40 || v === 50) ? v : DEFAULT_LIMIT;
 }
 
 // ── EXIF ─────────────────────────────────────────────────────────────────────
@@ -202,8 +260,8 @@ function toDeg(v, ref){
   }
   return null;
 }
-// GPSDateStamp + GPSTimeStamp 本身就是 UTC，直接組出帶 Z 的字串，
-// 不能用 DateTimeOriginal（它沒有時區）
+// GPSDateStamp + GPSTimeStamp 本身就是 UTC，直接組出帶 Z 的字串。
+// 不能只用 DateTimeOriginal — 它沒有時區。
 function utcFromGps(ds, ts){
   if (typeof ds !== 'string') return null;
   var m = ds.match(/^(\d{4})[:\-](\d{2})[:\-](\d{2})/);
@@ -214,7 +272,6 @@ function utcFromGps(ds, ts){
   var p = function(n){ n = Math.floor(n); return (n<10?'0':'') + n; };
   return m[1]+'-'+m[2]+'-'+m[3]+'T'+p(h)+':'+p(mi)+':'+p(se)+'Z';
 }
-// 備援：DateTimeOriginal + OffsetTimeOriginal（實測 100% 存在，但仍防禦性處理）
 function utcFromLocal(dto, off){
   if (typeof dto !== 'string' || typeof off !== 'string') return null;
   var m = dto.match(/^(\d{4})[:\-](\d{2})[:\-](\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
@@ -234,14 +291,13 @@ async function loadShops(){
     var r = raw[i];
     var la = parseFloat(r.lat), ln = parseFloat(r.lng);
     if (!isFinite(la) || !isFinite(ln)) continue;
+    // 已歇業的店照樣保留：使用者的照片可能是過去拍的
     SHOPS.push({
       id: r.ID, name: r['店名'], city: r['縣市'] || '', town: r['鄉鎮市區'] || '',
       status: r['營業狀態'] || '', lat: la, lng: ln
     });
   }
-  // 已歇業的店照樣保留：使用者的照片可能是過去拍的
 }
-
 function nearest(lat, lng, n){
   var out = [];
   for (var i = 0; i < SHOPS.length; i++){
@@ -249,6 +305,10 @@ function nearest(lat, lng, n){
   }
   out.sort(function(a,b){ return a.d - b.d; });
   return out.slice(0, n);
+}
+function shopById(id){
+  for (var i = 0; i < SHOPS.length; i++) if (SHOPS[i].id === id) return SHOPS[i];
+  return null;
 }
 
 // ── 選檔 ──────────────────────────────────────────────────────────────────────
@@ -265,16 +325,14 @@ function buildInput(){
   wrap.appendChild(inp);
   showEstimate();
 }
-
 function showEstimate(){
   var ms = parseFloat(localStorage.getItem(SPEED_KEY) || '');
   var el = $('estimate');
+  el.style.display = 'block';
   if (!isFinite(ms)) {
-    el.style.display = 'block';
     el.innerHTML = '⚠️ 按下相簿的「打勾」之後，畫面會停住一段時間沒有反應——' +
                    '那是 iOS 在轉檔，<b>不是當掉</b>。張數越多等越久，手機可能會發熱。';
   } else {
-    el.style.display = 'block';
     el.innerHTML = '⚠️ 按下「打勾」後畫面會停住（iOS 轉檔中，<b>不是當掉</b>）。' +
                    '依你上次的速度，每 100 張約需 <b>' + Math.round(ms*100/1000) + ' 秒</b>。';
   }
@@ -284,17 +342,18 @@ function showEstimate(){
 async function run(files){
   if (busy) return;
   busy = true;
+  releaseAllThumbs();
+  $('draftNote').style.display = 'none';
   $('secStat').style.display = 'block';
   $('stat').innerHTML = '<span class="hint">解析中…</span>';
 
   var total = files.length, done = 0, idx = 0;
-  var pts = [], noGps = 0, noTime = 0, types = {};
+  var pts = [], noGps = 0, noTime = 0;
   var t0 = performance.now();
 
   async function worker(){
     while (idx < total){
       var f = files[idx++];
-      types[f.type || '(空白)'] = (types[f.type || '(空白)'] || 0) + 1;
       var tags = null;
       try { tags = await exifr.parse(f, PARSE_OPTS); } catch(e){}
       var lat = tags ? toDeg(tags.GPSLatitude, tags.GPSLatitudeRef) : null;
@@ -310,7 +369,7 @@ async function run(files){
         var iso = utcFromGps(tags && tags.GPSDateStamp, tags && tags.GPSTimeStamp)
                || utcFromLocal(tags && tags.DateTimeOriginal, tags && tags.OffsetTimeOriginal);
         if (!iso) noTime++;
-        else pts.push({ lat: lat, lng: lng, iso: iso, t: Date.parse(iso) });
+        else pts.push({ lat: lat, lng: lng, iso: iso, t: Date.parse(iso), file: f });
       }
       done++;
       if (done % 10 === 0 || done === total){
@@ -326,9 +385,9 @@ async function run(files){
   var sec = (performance.now() - t0) / 1000;
   try { localStorage.setItem(SPEED_KEY, String(sec*1000/Math.max(1,total))); } catch(e){}
 
-  var groups = groupPhotos(pts);
-  renderStat(total, pts.length, noGps, noTime, groups.length, types, sec);
-  buildMeals(groups);
+  _groups = groupPhotos(pts);
+  renderStat(total, pts.length, noGps, noTime, _groups.length, sec);
+  buildMeals();
   busy = false;
 }
 
@@ -340,54 +399,129 @@ function groupPhotos(pts){
     var p = pts[i];
     if (cur){
       var last = cur[cur.length-1];
-      var dtMin = (p.t - last.t) / 60000;
-      var dist  = haversine(last.lat, last.lng, p.lat, p.lng);
-      if (dtMin <= GROUP_MINUTES && dist <= GROUP_METERS){ cur.push(p); continue; }
+      if ((p.t - last.t)/60000 <= GROUP_MINUTES &&
+          haversine(last.lat, last.lng, p.lat, p.lng) <= GROUP_METERS){ cur.push(p); continue; }
     }
     cur = [p]; gs.push(cur);
   }
   return gs;
 }
 
-function renderStat(total, withGps, noGps, noTime, meals, types, sec){
-  var lines = [];
-  lines.push('<div>共選了 <b>' + total + '</b> 張，耗時 ' + sec.toFixed(1) + ' 秒</div>');
-  lines.push('<div>有 GPS 可用：<b>' + withGps + '</b> 張　→　分成 <b>' + meals + '</b> 餐</div>');
-  if (noGps)  lines.push('<div class="hint">' + noGps + ' 張沒有 GPS（螢幕截圖、LINE／IG 轉存的照片會被剝除定位，數位相機多半也沒有）— 這些無法匯入</div>');
-  if (noTime) lines.push('<div class="hint">' + noTime + ' 張有座標但沒有可用時間戳 — 已略過</div>');
-  $('stat').innerHTML = lines.join('');
+function renderStat(total, withGps, noGps, noTime, meals, sec){
+  var L = [];
+  L.push('<div>共選了 <b>' + total + '</b> 張，耗時 ' + sec.toFixed(1) + ' 秒</div>');
+  L.push('<div>有 GPS 可用：<b>' + withGps + '</b> 張　→　分成 <b>' + meals + '</b> 餐</div>');
+  if (noGps)  L.push('<div class="hint">' + noGps + ' 張沒有 GPS（螢幕截圖、LINE／IG 轉存的照片會被剝除定位，數位相機多半也沒有）— 這些無法匯入</div>');
+  if (noTime) L.push('<div class="hint">' + noTime + ' 張有座標但沒有可用時間戳 — 已略過</div>');
+  $('stat').innerHTML = L.join('');
 }
 
 // ── 餐卡 ─────────────────────────────────────────────────────────────────────
-function buildMeals(groups){
+function buildMeals(){
+  releaseAllThumbs();
   MEALS = [];
-  PENDING = Math.max(0, groups.length - MAX_MEALS);
-  var use = groups.slice(0, MAX_MEALS);
+  var limit = getLimit();
+  PENDING = Math.max(0, _groups.length - limit);
+  var use = _groups.slice(0, limit);
   for (var i = 0; i < use.length; i++){
     var g = use[i];
     var cLat = median(g.map(function(p){ return p.lat; }));
     var cLng = median(g.map(function(p){ return p.lng; }));
     var cands = nearest(cLat, cLng, CANDIDATES);
+    // 海外 / 未收錄都不預選店家，避免硬塞一個幾十公里外的店
+    var region = !inTaiwan(cLat, cLng) ? 'oversea'
+               : (cands.length && cands[0].d > FAR_METERS) ? 'uncovered'
+               : 'ok';
     MEALS.push({
       iso: g[0].iso, photoCount: g.length, lat: cLat, lng: cLng,
-      cands: cands, shopId: cands.length ? cands[0].shop.id : '',
-      itemName: '', price: '', source: 'photo-import'
+      cands: cands, region: region,
+      shopId: (region === 'ok' && cands.length) ? cands[0].shop.id : '',
+      itemName: '', price: '', source: 'photo-import',
+      files: g.map(function(p){ return p.file; }), thumbs: []
     });
   }
   renderMeals();
   saveDraft();
 }
 
-function shopById(id){
-  for (var i = 0; i < SHOPS.length; i++) if (SHOPS[i].id === id) return SHOPS[i];
+// ── 縮圖 ─────────────────────────────────────────────────────────────────────
+// 一張 12MP 照片解碼成點陣圖約 48MB，60 張同時載入手機必死。
+// 所以優先讀 EXIF 內嵌縮圖（完全不解全圖），沒有才退回 canvas，且一次只處理一張。
+async function thumbUrl(file){
+  try {
+    var u8 = await exifr.thumbnail(file);
+    if (u8 && u8.length) return URL.createObjectURL(new Blob([u8], { type:'image/jpeg' }));
+  } catch(e){}
+  try {
+    var bmp = await createImageBitmap(file, { resizeWidth:112, resizeQuality:'low' });
+    var cv = document.createElement('canvas');
+    cv.width = bmp.width; cv.height = bmp.height;
+    cv.getContext('2d').drawImage(bmp, 0, 0);
+    bmp.close();
+    var blob = await new Promise(function(ok){ cv.toBlob(ok, 'image/jpeg', 0.7); });
+    cv.width = cv.height = 0;
+    if (blob) return URL.createObjectURL(blob);
+  } catch(e){}
   return null;
 }
+// 若 EXIF 沒有內嵌縮圖，fallback 每張都要解一次全圖。30 餐 × 4 張在手機上會磨很久又發熱，
+// 所以只在卡片捲進畫面時才產生，而且全域排隊、同時間只解一張。
+var _thumbQueue = Promise.resolve();
+var _thumbIO = null;
+
+function hydrateMeal(i){
+  _thumbQueue = _thumbQueue.then(async function(){
+    var m = MEALS[i];
+    if (!m || !m.files || !m.files.length || m._hydrated) return;
+    m._hydrated = true;
+    var n = Math.min(m.files.length, THUMBS_PER_MEAL);
+    for (var j = 0; j < n; j++){
+      if (m.thumbs[j]) continue;
+      var url = await thumbUrl(m.files[j]);
+      if (!url) continue;
+      m.thumbs[j] = url;
+      var img = document.querySelector('.thumb[data-i="' + i + '"][data-j="' + j + '"]');
+      if (img) img.src = url;
+    }
+  }).catch(function(){});
+}
+
+function setupThumbObserver(){
+  if (_thumbIO){ _thumbIO.disconnect(); _thumbIO = null; }
+  var cards = document.querySelectorAll('.meal');
+  // 前幾餐一律先產生：不依賴 observer 一定會觸發（分頁在背景時它可能不發），
+  // 畫面上永遠至少有東西可看
+  for (var e = 0; e < Math.min(EAGER_MEALS, cards.length); e++){
+    hydrateMeal(parseInt(cards[e].dataset.i, 10));
+  }
+  if (!('IntersectionObserver' in window)){
+    Array.prototype.forEach.call(cards, function(c){ hydrateMeal(parseInt(c.dataset.i,10)); });
+    return;
+  }
+  _thumbIO = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if (!en.isIntersecting) return;
+      _thumbIO.unobserve(en.target);
+      hydrateMeal(parseInt(en.target.dataset.i, 10));
+    });
+  }, { rootMargin: '300px 0px' });
+  Array.prototype.forEach.call(cards, function(c){ _thumbIO.observe(c); });
+}
+function releaseThumbs(m){
+  if (!m || !m.thumbs) return;
+  for (var i = 0; i < m.thumbs.length; i++){
+    if (m.thumbs[i]) { try { URL.revokeObjectURL(m.thumbs[i]); } catch(e){} }
+  }
+  m.thumbs = [];
+}
+function releaseAllThumbs(){ for (var i = 0; i < MEALS.length; i++) releaseThumbs(MEALS[i]); }
 
 function renderMeals(){
   var host = $('meals');
   if (!MEALS.length){
     $('secMeals').style.display = 'none';
     $('saveBar').style.display = 'none';
+    $('secOut').style.display = 'none';
     return;
   }
   $('secMeals').style.display = 'block';
@@ -399,7 +533,7 @@ function renderMeals(){
     for (var j = 0; j < m.cands.length; j++){
       if (m.cands[j].shop.id === m.shopId){ inList = true; dist = m.cands[j].d; }
     }
-    var opts = '';
+    var opts = m.shopId ? '' : '<option value="" selected>— 請選擇店家 —</option>';
     for (var k = 0; k < m.cands.length; k++){
       var c = m.cands[k];
       var closed = c.shop.status !== '營業中' ? '（' + c.shop.status + '）' : '';
@@ -409,12 +543,36 @@ function renderMeals(){
     if (!inList && sel){
       opts += '<option value="' + esc(sel.id) + '" selected>' + esc(sel.name) + '（手動指定）</option>';
     }
+
+    var alert = '';
+    if (m.region === 'oversea'){
+      alert = '<div class="alert">🌏 <b>這張照片不在台灣</b>（日本或其他國家的店尚未收錄）。' +
+              '下方候選僅供參考，請自行選擇或刪除這餐。</div>';
+    } else if (m.region === 'uncovered'){
+      alert = '<div class="alert">📍 最近的拉麵店在 <b>' + fmtDist(m.cands[0].d) +
+              '</b> 外，<b>這家可能還沒收錄</b>。請自行搜尋或刪除這餐。</div>';
+    }
+
+    var tHtml = '';
+    if (m.files && m.files.length){
+      var show = Math.min(m.files.length, THUMBS_PER_MEAL);
+      for (var t = 0; t < show; t++){
+        tHtml += '<img class="thumb" data-i="' + i + '" data-j="' + t + '"' +
+                 (m.thumbs[t] ? ' src="' + m.thumbs[t] + '"' : '') + ' alt="">';
+      }
+      if (m.files.length > show) tHtml += '<div class="thumb-more">+' + (m.files.length - show) + '</div>';
+    } else {
+      tHtml = '<div class="thumb-none">（草稿還原，無縮圖）</div>';
+    }
+
     html +=
       '<div class="meal" data-i="' + i + '">' +
         '<div class="meal-head">' +
           '<span class="meal-no">第 ' + (i+1) + ' 餐</span>' +
           '<span class="meal-time">' + esc(fmtLocal(m.iso)) + '　' + m.photoCount + ' 張照片</span>' +
         '</div>' +
+        '<div class="thumbs">' + tHtml + '</div>' +
+        alert +
         '<select class="f-shop">' + opts + '</select>' +
         '<button class="btn-link f-search">🔍 不在清單內？搜尋店名</button>' +
         '<div class="row">' +
@@ -422,7 +580,7 @@ function renderMeals(){
           '<input type="number" class="f-price" placeholder="價格（選填）" inputmode="numeric" value="' + esc(m.price) + '" style="flex:0 0 34%">' +
         '</div>' +
         '<div class="meal-foot">' +
-          '<span class="dist">' + (dist !== null ? '距離 ' + fmtDist(dist) : '手動指定') +
+          '<span class="dist">' + (dist !== null ? '距離 ' + fmtDist(dist) : (m.shopId ? '手動指定' : '尚未選擇')) +
             (sel && sel.status !== '營業中' ? '<span class="pill closed">' + esc(sel.status) + '</span>' : '') +
           '</span>' +
           '<button class="del f-del">刪除這餐</button>' +
@@ -433,17 +591,17 @@ function renderMeals(){
 
   $('overflow').style.display = PENDING ? 'block' : 'none';
   if (PENDING) $('overflow').textContent =
-    '還有 ' + PENDING + ' 餐超過本批上限（' + MAX_MEALS + ' 餐）。存完這批之後再匯入一次即可。';
+    '還有 ' + PENDING + ' 餐超過本批上限（' + getLimit() + ' 餐）。存完這批之後再匯入一次即可。';
 
   $('saveBar').style.display = 'flex';
   $('saveCnt').textContent = MEALS.length + ' 餐';
   bindMeals();
+  setupThumbObserver();
   renderOut();
 }
 
 function bindMeals(){
-  var cards = document.querySelectorAll('.meal');
-  Array.prototype.forEach.call(cards, function(card){
+  Array.prototype.forEach.call(document.querySelectorAll('.meal'), function(card){
     var i = parseInt(card.dataset.i, 10);
     card.querySelector('.f-shop').addEventListener('change', function(e){
       MEALS[i].shopId = e.target.value; saveDraft(); renderMeals();
@@ -456,10 +614,58 @@ function bindMeals(){
     });
     card.querySelector('.f-search').addEventListener('click', function(){ openSearch(i); });
     card.querySelector('.f-del').addEventListener('click', function(){
-      MEALS.splice(i, 1); saveDraft(); renderMeals();
+      var m = MEALS[i];
+      var s = shopById(m.shopId);
+      if (!confirm('確定刪除第 ' + (i+1) + ' 餐嗎？\n\n' + fmtLocal(m.iso) +
+                   (s ? '　' + s.name : '') + '\n\n刪除後這餐不會被匯入。')) return;
+      releaseThumbs(m);
+      MEALS.splice(i, 1);
+      saveDraft(); renderMeals();
+    });
+    Array.prototype.forEach.call(card.querySelectorAll('.thumb'), function(img){
+      img.addEventListener('click', function(){
+        openPhoto(parseInt(img.dataset.i,10), parseInt(img.dataset.j,10));
+      });
     });
   });
 }
+
+// ── 放大檢視 ──────────────────────────────────────────────────────────────────
+var _photoUrl = null, _photoI = -1, _photoJ = -1;
+function openPhoto(i, j){
+  var m = MEALS[i];
+  if (!m || !m.files || !m.files[j]) return;
+  revokePhoto();
+  _photoI = i; _photoJ = j;
+  _photoUrl = URL.createObjectURL(m.files[j]);   // 同時間只有一張全圖在記憶體
+  $('photoImg').src = _photoUrl;
+  $('photoCap').textContent = fmtLocal(m.iso) + '　第 ' + (j+1) + ' / ' + m.files.length +
+                              ' 張　·　點空白處關閉';
+  $('photoPrev').disabled = (j <= 0);
+  $('photoNext').disabled = (j >= m.files.length - 1);
+  $('photoOverlay').style.display = 'flex';
+}
+function revokePhoto(){
+  $('photoImg').removeAttribute('src');
+  if (_photoUrl){ try { URL.revokeObjectURL(_photoUrl); } catch(e){} _photoUrl = null; }
+}
+function closePhoto(){
+  $('photoOverlay').style.display = 'none';
+  revokePhoto();
+  _photoI = _photoJ = -1;
+}
+function stepPhoto(d){
+  if (_photoI < 0) return;
+  var m = MEALS[_photoI];
+  var nj = _photoJ + d;
+  if (!m || nj < 0 || nj >= m.files.length) return;
+  openPhoto(_photoI, nj);
+}
+$('photoPrev').addEventListener('click', function(e){ e.stopPropagation(); stepPhoto(-1); });
+$('photoNext').addEventListener('click', function(e){ e.stopPropagation(); stepPhoto(1); });
+$('photoOverlay').addEventListener('click', function(e){
+  if (e.target.id !== 'photoImg') closePhoto();   // 點空白處關閉，點圖片與箭頭不關
+});
 
 // ── 店名搜尋 ──────────────────────────────────────────────────────────────────
 var _searchFor = -1;
@@ -471,13 +677,11 @@ function openSearch(i){
   $('searchInput').focus();
 }
 function closeSearch(){ $('searchOverlay').style.display = 'none'; _searchFor = -1; }
-
 $('searchClose').addEventListener('click', closeSearch);
 $('searchInput').addEventListener('input', function(e){
   var q = e.target.value.trim();
   if (!q){ $('searchList').innerHTML = ''; return; }
-  var m = MEALS[_searchFor];
-  var hits = [];
+  var m = MEALS[_searchFor], hits = [];
   for (var i = 0; i < SHOPS.length && hits.length < 40; i++){
     if (SHOPS[i].name && SHOPS[i].name.indexOf(q) >= 0) hits.push(SHOPS[i]);
   }
@@ -499,13 +703,26 @@ $('searchList').addEventListener('click', function(e){
   closeSearch(); saveDraft(); renderMeals();
 });
 
+// ── 批次上限 ──────────────────────────────────────────────────────────────────
+$('limitSel').addEventListener('change', function(e){
+  var v = parseInt(e.target.value, 10);
+  var edited = MEALS.some(function(m){ return m.itemName || m.price; });
+  if (_groups.length && edited &&
+      !confirm('改變上限會重新整理本批，已填的品項與價格會清除。要繼續嗎？')){
+    e.target.value = String(getLimit());
+    return;
+  }
+  try { localStorage.setItem(LIMIT_KEY, String(v)); } catch(err){}
+  if (_groups.length) buildMeals();
+});
+
 // ── 輸出預覽（Phase 1 第一步不寫 Firestore）──────────────────────────────────
 function buildRecords(){
   var recs = [];
   for (var i = 0; i < MEALS.length; i++){
     var m = MEALS[i];
     var s = shopById(m.shopId);
-    if (!s) continue;
+    if (!s) continue;                       // 尚未選店的餐不輸出
     recs.push({
       shopId: s.id, shopName: s.name,
       itemName: m.itemName || null,
@@ -520,14 +737,21 @@ function buildRecords(){
 }
 function renderOut(){
   var recs = buildRecords();
-  $('secOut').style.display = recs.length ? 'block' : 'none';
-  $('out').textContent = JSON.stringify(recs, null, 2);
+  var skipped = MEALS.length - recs.length;
+  $('secOut').style.display = MEALS.length ? 'block' : 'none';
+  $('out').textContent = JSON.stringify(recs, null, 2) +
+    (skipped ? '\n\n（另有 ' + skipped + ' 餐尚未選擇店家，不會被匯入）' : '');
 }
 
 // ── 草稿 ─────────────────────────────────────────────────────────────────────
 function saveDraft(){
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), pending: PENDING, meals: MEALS }));
+    var slim = MEALS.map(function(m){
+      return { iso:m.iso, photoCount:m.photoCount, lat:m.lat, lng:m.lng,
+               cands:m.cands, region:m.region, shopId:m.shopId,
+               itemName:m.itemName, price:m.price, source:m.source };
+    });
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ at:Date.now(), pending:PENDING, meals:slim }));
   } catch(e){}
 }
 function clearDraft(){ try { localStorage.removeItem(DRAFT_KEY); } catch(e){} }
@@ -539,9 +763,11 @@ function offerDraft(){
   var d = null;
   try { d = JSON.parse(raw); } catch(e){ return; }
   if (!d || !d.meals || !d.meals.length) return;
-  var when = new Date(d.at).toLocaleString();
-  if (confirm('上次有 ' + d.meals.length + ' 餐還沒存完（' + when + '）。\n要接續編輯嗎？\n\n按「取消」會丟棄那份草稿。')){
-    MEALS = d.meals; PENDING = d.pending || 0;
+  if (confirm('上次有 ' + d.meals.length + ' 餐還沒存完（' + new Date(d.at).toLocaleString() +
+              '）。\n要接續編輯嗎？\n\n按「取消」會丟棄那份草稿。')){
+    MEALS = d.meals.map(function(m){ m.files = []; m.thumbs = []; return m; });
+    PENDING = d.pending || 0;
+    $('draftNote').style.display = 'block';
     renderMeals();
   } else {
     clearDraft();
@@ -550,13 +776,14 @@ function offerDraft(){
 
 $('saveBtn').addEventListener('click', function(){
   var recs = buildRecords();
-  if (!recs.length) return;
+  if (!recs.length){ alert('目前沒有可儲存的紀錄（每一餐都要先選好店家）。'); return; }
   alert('Phase 1 第一步尚未接上 Firebase。\n\n' + recs.length + ' 餐已整理完成，' +
         '內容請看下方「將寫入的紀錄」。\n確認格式無誤後，下一步才接 Firestore 寫入。');
 });
 
 // ── 啟動 ─────────────────────────────────────────────────────────────────────
 (async function init(){
+  $('limitSel').value = String(getLimit());
   buildInput();
   try {
     await loadShops();
