@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>拉麵紀錄匯入 — Phase 1</title>
+<style>
+  /* 色票與 finder.html 完全一致，之後整合進正式站可直接搬 */
+  :root {
+    --red:#C8272D; --red-dark:#9b1e23; --red-light:#f7eaea;
+    --ink:#1a1209; --paper:#faf7f2; --stone:#8a7d6e; --line:#e8e0d4; --white:#ffffff;
+    --open-bg:#eef7ee; --open-txt:#2d7a2d;
+    --pause-bg:#fff8ec; --pause-txt:#c07a00;
+    --prep-bg:#edf3ff; --prep-txt:#3a5bbf;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --red:#e04848; --red-dark:#C8272D; --red-light:#2e1515;
+      --ink:#e8e2d8; --paper:#141210; --stone:#9a8d7e; --line:#2e2820; --white:#1e1c18;
+      --open-bg:#0f200f; --open-txt:#5db85d;
+      --pause-bg:#201808; --pause-txt:#d4a030;
+      --prep-bg:#0e1828; --prep-txt:#6080d0;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:0 0 90px;background:var(--paper);color:var(--ink);
+       font:15px/1.6 -apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif;}
+  header{background:var(--red);color:#fff;padding:14px 16px}
+  header h1{font-size:17px;margin:0}
+  header p{font-size:12px;margin:3px 0 0;opacity:.9}
+  main{max-width:640px;margin:0 auto;padding:16px 14px}
+  section{background:var(--white);border:1px solid var(--line);border-radius:12px;
+          padding:14px;margin:0 0 14px}
+  h2{font-size:14px;margin:0 0 10px;color:var(--red)}
+  .hint{font-size:12px;color:var(--stone);margin:6px 0 0}
+  .warn{background:var(--pause-bg);color:var(--pause-txt);border-radius:8px;padding:10px;font-size:13px}
+  .info{background:var(--prep-bg);color:var(--prep-txt);border-radius:8px;padding:10px;font-size:13px}
+
+  input[type=file]{font-size:15px;width:100%}
+  input[type=text],input[type=number],select{
+    width:100%;padding:9px 10px;font-size:15px;border:1px solid var(--line);
+    border-radius:8px;background:var(--paper);color:var(--ink)}
+  button{font:inherit;border-radius:8px;border:1px solid var(--line);
+         background:var(--paper);color:var(--ink);padding:9px 14px}
+  button:active{background:var(--line)}
+  .btn-primary{background:var(--red);color:#fff;border-color:var(--red);font-weight:700}
+  .btn-primary:disabled{opacity:.45}
+  .btn-link{border:none;background:none;color:var(--red);padding:4px 0;text-decoration:underline;font-size:13px}
+
+  #bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin:10px 0 6px}
+  #barFill{height:100%;width:0;background:var(--red);transition:width .12s}
+  #live{font-size:13px;color:var(--stone);min-height:1.5em}
+
+  .meal{border:1px solid var(--line);border-radius:10px;padding:12px;margin:0 0 12px;background:var(--paper)}
+  .meal-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+  .meal-time{font-size:13px;color:var(--stone)}
+  .meal-no{font-weight:700;color:var(--red)}
+  .row{display:flex;gap:8px;margin-top:8px}
+  .row>*{flex:1}
+  .meal-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+  .dist{font-size:12px;color:var(--stone)}
+  .del{color:var(--red);border-color:var(--red-light);background:var(--red-light);
+       padding:6px 12px;font-size:13px}
+  .pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;
+        background:var(--open-bg);color:var(--open-txt);margin-left:6px}
+  .pill.closed{background:var(--red-light);color:var(--red)}
+
+  #saveBar{position:fixed;left:0;right:0;bottom:0;background:var(--white);
+           border-top:1px solid var(--line);padding:10px 14px;
+           padding-bottom:calc(10px + env(safe-area-inset-bottom));display:none}
+  #saveBar .inner{max-width:640px;margin:0 auto;display:flex;gap:10px;align-items:center}
+  #saveBar .cnt{font-size:13px;color:var(--stone);white-space:nowrap}
+  #saveBar button{flex:1}
+
+  #searchOverlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:50}
+  #searchBox{position:absolute;left:0;right:0;top:0;bottom:0;background:var(--paper);
+             display:flex;flex-direction:column;padding:12px;padding-top:calc(12px + env(safe-area-inset-top))}
+  #searchList{flex:1;overflow-y:auto;margin-top:10px}
+  .sr{padding:11px 10px;border-bottom:1px solid var(--line);font-size:14px}
+  .sr small{color:var(--stone);display:block;font-size:12px}
+
+  pre{background:var(--white);border:1px solid var(--line);border-radius:8px;padding:11px;
+      font-size:11px;line-height:1.5;overflow-x:auto;white-space:pre;margin:10px 0 0}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🍜 拉麵紀錄匯入</h1>
+  <p>Phase 1 測試版 · 照片與座標全程留在這台裝置，不會上傳</p>
+</header>
+
+<main>
+
+<section id="secPick">
+  <h2>1. 選擇照片</h2>
+  <div id="pickWrap"></div>
+  <p class="hint">
+    建議先在 iOS 相簿的<b>搜尋列打「拉麵」</b>再全選，選出來的張數少、等待短，也不會混進無關照片。
+  </p>
+  <div id="estimate" class="warn" style="display:none"></div>
+  <div id="bar"><div id="barFill"></div></div>
+  <div id="live"></div>
+</section>
+
+<section id="secStat" style="display:none">
+  <h2>2. 解析結果</h2>
+  <div id="stat"></div>
+</section>
+
+<section id="secMeals" style="display:none">
+  <h2>3. 確認每一餐</h2>
+  <div id="meals"></div>
+  <div id="overflow" class="info" style="display:none"></div>
+</section>
+
+<section id="secOut" style="display:none">
+  <h2>4. 將寫入的紀錄</h2>
+  <p class="hint">Phase 1 第一步先不寫進 Firebase，這裡顯示實際會送出的內容供檢查。</p>
+  <pre id="out"></pre>
+</section>
+
+</main>
+
+<div id="saveBar"><div class="inner">
+  <span class="cnt" id="saveCnt"></span>
+  <button class="btn-primary" id="saveBtn">儲存這批紀錄</button>
+</div></div>
+
+<div id="searchOverlay"><div id="searchBox">
+  <div class="row">
+    <input type="text" id="searchInput" placeholder="輸入店名關鍵字…" autocomplete="off">
+    <button id="searchClose" style="flex:0 0 auto">關閉</button>
+  </div>
+  <div id="searchList"></div>
+</div></div>
+
+<script src="vendor/exifr.full.umd.js"></script>
+<script>
+'use strict';
+
+// ── 常數 ──────────────────────────────────────────────────────────────────────
+var GROUP_MINUTES  = 20;      // 同店 20 分鐘內視為同一餐
+var GROUP_METERS   = 200;     // 分群的空間門檻（室內 GPS 誤差可達 100m）
+var CANDIDATES     = 5;       // 候選店家數
+var MAX_MEALS      = 20;      // 一批上限
+var CONCURRENCY    = 4;
+var DRAFT_KEY      = 'ramen_import_draft_v1';
+var SPEED_KEY      = 'ramen_import_ms_per_photo';
+
+var PARSE_OPTS = {
+  tiff:true, ifd0:true, exif:true, gps:true,
+  interop:false, thumbnail:false, iptc:false, xmp:false, icc:false, jfif:false,
+  translateKeys:true, translateValues:false, reviveValues:false,
+  mergeOutput:true, silentErrors:true
+};
+
+var SHOPS = [];   // { id, name, city, town, status, lat, lng }
+var MEALS = [];   // 確認中的餐
+var PENDING = 0;  // 超過 20 筆的餘量
+var busy = false;
+
+// ── 工具 ──────────────────────────────────────────────────────────────────────
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+
+function haversine(aLat, aLng, bLat, bLng){
+  var R = 6371000, toR = Math.PI / 180;
+  var dLa = (bLat - aLat) * toR, dLo = (bLng - aLng) * toR;
+  var s = Math.sin(dLa/2)*Math.sin(dLa/2) +
+          Math.cos(aLat*toR)*Math.cos(bLat*toR)*Math.sin(dLo/2)*Math.sin(dLo/2);
+  return R * 2 * Math.asin(Math.sqrt(s));
+}
+function median(arr){
+  var a = arr.slice().sort(function(x,y){ return x-y; });
+  var m = Math.floor(a.length/2);
+  return a.length % 2 ? a[m] : (a[m-1]+a[m])/2;
+}
+function fmtDist(m){ return m < 1000 ? Math.round(m) + 'm' : (m/1000).toFixed(1) + 'km'; }
+function fmtLocal(iso){
+  var d = new Date(iso);
+  if (isNaN(d)) return iso;
+  var p = function(n){ return (n<10?'0':'') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) +
+         ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+// dedupKey 用 UTC 分鐘精度，跨時區重跑仍是同一把鑰匙
+function dedupKeyOf(shopId, iso){
+  return shopId + '_' + iso.slice(0,16).replace(/[-:T]/g,'');
+}
+
+// ── EXIF ─────────────────────────────────────────────────────────────────────
+function toDeg(v, ref){
+  if (typeof v === 'number' && isFinite(v)) return (ref==='S'||ref==='W') ? -v : v;
+  if (Object.prototype.toString.call(v) === '[object Array]' && v.length >= 2){
+    var d = Number(v[0]), m = Number(v[1]), s = Number(v[2]||0);
+    if (!isFinite(d)||!isFinite(m)||!isFinite(s)) return null;
+    var dec = d + m/60 + s/3600;
+    return (ref==='S'||ref==='W') ? -dec : dec;
+  }
+  return null;
+}
+// GPSDateStamp + GPSTimeStamp 本身就是 UTC，直接組出帶 Z 的字串，
+// 不能用 DateTimeOriginal（它沒有時區）
+function utcFromGps(ds, ts){
+  if (typeof ds !== 'string') return null;
+  var m = ds.match(/^(\d{4})[:\-](\d{2})[:\-](\d{2})/);
+  if (!m) return null;
+  if (Object.prototype.toString.call(ts) !== '[object Array]' || ts.length < 3) return null;
+  var h = Number(ts[0]), mi = Number(ts[1]), se = Number(ts[2]);
+  if (!isFinite(h)||!isFinite(mi)||!isFinite(se)) return null;
+  var p = function(n){ n = Math.floor(n); return (n<10?'0':'') + n; };
+  return m[1]+'-'+m[2]+'-'+m[3]+'T'+p(h)+':'+p(mi)+':'+p(se)+'Z';
+}
+// 備援：DateTimeOriginal + OffsetTimeOriginal（實測 100% 存在，但仍防禦性處理）
+function utcFromLocal(dto, off){
+  if (typeof dto !== 'string' || typeof off !== 'string') return null;
+  var m = dto.match(/^(\d{4})[:\-](\d{2})[:\-](\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+  var o = off.match(/^([+-])(\d{2}):?(\d{2})$/);
+  if (!m || !o) return null;
+  var ms = Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]);
+  var shift = ((+o[2])*60 + (+o[3])) * 60000 * (o[1]==='-' ? 1 : -1);
+  return new Date(ms + shift).toISOString().slice(0,19) + 'Z';
+}
+
+// ── 店家資料 ──────────────────────────────────────────────────────────────────
+async function loadShops(){
+  var res = await fetch('../../data/data.json');
+  var raw = await res.json();
+  SHOPS = [];
+  for (var i = 0; i < raw.length; i++){
+    var r = raw[i];
+    var la = parseFloat(r.lat), ln = parseFloat(r.lng);
+    if (!isFinite(la) || !isFinite(ln)) continue;
+    SHOPS.push({
+      id: r.ID, name: r['店名'], city: r['縣市'] || '', town: r['鄉鎮市區'] || '',
+      status: r['營業狀態'] || '', lat: la, lng: ln
+    });
+  }
+  // 已歇業的店照樣保留：使用者的照片可能是過去拍的
+}
+
+function nearest(lat, lng, n){
+  var out = [];
+  for (var i = 0; i < SHOPS.length; i++){
+    out.push({ shop: SHOPS[i], d: haversine(lat, lng, SHOPS[i].lat, SHOPS[i].lng) });
+  }
+  out.sort(function(a,b){ return a.d - b.d; });
+  return out.slice(0, n);
+}
+
+// ── 選檔 ──────────────────────────────────────────────────────────────────────
+function buildInput(){
+  var wrap = $('pickWrap');
+  wrap.innerHTML = '';
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.multiple = true;
+  inp.accept = 'image/*';           // 濾掉影片；實測 accept 不影響是否轉碼
+  inp.addEventListener('change', function(){
+    if (inp.files && inp.files.length) run(inp.files);
+  });
+  wrap.appendChild(inp);
+  showEstimate();
+}
+
+function showEstimate(){
+  var ms = parseFloat(localStorage.getItem(SPEED_KEY) || '');
+  var el = $('estimate');
+  if (!isFinite(ms)) {
+    el.style.display = 'block';
+    el.innerHTML = '⚠️ 按下相簿的「打勾」之後，畫面會停住一段時間沒有反應——' +
+                   '那是 iOS 在轉檔，<b>不是當掉</b>。張數越多等越久，手機可能會發熱。';
+  } else {
+    el.style.display = 'block';
+    el.innerHTML = '⚠️ 按下「打勾」後畫面會停住（iOS 轉檔中，<b>不是當掉</b>）。' +
+                   '依你上次的速度，每 100 張約需 <b>' + Math.round(ms*100/1000) + ' 秒</b>。';
+  }
+}
+
+// ── 主流程 ────────────────────────────────────────────────────────────────────
+async function run(files){
+  if (busy) return;
+  busy = true;
+  $('secStat').style.display = 'block';
+  $('stat').innerHTML = '<span class="hint">解析中…</span>';
+
+  var total = files.length, done = 0, idx = 0;
+  var pts = [], noGps = 0, noTime = 0, types = {};
+  var t0 = performance.now();
+
+  async function worker(){
+    while (idx < total){
+      var f = files[idx++];
+      types[f.type || '(空白)'] = (types[f.type || '(空白)'] || 0) + 1;
+      var tags = null;
+      try { tags = await exifr.parse(f, PARSE_OPTS); } catch(e){}
+      var lat = tags ? toDeg(tags.GPSLatitude, tags.GPSLatitudeRef) : null;
+      var lng = tags ? toDeg(tags.GPSLongitude, tags.GPSLongitudeRef) : null;
+      if (lat === null || lng === null){
+        try {
+          var g = await exifr.gps(f);
+          if (g && isFinite(g.latitude) && isFinite(g.longitude)){ lat = g.latitude; lng = g.longitude; }
+        } catch(e){}
+      }
+      if (lat === null || lng === null){ noGps++; }
+      else {
+        var iso = utcFromGps(tags && tags.GPSDateStamp, tags && tags.GPSTimeStamp)
+               || utcFromLocal(tags && tags.DateTimeOriginal, tags && tags.OffsetTimeOriginal);
+        if (!iso) noTime++;
+        else pts.push({ lat: lat, lng: lng, iso: iso, t: Date.parse(iso) });
+      }
+      done++;
+      if (done % 10 === 0 || done === total){
+        $('barFill').style.width = (done/total*100).toFixed(1) + '%';
+        $('live').textContent = done + ' / ' + total + ' 張';
+      }
+    }
+  }
+  var pool = [];
+  for (var w = 0; w < CONCURRENCY; w++) pool.push(worker());
+  await Promise.all(pool);
+
+  var sec = (performance.now() - t0) / 1000;
+  try { localStorage.setItem(SPEED_KEY, String(sec*1000/Math.max(1,total))); } catch(e){}
+
+  var groups = groupPhotos(pts);
+  renderStat(total, pts.length, noGps, noTime, groups.length, types, sec);
+  buildMeals(groups);
+  busy = false;
+}
+
+// 先按時間排序，再貪婪分群：與前一張時間差 <= 20 分且距離 <= 200m → 同一餐
+function groupPhotos(pts){
+  pts.sort(function(a,b){ return a.t - b.t; });
+  var gs = [], cur = null;
+  for (var i = 0; i < pts.length; i++){
+    var p = pts[i];
+    if (cur){
+      var last = cur[cur.length-1];
+      var dtMin = (p.t - last.t) / 60000;
+      var dist  = haversine(last.lat, last.lng, p.lat, p.lng);
+      if (dtMin <= GROUP_MINUTES && dist <= GROUP_METERS){ cur.push(p); continue; }
+    }
+    cur = [p]; gs.push(cur);
+  }
+  return gs;
+}
+
+function renderStat(total, withGps, noGps, noTime, meals, types, sec){
+  var lines = [];
+  lines.push('<div>共選了 <b>' + total + '</b> 張，耗時 ' + sec.toFixed(1) + ' 秒</div>');
+  lines.push('<div>有 GPS 可用：<b>' + withGps + '</b> 張　→　分成 <b>' + meals + '</b> 餐</div>');
+  if (noGps)  lines.push('<div class="hint">' + noGps + ' 張沒有 GPS（螢幕截圖、LINE／IG 轉存的照片會被剝除定位，數位相機多半也沒有）— 這些無法匯入</div>');
+  if (noTime) lines.push('<div class="hint">' + noTime + ' 張有座標但沒有可用時間戳 — 已略過</div>');
+  $('stat').innerHTML = lines.join('');
+}
+
+// ── 餐卡 ─────────────────────────────────────────────────────────────────────
+function buildMeals(groups){
+  MEALS = [];
+  PENDING = Math.max(0, groups.length - MAX_MEALS);
+  var use = groups.slice(0, MAX_MEALS);
+  for (var i = 0; i < use.length; i++){
+    var g = use[i];
+    var cLat = median(g.map(function(p){ return p.lat; }));
+    var cLng = median(g.map(function(p){ return p.lng; }));
+    var cands = nearest(cLat, cLng, CANDIDATES);
+    MEALS.push({
+      iso: g[0].iso, photoCount: g.length, lat: cLat, lng: cLng,
+      cands: cands, shopId: cands.length ? cands[0].shop.id : '',
+      itemName: '', price: '', source: 'photo-import'
+    });
+  }
+  renderMeals();
+  saveDraft();
+}
+
+function shopById(id){
+  for (var i = 0; i < SHOPS.length; i++) if (SHOPS[i].id === id) return SHOPS[i];
+  return null;
+}
+
+function renderMeals(){
+  var host = $('meals');
+  if (!MEALS.length){
+    $('secMeals').style.display = 'none';
+    $('saveBar').style.display = 'none';
+    return;
+  }
+  $('secMeals').style.display = 'block';
+  var html = '';
+  for (var i = 0; i < MEALS.length; i++){
+    var m = MEALS[i];
+    var sel = shopById(m.shopId);
+    var inList = false, dist = null;
+    for (var j = 0; j < m.cands.length; j++){
+      if (m.cands[j].shop.id === m.shopId){ inList = true; dist = m.cands[j].d; }
+    }
+    var opts = '';
+    for (var k = 0; k < m.cands.length; k++){
+      var c = m.cands[k];
+      var closed = c.shop.status !== '營業中' ? '（' + c.shop.status + '）' : '';
+      opts += '<option value="' + esc(c.shop.id) + '"' + (c.shop.id === m.shopId ? ' selected' : '') + '>'
+            + esc(c.shop.name) + closed + ' · ' + fmtDist(c.d) + '</option>';
+    }
+    if (!inList && sel){
+      opts += '<option value="' + esc(sel.id) + '" selected>' + esc(sel.name) + '（手動指定）</option>';
+    }
+    html +=
+      '<div class="meal" data-i="' + i + '">' +
+        '<div class="meal-head">' +
+          '<span class="meal-no">第 ' + (i+1) + ' 餐</span>' +
+          '<span class="meal-time">' + esc(fmtLocal(m.iso)) + '　' + m.photoCount + ' 張照片</span>' +
+        '</div>' +
+        '<select class="f-shop">' + opts + '</select>' +
+        '<button class="btn-link f-search">🔍 不在清單內？搜尋店名</button>' +
+        '<div class="row">' +
+          '<input type="text"   class="f-item"  placeholder="品項（選填）" value="' + esc(m.itemName) + '">' +
+          '<input type="number" class="f-price" placeholder="價格（選填）" inputmode="numeric" value="' + esc(m.price) + '" style="flex:0 0 34%">' +
+        '</div>' +
+        '<div class="meal-foot">' +
+          '<span class="dist">' + (dist !== null ? '距離 ' + fmtDist(dist) : '手動指定') +
+            (sel && sel.status !== '營業中' ? '<span class="pill closed">' + esc(sel.status) + '</span>' : '') +
+          '</span>' +
+          '<button class="del f-del">刪除這餐</button>' +
+        '</div>' +
+      '</div>';
+  }
+  host.innerHTML = html;
+
+  $('overflow').style.display = PENDING ? 'block' : 'none';
+  if (PENDING) $('overflow').textContent =
+    '還有 ' + PENDING + ' 餐超過本批上限（' + MAX_MEALS + ' 餐）。存完這批之後再匯入一次即可。';
+
+  $('saveBar').style.display = 'flex';
+  $('saveCnt').textContent = MEALS.length + ' 餐';
+  bindMeals();
+  renderOut();
+}
+
+function bindMeals(){
+  var cards = document.querySelectorAll('.meal');
+  Array.prototype.forEach.call(cards, function(card){
+    var i = parseInt(card.dataset.i, 10);
+    card.querySelector('.f-shop').addEventListener('change', function(e){
+      MEALS[i].shopId = e.target.value; saveDraft(); renderMeals();
+    });
+    card.querySelector('.f-item').addEventListener('input', function(e){
+      MEALS[i].itemName = e.target.value; saveDraft(); renderOut();
+    });
+    card.querySelector('.f-price').addEventListener('input', function(e){
+      MEALS[i].price = e.target.value; saveDraft(); renderOut();
+    });
+    card.querySelector('.f-search').addEventListener('click', function(){ openSearch(i); });
+    card.querySelector('.f-del').addEventListener('click', function(){
+      MEALS.splice(i, 1); saveDraft(); renderMeals();
+    });
+  });
+}
+
+// ── 店名搜尋 ──────────────────────────────────────────────────────────────────
+var _searchFor = -1;
+function openSearch(i){
+  _searchFor = i;
+  $('searchOverlay').style.display = 'block';
+  $('searchInput').value = '';
+  $('searchList').innerHTML = '<div class="hint" style="padding:10px">輸入關鍵字開始搜尋</div>';
+  $('searchInput').focus();
+}
+function closeSearch(){ $('searchOverlay').style.display = 'none'; _searchFor = -1; }
+
+$('searchClose').addEventListener('click', closeSearch);
+$('searchInput').addEventListener('input', function(e){
+  var q = e.target.value.trim();
+  if (!q){ $('searchList').innerHTML = ''; return; }
+  var m = MEALS[_searchFor];
+  var hits = [];
+  for (var i = 0; i < SHOPS.length && hits.length < 40; i++){
+    if (SHOPS[i].name && SHOPS[i].name.indexOf(q) >= 0) hits.push(SHOPS[i]);
+  }
+  var html = '';
+  for (var j = 0; j < hits.length; j++){
+    var s = hits[j];
+    var d = m ? haversine(m.lat, m.lng, s.lat, s.lng) : null;
+    html += '<div class="sr" data-id="' + esc(s.id) + '">' + esc(s.name) +
+            '<small>' + esc(s.city + s.town) +
+            (s.status !== '營業中' ? ' · ' + esc(s.status) : '') +
+            (d !== null ? ' · 距離這餐 ' + fmtDist(d) : '') + '</small></div>';
+  }
+  $('searchList').innerHTML = html || '<div class="hint" style="padding:10px">找不到符合的店家</div>';
+});
+$('searchList').addEventListener('click', function(e){
+  var row = e.target.closest('.sr');
+  if (!row || _searchFor < 0) return;
+  MEALS[_searchFor].shopId = row.dataset.id;
+  closeSearch(); saveDraft(); renderMeals();
+});
+
+// ── 輸出預覽（Phase 1 第一步不寫 Firestore）──────────────────────────────────
+function buildRecords(){
+  var recs = [];
+  for (var i = 0; i < MEALS.length; i++){
+    var m = MEALS[i];
+    var s = shopById(m.shopId);
+    if (!s) continue;
+    recs.push({
+      shopId: s.id, shopName: s.name,
+      itemName: m.itemName || null,
+      price: m.price === '' ? null : Number(m.price),
+      diningTime: m.iso,
+      photoCount: m.photoCount,
+      dedupKey: dedupKeyOf(s.id, m.iso),
+      source: m.source
+    });
+  }
+  return recs;
+}
+function renderOut(){
+  var recs = buildRecords();
+  $('secOut').style.display = recs.length ? 'block' : 'none';
+  $('out').textContent = JSON.stringify(recs, null, 2);
+}
+
+// ── 草稿 ─────────────────────────────────────────────────────────────────────
+function saveDraft(){
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ at: Date.now(), pending: PENDING, meals: MEALS }));
+  } catch(e){}
+}
+function clearDraft(){ try { localStorage.removeItem(DRAFT_KEY); } catch(e){} }
+
+function offerDraft(){
+  var raw = null;
+  try { raw = localStorage.getItem(DRAFT_KEY); } catch(e){}
+  if (!raw) return;
+  var d = null;
+  try { d = JSON.parse(raw); } catch(e){ return; }
+  if (!d || !d.meals || !d.meals.length) return;
+  var when = new Date(d.at).toLocaleString();
+  if (confirm('上次有 ' + d.meals.length + ' 餐還沒存完（' + when + '）。\n要接續編輯嗎？\n\n按「取消」會丟棄那份草稿。')){
+    MEALS = d.meals; PENDING = d.pending || 0;
+    renderMeals();
+  } else {
+    clearDraft();
+  }
+}
+
+$('saveBtn').addEventListener('click', function(){
+  var recs = buildRecords();
+  if (!recs.length) return;
+  alert('Phase 1 第一步尚未接上 Firebase。\n\n' + recs.length + ' 餐已整理完成，' +
+        '內容請看下方「將寫入的紀錄」。\n確認格式無誤後，下一步才接 Firestore 寫入。');
+});
+
+// ── 啟動 ─────────────────────────────────────────────────────────────────────
+(async function init(){
+  buildInput();
+  try {
+    await loadShops();
+    $('live').textContent = '已載入 ' + SHOPS.length + ' 家店的座標';
+  } catch(e){
+    $('live').innerHTML = '<span style="color:var(--red)">店家資料載入失敗：' + esc(e.message) + '</span>';
+  }
+  offerDraft();
+})();
+</script>
+</body>
+</html>
