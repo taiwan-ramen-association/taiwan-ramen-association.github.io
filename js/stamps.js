@@ -5,7 +5,7 @@
 // 依賴全域函式：
 //   render, lockScroll, unlockScroll
 // 提供全域變數：
-//   stampMap, reviewMap, favSet
+//   stampMap, reviewMap, favSet, stampedAtMap
 // 提供全域函式：
 //   loadStamps, openStampModal, closeStampModal,
 //   toggleFav, showStampToast, valToStatus, getStampVal
@@ -14,6 +14,10 @@
 // Encoding: 1=吃過1次, 2-10=吃過N次, 20=從業過（0/0.2 為舊資料，視為未踩點）
 var stampMap  = {};   // shopId → numeric score value
 var reviewMap = {};   // shopId → string
+// shopId → Timestamp「首次在本站標記此店的時間」。注意：這不是「首次造訪」——
+// 使用者可能今天才補登去年吃過的店。精確的用餐時間在 userMeals.diningTime。
+// 語意與限制詳見 ramen-finder-notes/ramen-wrapped-plan.md
+var stampedAtMap = {};
 var favSet    = new Set();  // 儲存 shop ID，由 Firestore 載入
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -72,10 +76,11 @@ async function toggleFav(shopId) {
 async function loadStamps(uid) {
   const snap = await db.collection('userVisits').doc(uid).get();
   if (snap.exists) {
-    stampMap  = snap.data().visits  || {};
-    reviewMap = snap.data().reviews || {};
+    stampMap     = snap.data().visits    || {};
+    reviewMap    = snap.data().reviews   || {};
+    stampedAtMap = snap.data().stampedAt || {};
   } else {
-    stampMap = {}; reviewMap = {};
+    stampMap = {}; reviewMap = {}; stampedAtMap = {};
   }
 }
 
@@ -155,7 +160,15 @@ document.getElementById('smConfirmBtn').addEventListener('click', async () => {
   if (review) reviewMap[shopId] = review; else delete reviewMap[shopId];
   try {
     const uid = auth.currentUser.uid;
-    await db.collection('userVisits').doc(uid).set({ visits: { [shopId]: val } }, { merge: true });
+    // stampedAt 只在第一次標記這家店時寫入，之後不覆蓋——否則把「吃過1次」
+    // 改成「吃過3次」時日期會跳到今天，讓舊店在新年度的回顧裡看起來像新店。
+    const _payload = { visits: { [shopId]: val } };
+    const _firstStamp = stampedAtMap[shopId] == null;
+    if (_firstStamp) {
+      _payload.stampedAt = { [shopId]: firebase.firestore.FieldValue.serverTimestamp() };
+    }
+    await db.collection('userVisits').doc(uid).set(_payload, { merge: true });
+    if (_firstStamp) stampedAtMap[shopId] = new Date();   // 本地僅供「是否已寫過」判斷
     if (review) {
       await db.collection('userVisits').doc(uid).set({ reviews: { [shopId]: review } }, { merge: true });
     } else {
@@ -180,11 +193,12 @@ document.getElementById('smResetBtn').addEventListener('click', async () => {
   if (!confirm(`確定要清除「${_stampShopName}」的踩點記錄嗎？\n此操作無法復原。`)) return;
   const shopId = _stampShopId;
   if (!shopId || !auth.currentUser) return;
-  delete stampMap[shopId]; delete reviewMap[shopId];
+  delete stampMap[shopId]; delete reviewMap[shopId]; delete stampedAtMap[shopId];
   try {
     await db.collection('userVisits').doc(auth.currentUser.uid).update({
-      [`visits.${shopId}`]:  firebase.firestore.FieldValue.delete(),
-      [`reviews.${shopId}`]: firebase.firestore.FieldValue.delete(),
+      [`visits.${shopId}`]:    firebase.firestore.FieldValue.delete(),
+      [`reviews.${shopId}`]:   firebase.firestore.FieldValue.delete(),
+      [`stampedAt.${shopId}`]: firebase.firestore.FieldValue.delete(),
     });
     document.querySelectorAll(`.stamp-btn[data-id="${shopId}"]`).forEach(b => b.classList.remove('stamped'));
     // 同步更新 userProfiles.conqueredCount
