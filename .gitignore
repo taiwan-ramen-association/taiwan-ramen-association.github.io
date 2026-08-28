@@ -41,3 +41,6 @@ serviceAccountKey.json
 
 # Office 開檔時的暫存鎖定檔
 ~$*
+
+# 本機測試頁，不上版控
+pokemon.html
