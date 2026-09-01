@@ -9,17 +9,34 @@
 // ── Constants ─────────────────────────────────────────────────────────────────
 const PLACES_KEY       = 'AIzaSyBek6fDRbXZhxenlSgwR1DLaVRJjrxYUOU';
 const photoCache       = {}; // 記憶體快取：shopId → data | 'loading' | null
+// 逃生口：把版本字尾往上加（如 'ramen_photo_v2_'）即可讓全體使用者的照片快取與
+// 失敗冷卻一次失效，用途有二：(1) 設定修好後要強制全體重抓 (2) 本次改動回滾時必改。
+// 注意：改號等於清空所有人的快取，會造成一波 Places API 重抓（2026-07 換網域即因此爆量），
+// 只在真的需要時才動。
 const PHOTO_LS_PREFIX  = 'ramen_photo_';
+// 圖片／API 失敗後的冷卻期。期間內不再向 Places API 詢問同一家店。
+const PHOTO_FAIL_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 天
 
 // ── localStorage 快取輔助 ────────────────────────────────────────────────────
+// 快取值有兩種形態：
+//   正常：{ urls: [...], attribution: '...' }
+//   失敗：{ urls: [...保留原值...], attribution: '...', failedAt: <timestamp> }
+// 失敗時「保留 urls、只加標記」而不是刪除整筆，是為了讓本次改動可以安全回滾——
+// 舊版程式不認得 failedAt 會直接忽略，看到 urls 仍在就照原邏輯運作。
 function lsGetPhoto(shopId) {
   try { const v = localStorage.getItem(PHOTO_LS_PREFIX + shopId); return v ? JSON.parse(v) : null; } catch { return null; }
 }
 function lsSetPhoto(shopId, data) {
   try { localStorage.setItem(PHOTO_LS_PREFIX + shopId, JSON.stringify(data)); } catch {}
 }
-function lsRemovePhoto(shopId) {
-  try { localStorage.removeItem(PHOTO_LS_PREFIX + shopId); } catch {}
+// 標記「這家店剛才抓失敗」。成功路徑的 lsSetPhoto 會整筆覆寫，failedAt 自然消失，
+// 因此不需要另外的解除函式。
+function lsMarkPhotoFail(shopId, cached) {
+  lsSetPhoto(shopId, {
+    urls:        cached?.urls ?? [],
+    attribution: cached?.attribution ?? '',
+    failedAt:    Date.now(),
+  });
 }
 
 // ── 載入店家照片 ──────────────────────────────────────────────────────────────
@@ -27,13 +44,16 @@ function lsRemovePhoto(shopId) {
 async function loadShopPhotos(shop, panel, isRetry = false) {
   const shopId = shop['ID'];
 
-  if (!isRetry && typeof gtag !== 'undefined') {
-    gtag('event', 'photo_view', { shop_id: shopId, shop_name: shop['店名'] || '' });
+  // 重抓走 photo_refetch，正常瀏覽走 photo_view。冷卻機制會把重抓壓到接近 0，
+  // 所以 GA4 上 photo_refetch 一旦冒量就是異常訊號（不必等帳單才發現）。
+  if (typeof gtag !== 'undefined') {
+    gtag('event', isRetry ? 'photo_refetch' : 'photo_view',
+         { shop_id: shopId, shop_name: shop['店名'] || '' });
   }
 
   // 1. 記憶體快取
   if (photoCache[shopId] && photoCache[shopId] !== 'loading') {
-    renderPhotoPanel(photoCache[shopId], panel, isRetry ? null : shop);
+    renderPhotoPanel(photoCache[shopId], panel, shop, !isRetry);
     return;
   }
   if (photoCache[shopId] === 'loading') return;
@@ -42,9 +62,18 @@ async function loadShopPhotos(shop, panel, isRetry = false) {
   if (!isRetry) {
     const cached = lsGetPhoto(shopId);
     if (cached) {
-      photoCache[shopId] = cached;
-      renderPhotoPanel(cached, panel, shop); // 仍需驗證圖片是否有效
-      return;
+      // 冷卻期內：這家店最近抓過而且失敗，直接顯示結果，不再打 Places API。
+      // 舊行為是「失敗就清快取重抓」，導致每開一次卡片就付一次 API 費用。
+      if (cached.failedAt && Date.now() - cached.failedAt < PHOTO_FAIL_COOLDOWN_MS) {
+        panel.innerHTML = '<p class="tab-placeholder">Google Maps 尚無此店照片</p>';
+        return;
+      }
+      // 冷卻已過但沒有可用 urls → 往下走重新抓
+      if (cached.urls?.length) {
+        photoCache[shopId] = cached;
+        renderPhotoPanel(cached, panel, shop, true); // 仍需驗證圖片是否有效
+        return;
+      }
     }
   }
 
@@ -75,16 +104,23 @@ async function loadShopPhotos(shop, panel, isRetry = false) {
     const data = { urls, attribution };
     photoCache[shopId] = data;
     lsSetPhoto(shopId, data);
-    renderPhotoPanel(data, panel, isRetry ? null : shop);
+    renderPhotoPanel(data, panel, shop, !isRetry);
   } catch(e) {
     console.warn('[photos] 載入失敗：', e.message || e);
     photoCache[shopId] = null;
-    panel.innerHTML = '<p class="tab-placeholder">照片暫時無法載入，請稍後再試</p>';
+    // API 本身失敗（referrer 被擋、配額用盡、網路問題）也要記冷卻。
+    // 原本失敗完全不寫快取，而 photoCache = null 通不過上面第 1 段的 truthy 檢查，
+    // 導致同一個 session 內每開一次卡片就重打一次 API。
+    lsMarkPhotoFail(shopId, null);
+    panel.innerHTML = '<p class="tab-placeholder">Google Maps 尚無此店照片</p>';
   }
 }
 
-// shop 傳入時才啟用「≤1 張成功 → 清快取重抓」邏輯
-function renderPhotoPanel({ urls, attribution }, panel, shop = null) {
+// shop      傳入時才會在圖片全數失敗後記錄冷卻標記
+// allowRetry 是否允許再向 API 重抓一次（重抓那一輪為 false，避免無限遞迴）
+// 兩者拆開的原因：舊寫法用「shop 傳 null」兼作防遞迴，導致重抓失敗時拿不到 shop
+// 而無法記錄冷卻，冷卻機制等於失效。
+function renderPhotoPanel({ urls, attribution }, panel, shop = null, allowRetry = true) {
   if (!urls.length) {
     panel.innerHTML = '<p class="tab-placeholder">Google Maps 尚無此店照片</p>';
     return;
@@ -127,12 +163,15 @@ function renderPhotoPanel({ urls, attribution }, panel, shop = null) {
 
   function checkDone() {
     if (settled < total) return;
-    if (loaded <= 1 && shop) {
-      // 快取的 URL 已失效，清除後重新向 API 取得最新照片
-      lsRemovePhoto(shop['ID']);
-      delete photoCache[shop['ID']];
-      loadShopPhotos(shop, panel, true); // isRetry=true，不再二次重抓
-    }
+    // 至少 1 張載入成功就視為正常。原本條件是 loaded <= 1，會把「Google 上只有
+    // 1 張照片」的店誤判成失敗，導致這類店家每個 session 都固定重抓一次。
+    if (loaded >= 1 || !shop) return;
+
+    // 全部載不出來 → 記冷卻（保留 urls，見 lsMarkPhotoFail 註解），並重抓一次
+    const shopId = shop['ID'];
+    lsMarkPhotoFail(shopId, photoCache[shopId]);
+    delete photoCache[shopId];
+    if (allowRetry) loadShopPhotos(shop, panel, true);
   }
 }
 
