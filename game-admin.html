@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="assets/icons/03.png">
+<title>拉麵猜猜 ─ 建題工具</title>
+<meta name="robots" content="noindex, nofollow">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans TC', -apple-system, sans-serif;
+    background: #faf7f2; color: #1a1209; min-height: 100vh;
+  }
+
+  /* ── 登入閘門（沿用 admin.html 樣式）───────────────────────────────────── */
+  #gate {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 100vh; gap: 16px;
+  }
+  #gate p { color: #8a7d6e; font-size: 14px; }
+  .btn-google {
+    display: flex; align-items: center; gap: 8px;
+    background: #ffffff; border: 1px solid #e8e0d4;
+    padding: 10px 20px; border-radius: 8px;
+    font-size: 14px; cursor: pointer; color: #1a1209;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1); font-family: inherit;
+  }
+  .btn-google:hover { background: #fdf5f5; }
+  .btn-google svg { width: 18px; height: 18px; }
+
+  /* ── 主介面 ───────────────────────────────────────────────────────────── */
+  #app { display: none; max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #8a7d6e; font-size: 13px; margin-bottom: 24px; line-height: 1.7; }
+
+  .panel {
+    background: #fff; border: 1px solid #e8e0d4; border-radius: 10px;
+    padding: 20px; margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 15px; margin-bottom: 14px; }
+
+  /* 上傳區 */
+  #dropZone {
+    border: 2px dashed #d8ccb8; border-radius: 10px;
+    padding: 40px 20px; text-align: center; cursor: pointer;
+    color: #8a7d6e; font-size: 14px; transition: background .15s, border-color .15s;
+  }
+  #dropZone:hover, #dropZone.drag { background: #fdf9f2; border-color: #b89b6a; }
+  #dropZone input { display: none; }
+
+  /* 滑桿 */
+  .ctrl { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .ctrl label { width: 130px; font-size: 13px; flex-shrink: 0; }
+  .ctrl input[type=range] { flex: 1; accent-color: #b89b6a; }
+  .ctrl .val {
+    width: 78px; text-align: right; font-size: 13px;
+    font-variant-numeric: tabular-nums; color: #6b5d4d;
+  }
+
+  /* 階梯預覽 */
+  .stages { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  @media (max-width: 720px) { .stages { grid-template-columns: repeat(2, 1fr); } }
+
+  .stage { border: 1px solid #e8e0d4; border-radius: 8px; overflow: hidden; background: #f5f0e6; }
+  .stage-img {
+    width: 100%; aspect-ratio: 4 / 3; object-fit: contain;
+    background: #ece5d8; display: block; cursor: zoom-in;
+  }
+  .stage-meta { padding: 8px 10px; font-size: 12px; line-height: 1.6; }
+  .stage-meta .t { font-weight: 700; }
+  .stage-meta .d { color: #8a7d6e; font-variant-numeric: tabular-nums; }
+
+  .hint-note {
+    margin-top: 14px; padding: 12px 14px; background: #fdf9f2;
+    border-left: 3px solid #b89b6a; border-radius: 4px;
+    font-size: 12.5px; line-height: 1.8; color: #6b5d4d;
+  }
+
+  .empty { color: #a8998a; font-size: 13px; text-align: center; padding: 32px 0; }
+
+  /* 放大檢視 */
+  #lightbox {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(20,14,8,.88); align-items: center; justify-content: center;
+    flex-direction: column; gap: 12px; padding: 20px;
+  }
+  #lightbox.open { display: flex; }
+  #lightbox img {
+    max-width: min(420px, 92vw); max-height: 74vh;
+    object-fit: contain; border-radius: 6px;
+  }
+  #lightbox .cap { color: #e8e0d4; font-size: 13px; }
+  #lightbox .close {
+    position: absolute; top: 16px; right: 20px; color: #e8e0d4;
+    font-size: 26px; cursor: pointer; line-height: 1; background: none; border: 0;
+  }
+
+  .btn {
+    background: #1a1209; color: #faf7f2; border: 0; border-radius: 8px;
+    padding: 9px 18px; font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  .btn:disabled { background: #cdc2b2; cursor: default; }
+  .btn.ghost { background: #fff; color: #1a1209; border: 1px solid #e8e0d4; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <p id="gateMsg">驗證中…</p>
+  <button class="btn-google" id="loginBtn" style="display:none">
+    <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.4 30.2 0 24 0 14.7 0 6.8 5.4 3 13.3l7.8 6C12.7 13.2 17.9 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 6.9-10.1 6.9-17z"/><path fill="#FBBC05" d="M10.8 28.7A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.7-4.7L2.4 13.3A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.6l8.4-5.9z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.1 0-11.3-3.7-13.2-9l-7.8 6C6.8 42.6 14.7 48 24 48z"/></svg>
+    以 Google 帳號登入
+  </button>
+</div>
+
+<div id="app">
+  <h1>🍜 拉麵猜猜 — 建題工具</h1>
+  <p class="sub">
+    這一版只做<strong>馬賽克預渲染校準</strong>：丟一張謎題照進來，調到你滿意的難度曲線，記下格子數。<br>
+    店家選擇、日期排程、上傳 Storage 留待下一階段。
+  </p>
+
+  <div class="panel">
+    <h2>1. 謎題照</h2>
+    <div id="dropZone">
+      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">
+      <span id="dropLabel">點擊或拖曳一張「店內一隅／地板／窗戶」照片</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2. 難度曲線</h2>
+    <div class="ctrl">
+      <label>第 1 階 格子數</label>
+      <input type="range" id="c1" min="4" max="40" value="8">
+      <span class="val" id="v1">8 格</span>
+    </div>
+    <div class="ctrl">
+      <label>第 2 階 格子數</label>
+      <input type="range" id="c2" min="4" max="60" value="14">
+      <span class="val" id="v2">14 格</span>
+    </div>
+    <div class="ctrl">
+      <label>第 3 階 格子數</label>
+      <input type="range" id="c3" min="4" max="90" value="24">
+      <span class="val" id="v3">24 格</span>
+    </div>
+    <div class="ctrl">
+      <label>輸出長邊</label>
+      <input type="range" id="cpx" min="600" max="1600" step="100" value="1200">
+      <span class="val" id="vpx">1200 px</span>
+    </div>
+    <div class="hint-note">
+      參數用<strong>橫向格子數</strong>而非格子像素——固定像素會讓同一個設定在不同尺寸的照片上產生完全不同的難度。<br>
+      第 4 階是原圖清晰版；第 5、6 階沿用同一張，只累加文字提示（縣市 → 鄉鎮市區 → 店名字數），不需另存圖檔。
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3. 六階預覽</h2>
+    <div id="stages" class="stages"></div>
+    <div id="stagesEmpty" class="empty">尚未載入照片</div>
+    <div style="margin-top:16px; display:flex; gap:10px;">
+      <button class="btn" id="dlBtn" disabled>下載四張階梯圖</button>
+      <button class="btn ghost" id="copyBtn" disabled>複製這組設定</button>
+    </div>
+  </div>
+</div>
+
+<div id="lightbox">
+  <button class="close" id="lbClose">✕</button>
+  <img id="lbImg" alt="">
+  <div class="cap" id="lbCap"></div>
+</div>
+
+<script>
+// ── Firebase 初始化（設定同 admin.html）──────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBdN0AYZMM2AU66QcH4BVNJHx1plwQBBYc",
+  authDomain: "taiwan-ramen-association.web.app",
+  projectId: "taiwan-ramen-association",
+  storageBucket: "taiwan-ramen-association.firebasestorage.app",
+  messagingSenderId: "66234065738",
+  appId: "1:66234065738:web:eb9fc4348a942da66ad7b3"
+};
+firebase.initializeApp(firebaseConfig);
+const _auth     = firebase.auth();
+const _db       = firebase.firestore();
+const _provider = new firebase.auth.GoogleAuthProvider();
+
+const gate     = document.getElementById('gate');
+const gateMsg  = document.getElementById('gateMsg');
+const loginBtn = document.getElementById('loginBtn');
+
+loginBtn.addEventListener('click', () => {
+  _auth.signInWithPopup(_provider).catch(err => {
+    if (err.code === 'auth/popup-blocked') _auth.signInWithRedirect(_provider);
+    else if (err.code !== 'auth/popup-closed-by-user') console.error(err);
+  });
+});
+
+_auth.getRedirectResult().catch(err => {
+  if (err.code && err.code !== 'auth/no-auth-event') console.error('redirect 結果處理失敗', err);
+});
+
+_auth.onAuthStateChanged(async user => {
+  if (!user) {
+    gateMsg.textContent = '請以管理員 Google 帳號登入';
+    loginBtn.style.display = 'flex';
+    return;
+  }
+  loginBtn.style.display = 'none';
+  gateMsg.textContent = '驗證中…';
+
+  const snap = await _db.collection('users').doc(user.uid).get();
+  const data = snap.data();
+  if (!data || data.role !== 'admin') {
+    gateMsg.textContent = `⛔ 權限不足（${user.email}）`;
+    return;
+  }
+  gate.style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+});
+
+// ── 階梯定義 ────────────────────────────────────────────────────────────────
+// cols = 橫向格子數；null 代表原圖（不像素化）
+const STAGES = [
+  { key: 's1', title: '第 1 階', ctrl: 'c1',  hint: '純色塊構圖' },
+  { key: 's2', title: '第 2 階', ctrl: 'c2',  hint: '輪廓浮現' },
+  { key: 's3', title: '第 3 階', ctrl: 'c3',  hint: '細節可辨' },
+  { key: 's4', title: '第 4～6 階', ctrl: null, hint: '原圖 ＋ 文字提示' },
+];
+
+let _srcImg   = null;   // 已載入的 Image
+let _blobs    = {};     // key → Blob（供下載）
+let _renderId = 0;      // 併發保護：滑桿連拖時只認最後一次
+
+// ── 像素化：縮到 cols 格寬再用最近鄰放大回去 ─────────────────────────────────
+// 逐格取平均值的做法慢一個量級，視覺結果幾乎相同，因此採用縮放法。
+function pixelate(img, outW, outH, cols) {
+  const canvas = document.createElement('canvas');
+  canvas.width = outW; canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+
+  if (!cols) {
+    ctx.drawImage(img, 0, 0, outW, outH);
+    return canvas;
+  }
+
+  const rows = Math.max(1, Math.round(cols * outH / outW));
+  const small = document.createElement('canvas');
+  small.width = cols; small.height = rows;
+  small.getContext('2d').drawImage(img, 0, 0, cols, rows);
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(small, 0, 0, cols, rows, 0, 0, outW, outH);
+  return canvas;
+}
+
+function canvasToWebp(canvas) {
+  return new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/webp', 0.82));
+}
+
+// ── 主渲染 ──────────────────────────────────────────────────────────────────
+async function render() {
+  if (!_srcImg) return;
+  const myId = ++_renderId;
+
+  const maxPx = +document.getElementById('cpx').value;
+  const scale = Math.min(1, maxPx / Math.max(_srcImg.width, _srcImg.height));
+  const outW  = Math.round(_srcImg.width  * scale);
+  const outH  = Math.round(_srcImg.height * scale);
+
+  const wrap = document.getElementById('stages');
+  document.getElementById('stagesEmpty').style.display = 'none';
+
+  // 先畫出骨架（避免每次重建 DOM 造成閃爍）
+  if (wrap.children.length !== STAGES.length) {
+    wrap.innerHTML = STAGES.map(s => `
+      <div class="stage">
+        <img class="stage-img" id="img-${s.key}" alt="${s.title}">
+        <div class="stage-meta">
+          <div class="t">${s.title}</div>
+          <div class="d" id="meta-${s.key}">—</div>
+        </div>
+      </div>`).join('');
+    wrap.querySelectorAll('.stage-img').forEach(el => {
+      el.addEventListener('click', () => {
+        if (!el.src) return;
+        document.getElementById('lbImg').src = el.src;
+        document.getElementById('lbCap').textContent = el.alt;
+        document.getElementById('lightbox').classList.add('open');
+      });
+    });
+  }
+
+  for (const s of STAGES) {
+    const cols   = s.ctrl ? +document.getElementById(s.ctrl).value : null;
+    const canvas = pixelate(_srcImg, outW, outH, cols);
+    const blob   = await canvasToWebp(canvas);
+    if (myId !== _renderId) return; // 已有更新的一輪在跑，丟棄這次結果
+
+    _blobs[s.key] = blob;
+    const img = document.getElementById(`img-${s.key}`);
+    if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+    const url = URL.createObjectURL(blob);
+    img.dataset.url = url;
+    img.src = url;
+    img.alt = `${s.title}（${cols ? cols + ' 格' : '原圖'}）`;
+
+    document.getElementById(`meta-${s.key}`).textContent =
+      `${cols ? cols + ' 格寬' : '原圖'} · ${(blob.size / 1024).toFixed(1)} KB · ${s.hint}`;
+  }
+
+  document.getElementById('dlBtn').disabled   = false;
+  document.getElementById('copyBtn').disabled = false;
+}
+
+// ── 載入檔案 ────────────────────────────────────────────────────────────────
+function loadFile(file) {
+  if (!file) return;
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    _srcImg = img;
+    document.getElementById('dropLabel').textContent =
+      `✓ ${file.name}（${img.width}×${img.height}，${(file.size / 1024).toFixed(0)} KB）— 點擊更換`;
+    render();
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    document.getElementById('dropLabel').textContent = '✕ 這個檔案讀不出來，換一張試試';
+  };
+  img.src = url;
+}
+
+const dropZone  = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
+['dragenter', 'dragover'].forEach(ev =>
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('drag'); }));
+['dragleave', 'drop'].forEach(ev =>
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('drag'); }));
+dropZone.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+
+// ── 滑桿 ────────────────────────────────────────────────────────────────────
+[['c1', 'v1', ' 格'], ['c2', 'v2', ' 格'], ['c3', 'v3', ' 格'], ['cpx', 'vpx', ' px']]
+  .forEach(([id, vid, unit]) => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => {
+      document.getElementById(vid).textContent = el.value + unit;
+      render();
+    });
+  });
+
+// ── 下載 / 複製設定 ─────────────────────────────────────────────────────────
+document.getElementById('dlBtn').addEventListener('click', () => {
+  STAGES.forEach(s => {
+    const blob = _blobs[s.key];
+    if (!blob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${s.key}.webp`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+});
+
+document.getElementById('copyBtn').addEventListener('click', async () => {
+  const cfg = {
+    cols:  ['c1', 'c2', 'c3'].map(id => +document.getElementById(id).value),
+    maxPx: +document.getElementById('cpx').value,
+    sizeKB: STAGES.map(s => +( (_blobs[s.key]?.size || 0) / 1024 ).toFixed(1)),
+  };
+  const text = JSON.stringify(cfg);
+  try {
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✓ 已複製';
+    setTimeout(() => { btn.textContent = '複製這組設定'; }, 1500);
+  } catch {
+    prompt('手動複製：', text);
+  }
+});
+
+// ── 放大檢視 ────────────────────────────────────────────────────────────────
+const lightbox = document.getElementById('lightbox');
+document.getElementById('lbClose').addEventListener('click', () => lightbox.classList.remove('open'));
+lightbox.addEventListener('click', e => { if (e.target === lightbox) lightbox.classList.remove('open'); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') lightbox.classList.remove('open');
+});
+</script>
+</body>
+</html>
