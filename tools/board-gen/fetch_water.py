@@ -24,10 +24,14 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-import fetch_boundary
-from geo import geometry_bounds
-
 HERE = Path(__file__).resolve().parent
+# 明確把腳本目錄放進 sys.path。通常 Python 會自動加，但環境設了
+# PYTHONSAFEPATH=1（3.11+）或以其他方式啟動時不會，同目錄的 import 就會失敗。
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+
+import fetch_boundary          # noqa: E402  （必須在 sys.path 補好之後）
+from geo import geometry_bounds  # noqa: E402
 CACHE_DIR = HERE / 'cache'
 
 QUERY = """
