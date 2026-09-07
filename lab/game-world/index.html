@@ -138,6 +138,15 @@
   }
   #stampBtn:disabled{background:#2c313b; color:#5b626f; cursor:default}
 
+  .ghost{
+    width:100%; padding:9px; border-radius:8px; font-size:13px; cursor:pointer;
+    background:#252932; color:var(--ink); border:1px solid var(--line);
+  }
+  .ghost:hover{background:#2d323d}
+  .ghost.on{background:var(--accent); border-color:var(--accent); color:#fff}
+  .hint{margin:6px 0 0; font-size:11px; color:#5b626f; line-height:1.45}
+  #map.placing{cursor:cell}
+
   #err{
     position:absolute; inset:0; z-index:20; display:none; place-items:center;
     background:rgba(22,24,29,.96); padding:24px; text-align:center;
@@ -244,6 +253,11 @@ python -m http.server 8000
     </div>
   </div>
 
+  <div class="ctrl">
+    <button id="placeBtn" class="ghost">🧭 手動設定人物位置</button>
+    <p class="hint" id="placeHint">卡住時用這個。點下去之後在地圖上點一格，人物就過去（不在路上會自動吸附到最近的道路）</p>
+  </div>
+
   <button id="stampBtn" disabled>踩點</button>
   <div id="list"></div>
 </aside>
@@ -328,6 +342,7 @@ let cam = { x:0, y:0, px:4 };
 // 鏡頭自動跟隨角色。不跟的話角色一走出畫面，路上撿到什麼玩家都看不到——
 // 而「路上有東西」正是移動不無聊的全部理由。手動拖曳會暫停跟隨，按 ◎ 恢復。
 let follow = true;
+let placeMode = false;      // 手動設定人物位置
 let terrainCanvas = null;
 
 const $ = id => document.getElementById(id);
@@ -441,6 +456,46 @@ function eventAt(cell){
     roll -= ev.weight;
   }
   return EVENTS[0];
+}
+
+// 從任意一格往外找最近的可通行格。
+// 用途有二：手動設定位置時吸附到路上；以及載入舊存檔時把卡在路外的角色救回來
+// （地形語意改過——以前陸地可走，現在只有道路可走，舊存檔的位置會直接失效）。
+function nearestRoad(cx, cy){
+  const start = cy*W + cx;
+  if (cx >= 0 && cy >= 0 && cx < W && cy < H && passable[start]) return start;
+  const seen = new Set([start]);
+  const q = [[cx, cy]];
+  let head = 0;
+  while (head < q.length) {
+    const [x, y] = q[head++];
+    for (const [ox, oy] of DIRS) {
+      const nx = x+ox, ny = y+oy;
+      if (nx<0 || ny<0 || nx>=W || ny>=H) continue;
+      const idx = ny*W + nx;
+      if (seen.has(idx)) continue;
+      if (passable[idx]) return idx;
+      seen.add(idx);
+      if (Math.abs(nx-cx) > 300 || Math.abs(ny-cy) > 300) continue;
+      q.push([nx, ny]);
+    }
+  }
+  return null;
+}
+
+function placeAt(cx, cy, quiet){
+  const idx = nearestRoad(cx, cy);
+  if (idx === null) { toast('附近找不到道路', 'info'); return false; }
+  move = null;
+  pos = { cx: idx % W, cy: (idx - idx % W) / W };
+  follow = true;
+  cam.x = pos.cx + 0.5; cam.y = pos.cy + 0.5;
+  save(); refreshList();
+  if (!quiet) {
+    const here = doorAt.get(idx) || [];
+    toast(here.length ? ('移動到 ' + here[0].name + ' 門口') : '已設定位置', 'info');
+  }
+  return true;
 }
 
 // ── 尋路 ─────────────────────────────────────────────────────────────────
@@ -915,6 +970,13 @@ canvas.addEventListener('pointerup', e => {
   const cx = Math.floor((e.clientX - r.left - (w/2 - cam.x*cam.px)) / cam.px);
   const cy = Math.floor((e.clientY - r.top  - (h/2 - cam.y*cam.px)) / cam.px);
   if (cx < 0 || cy < 0 || cx >= W || cy >= H) return;
+
+  if (placeMode) {                     // 手動設定位置：吸附到最近的道路
+    placeAt(cx, cy);
+    setPlaceMode(false);
+    return;
+  }
+
   const clickedShop = shopAt.get(cy*W + cx);
   if (clickedShop) { startMoveToShop(clickedShop); return; }   // 點店家 → 走到門口
   if (!passable[cy*W + cx]) { toast('沒有路過去', 'info'); return; }
@@ -932,6 +994,14 @@ $('recenter').onclick = () => {
   follow = true;
   const c = currentXY(); cam.x = c.x; cam.y = c.y;
 };
+
+function setPlaceMode(on){
+  placeMode = on;
+  $('placeBtn').classList.toggle('on', on);
+  $('placeBtn').textContent = on ? '在地圖上點一格…（再按一次取消）' : '🧭 手動設定人物位置';
+  canvas.classList.toggle('placing', on);
+}
+$('placeBtn').onclick = () => setPlaceMode(!placeMode);
 
 $('stampBtn').onclick = () => {
   // 一個門口格可能同時臨兩家店（並排店家共用側邊通道），一次全踩
@@ -1007,6 +1077,16 @@ $('sense').oninput = e => {
     }, { s:shops.find(s => s.doors.length), n:0 }).s;
     const door = seed.doors[0];
     pos = { cx: door % W, cy: (door - door % W) / W };
+  }
+
+  // 舊存檔救援：地形語意改過（以前陸地可走，現在只有道路可走），
+  // 存檔裡的位置可能已經在路外，不救的話玩家開起來就是卡死的。
+  if (!move && pos && !passable[pos.cy*W + pos.cx]) {
+    const before = { ...pos };
+    if (placeAt(pos.cx, pos.cy, true)) {
+      toast('位置已修正到最近的道路', 'info');
+      console.log('[game-world] 位置修正', before, '→', pos);
+    }
   }
 
   buildVehicles();
