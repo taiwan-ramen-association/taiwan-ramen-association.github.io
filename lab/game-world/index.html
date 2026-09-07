@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>拉麵養成世界 — M0 原型</title>
+<style>
+  :root{
+    --bg:#16181d; --panel:#1e2128; --line:#2c313b; --ink:#e8e6e1; --dim:#8b93a1;
+    --accent:#d64541; --gold:#e8b03a; --water:#4a90c4; --ok:#5aa469;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Noto Sans TC","Segoe UI",sans-serif;
+    display:flex; overflow:hidden; -webkit-tap-highlight-color:transparent;
+  }
+
+  /* ── 地圖 ───────────────────────────────────────────────────────────── */
+  #stage{flex:1; position:relative; min-width:0}
+  #map{display:block; width:100%; height:100%; cursor:crosshair; touch-action:none}
+
+  #hud{
+    position:absolute; left:12px; top:12px; z-index:5;
+    background:rgba(30,33,40,.92); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; min-width:210px; backdrop-filter:blur(6px);
+  }
+  #hud h1{margin:0 0 6px; font-size:13px; letter-spacing:.04em; color:var(--dim); font-weight:600}
+  #status{font-size:13px; margin-bottom:2px}
+  #eta{font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.2}
+  #etaSub{font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums}
+  #stamped{margin-top:8px; padding-top:8px; border-top:1px solid var(--line);
+           font-size:12px; color:var(--dim)}
+  #stamped b{color:var(--gold); font-size:15px}
+
+  #legend{
+    position:absolute; left:12px; bottom:12px; z-index:5; display:flex; gap:10px;
+    background:rgba(30,33,40,.92); border:1px solid var(--line); border-radius:8px;
+    padding:6px 10px; font-size:11px; color:var(--dim); flex-wrap:wrap; max-width:calc(100% - 24px);
+  }
+  #legend span{display:flex; align-items:center; gap:4px; white-space:nowrap}
+  #legend i{width:10px; height:10px; border-radius:2px; display:inline-block}
+
+  #zoombar{position:absolute; right:12px; bottom:12px; z-index:5; display:flex; gap:6px}
+  #zoombar button{
+    width:36px; height:36px; font-size:18px; border-radius:8px;
+    background:var(--panel); color:var(--ink); border:1px solid var(--line); cursor:pointer;
+  }
+  #zoombar button:active{background:#2a2e37}
+
+  #arrive{
+    position:absolute; left:50%; top:18px; transform:translateX(-50%) translateY(-140%);
+    z-index:8; background:var(--gold); color:#25200e; font-weight:700;
+    padding:10px 18px; border-radius:999px; white-space:nowrap;
+    transition:transform .35s cubic-bezier(.2,1.4,.4,1); box-shadow:0 6px 20px rgba(0,0,0,.4);
+  }
+  #arrive.show{transform:translateX(-50%) translateY(0)}
+
+  /* ── 側欄（任務欄）──────────────────────────────────────────────────── */
+  #side{
+    width:320px; flex:none; background:var(--panel); border-left:1px solid var(--line);
+    display:flex; flex-direction:column;
+  }
+  #side header{padding:12px 14px; border-bottom:1px solid var(--line)}
+  #side header h2{margin:0; font-size:14px}
+  #side header p{margin:3px 0 0; font-size:12px; color:var(--dim)}
+
+  .ctrl{padding:10px 14px; border-bottom:1px solid var(--line)}
+  .ctrl label{display:block; font-size:11px; color:var(--dim); margin-bottom:5px}
+  .veh{display:flex; gap:5px}
+  .veh button{
+    flex:1; padding:7px 0; font-size:12px; border-radius:7px; cursor:pointer;
+    background:#252932; color:var(--dim); border:1px solid var(--line);
+  }
+  .veh button.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .row{display:flex; align-items:center; gap:8px}
+  .row input[type=range]{flex:1; accent-color:var(--accent)}
+  .row output{font-variant-numeric:tabular-nums; font-weight:700; min-width:32px; text-align:right}
+
+  #list{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch}
+  .shop{
+    display:flex; align-items:center; gap:10px; padding:9px 14px;
+    border-bottom:1px solid #23262e; cursor:pointer;
+  }
+  .shop:hover{background:#242832}
+  .shop.here{background:#2a2418}
+  .shop.done .nm{color:var(--dim); text-decoration:line-through}
+  .pin{width:8px; height:8px; border-radius:50%; background:var(--accent); flex:none}
+  .shop.done .pin{background:var(--gold)}
+  .shop .nm{flex:1; font-size:13px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .shop .d{font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums; text-align:right; flex:none}
+  .shop .d em{display:block; font-style:normal; font-size:11px; color:#6b7280}
+  .shop .x{color:#7a4a4a; font-size:11px}
+
+  #stampBtn{
+    margin:10px 14px; padding:11px; width:calc(100% - 28px); border-radius:9px;
+    background:var(--gold); color:#25200e; font-weight:700; font-size:14px;
+    border:0; cursor:pointer;
+  }
+  #stampBtn:disabled{background:#2c313b; color:#5b626f; cursor:default}
+
+  #err{
+    position:absolute; inset:0; z-index:20; display:none; place-items:center;
+    background:rgba(22,24,29,.96); padding:24px; text-align:center;
+  }
+  #err div{max-width:460px}
+  #err code{display:block; background:#0f1115; padding:10px; border-radius:6px;
+            margin-top:10px; font-size:12px; text-align:left; color:var(--gold)}
+
+  @media (max-width:820px){
+    body{flex-direction:column}
+    #side{width:auto; height:44%; border-left:0; border-top:1px solid var(--line)}
+    #hud{min-width:0}
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="map"></canvas>
+
+  <div id="hud">
+    <h1>臺北市中山區</h1>
+    <div id="status">載入中…</div>
+    <div id="eta">—</div>
+    <div id="etaSub"></div>
+    <div id="stamped">已踩點 <b id="stampCount">0</b> / <span id="shopTotal">0</span> 間</div>
+  </div>
+
+  <div id="legend">
+    <span><i style="background:#ded8c8"></i>陸地</span>
+    <span><i style="background:#4a90c4"></i>水域</span>
+    <span><i style="background:#96693e"></i>橋樑</span>
+    <span><i style="background:#d64541"></i>店家</span>
+    <span><i style="background:#e8b03a"></i>已踩點</span>
+  </div>
+
+  <div id="zoombar">
+    <button id="zoomOut" title="縮小">−</button>
+    <button id="zoomIn" title="放大">＋</button>
+    <button id="recenter" title="回到角色">◎</button>
+  </div>
+
+  <div id="arrive"></div>
+
+  <div id="err"><div>
+    <strong>載不到棋盤檔</strong>
+    <p style="color:#8b93a1">這一頁用 <code style="display:inline">fetch()</code> 讀棋盤，直接用
+       <code style="display:inline">file://</code> 開會被瀏覽器擋。請在 repo 根目錄起一個本機伺服器：</p>
+    <code>cd D:\taiwan-ramen-association.github.io
+python -m http.server 8000
+
+→ http://localhost:8000/lab/game-world/</code>
+    <p id="errDetail" style="color:#6b7280; font-size:12px; margin-top:10px"></p>
+  </div></div>
+</div>
+
+<aside id="side">
+  <header>
+    <h2>任務欄 — 蒐集拉麵徽章</h2>
+    <p>依實走距離排序（A* 4 向，與 verify.py 同一套）</p>
+  </header>
+
+  <div class="ctrl">
+    <label>載具</label>
+    <div class="veh" id="veh"></div>
+  </div>
+
+  <div class="ctrl">
+    <label>遊戲加速倍率 <span style="color:#5b626f">（熱參數，正式版由後台控制）</span></label>
+    <div class="row">
+      <input type="range" id="mult" min="1" max="10" step="1" value="3">
+      <output id="multOut">x3</output>
+    </div>
+  </div>
+
+  <button id="stampBtn" disabled>踩點</button>
+  <div id="list"></div>
+</aside>
+
+<script>
+'use strict';
+
+// ── 設定 ─────────────────────────────────────────────────────────────────
+// 這些之後全部搬到 Firestore game/v1/config/params（熱參數）。
+// 現在寫在這裡是為了讓原型能單獨跑，數值與規劃書一致。
+const BOARD_URL = '../../data/boards/tpe-zhongshan.json';
+
+const VEHICLES = [
+  { key:'walk',  name:'走路',   kmh:5  },
+  { key:'bike',  name:'腳踏車', kmh:15 },
+  { key:'moto',  name:'機車',   kmh:30 },
+  { key:'metro', name:'捷運',   kmh:60 },
+];
+
+// 地形色（key 對應 Tiled tileset 裡的 terrain property，不是寫死的索引順序）
+const COLOR = {
+  outside:  [26, 28, 33, 255],
+  land:     [222,216,200, 255],
+  water:    [ 74,144,196, 255],
+  bridge:   [150,105, 62, 255],
+  shop:     [214, 69, 65, 255],
+  shop_coop:[232,176, 58, 255],
+};
+
+// 4 向移動。與 tools/board-gen/verify.py 的 NEIGHBOURS 必須一致——
+// 兩邊走出不同路徑的話，玩家看到的距離和伺服器算的抵達時間就對不上。
+const DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
+
+const LS_KEY = 'gw_state_v1';
+
+// ── 狀態 ─────────────────────────────────────────────────────────────────
+let board = null;          // 解析後的棋盤
+let W = 0, H = 0, cellSize = 25;
+let passable = null;       // Uint8Array
+let terrainKey = null;     // Uint8Array → TERRAIN_KEYS 索引
+let TERRAIN_KEYS = [];
+let shops = [];            // {shopId,name,cx,cy,lat,lng}
+let shopAt = new Map();    // cellIndex → shop
+
+let pos = null;            // {cx,cy} 靜止時的位置
+let move = null;           // {path:[idx], startAt, secPerCell, vehicle, toShopId}
+let vehicle = 'walk';
+let multiplier = 3;
+let stamped = new Set();
+
+let cam = { x:0, y:0, px:3 };   // px = 每格幾個螢幕像素
+let terrainCanvas = null;       // 烘好的地形（1 px = 1 格）
+
+const $ = id => document.getElementById(id);
+
+// ── 載入棋盤 ─────────────────────────────────────────────────────────────
+async function loadBoard(){
+  let res;
+  try {
+    res = await fetch(BOARD_URL);
+  } catch (e) {
+    showErr(e.message); throw e;
+  }
+  if (!res.ok) { showErr('HTTP ' + res.status); throw new Error(res.status); }
+  const map = await res.json();
+
+  W = map.width; H = map.height;
+  const props = Object.fromEntries(map.properties.map(p => [p.name, p.value]));
+  cellSize = props.cellSize || 25;
+  $('hud').querySelector('h1').textContent = (props.county||'') + (props.town||'');
+
+  // 通行性與地形種類都從 tileset 的 tile property 讀，不在前端寫死。
+  // 在 Tiled 裡把一格從「水域」改成「橋樑」，這裡就會跟著變 —— 只有一份真相。
+  const ts = map.tilesets[0];
+  const first = ts.firstgid;
+  const passableByTile = [], keyByTile = [];
+  for (const t of ts.tiles) {
+    const p = Object.fromEntries(t.properties.map(x => [x.name, x.value]));
+    passableByTile[t.id] = !!p.passable;
+    keyByTile[t.id] = p.terrain;
+  }
+  TERRAIN_KEYS = keyByTile;
+
+  const data = map.layers.find(l => l.name === 'terrain').data;
+  passable   = new Uint8Array(W*H);
+  terrainKey = new Uint8Array(W*H);
+  for (let i = 0; i < data.length; i++) {
+    const tid = data[i] - first;
+    terrainKey[i] = tid;
+    passable[i] = passableByTile[tid] ? 1 : 0;
+  }
+
+  shops = map.layers.find(l => l.name === 'shops').objects.map(o => {
+    const p = Object.fromEntries(o.properties.map(x => [x.name, x.value]));
+    return { shopId:p.shopId, name:o.name, cx:p.cx, cy:p.cy, lat:p.lat, lng:p.lng };
+  });
+  shops.forEach(s => shopAt.set(s.cy*W + s.cx, s));
+  $('shopTotal').textContent = shops.length;
+
+  bakeTerrain();
+}
+
+function showErr(detail){
+  $('err').style.display = 'grid';
+  $('errDetail').textContent = detail ? ('錯誤訊息：' + detail) : '';
+}
+
+// 58,555 格逐格 fillRect 撐不住 60fps，所以先把地形烘成一張 1px=1格 的
+// 離屏畫布，每幀只做一次 drawImage 縮放。關掉平滑化保持格子邊緣銳利。
+function bakeTerrain(){
+  terrainCanvas = document.createElement('canvas');
+  terrainCanvas.width = W; terrainCanvas.height = H;
+  const tctx = terrainCanvas.getContext('2d');
+  const img = tctx.createImageData(W, H);
+  for (let i = 0; i < W*H; i++) {
+    const c = COLOR[TERRAIN_KEYS[terrainKey[i]]] || COLOR.outside;
+    img.data[i*4] = c[0]; img.data[i*4+1] = c[1];
+    img.data[i*4+2] = c[2]; img.data[i*4+3] = c[3];
+  }
+  tctx.putImageData(img, 0, 0);
+}
+
+// ── 尋路 ─────────────────────────────────────────────────────────────────
+function astar(from, to){
+  const start = from.cy*W + from.cx, goal = to.cy*W + to.cx;
+  if (!passable[start] || !passable[goal]) return null;
+  if (start === goal) return [start];
+
+  const gScore = new Int32Array(W*H).fill(-1);
+  const prev   = new Int32Array(W*H).fill(-1);
+  gScore[start] = 0;
+
+  // 二元堆。58k 格用陣列 sort 會慢到有感，這裡自己實作。
+  const heap = [[manhattan(start, goal), start]];
+  const push = it => {
+    heap.push(it); let i = heap.length-1;
+    while (i > 0) { const p = (i-1)>>1;
+      if (heap[p][0] <= heap[i][0]) break;
+      [heap[p],heap[i]]=[heap[i],heap[p]]; i = p; }
+  };
+  const pop = () => {
+    const top = heap[0], last = heap.pop();
+    if (heap.length) { heap[0] = last; let i = 0;
+      for(;;){ const l=i*2+1, r=l+1; let m=i;
+        if (l<heap.length && heap[l][0]<heap[m][0]) m=l;
+        if (r<heap.length && heap[r][0]<heap[m][0]) m=r;
+        if (m===i) break; [heap[m],heap[i]]=[heap[i],heap[m]]; i=m; } }
+    return top;
+  };
+
+  while (heap.length) {
+    const [, cur] = pop();
+    if (cur === goal) break;
+    const cx = cur % W, cy = (cur - cx) / W, base = gScore[cur] + 1;
+    for (const [ox, oy] of DIRS) {
+      const nx = cx+ox, ny = cy+oy;
+      if (nx<0 || ny<0 || nx>=W || ny>=H) continue;
+      const nxt = ny*W + nx;
+      if (!passable[nxt]) continue;
+      if (gScore[nxt] !== -1 && gScore[nxt] <= base) continue;
+      gScore[nxt] = base; prev[nxt] = cur;
+      push([base + manhattan(nxt, goal), nxt]);
+    }
+  }
+  if (gScore[goal] === -1) return null;
+
+  const path = [];
+  for (let n = goal; n !== -1; n = prev[n]) path.push(n);
+  return path.reverse();
+}
+
+function manhattan(a, b){
+  const ax = a % W, ay = (a-ax)/W, bx = b % W, by = (b-bx)/W;
+  return Math.abs(ax-bx) + Math.abs(ay-by);
+}
+
+// 從目前位置做一次 BFS，拿到到所有格子的步數 —— 任務欄要按距離排序，
+// 跑 N 次 A* 不如跑一次 BFS。
+function bfsFrom(cell){
+  const dist = new Int32Array(W*H).fill(-1);
+  const start = cell.cy*W + cell.cx;
+  if (!passable[start]) return dist;
+  dist[start] = 0;
+  const q = new Int32Array(W*H); let head = 0, tail = 0;
+  q[tail++] = start;
+  while (head < tail) {
+    const cur = q[head++], cx = cur % W, cy = (cur-cx)/W, base = dist[cur]+1;
+    for (const [ox, oy] of DIRS) {
+      const nx = cx+ox, ny = cy+oy;
+      if (nx<0 || ny<0 || nx>=W || ny>=H) continue;
+      const nxt = ny*W + nx;
+      if (passable[nxt] && dist[nxt] === -1) { dist[nxt] = base; q[tail++] = nxt; }
+    }
+  }
+  return dist;
+}
+
+// ── 移動 ─────────────────────────────────────────────────────────────────
+function secPerCell(){
+  const kmh = VEHICLES.find(v => v.key === vehicle).kmh;
+  return cellSize / (kmh * 1000 / 3600) / multiplier;
+}
+
+function startMove(target){
+  const path = astar(currentCell(), target);
+  if (!path || path.length < 2) return false;
+  move = {
+    path, startAt: Date.now(), secPerCell: secPerCell(),
+    vehicle, toShopId: (shopAt.get(path[path.length-1]) || {}).shopId || null,
+  };
+  pos = null;
+  save(); refreshList();
+  return true;
+}
+
+// 位置由「出發時間 + 每格秒數」推算，不是每幀累加。
+// 這樣關掉分頁再回來，角色是「已經走到該走到的地方」——
+// 正式版同一套算法會在 Cloud Function 端跑，前端只是內插動畫。
+function moveProgress(){
+  if (!move) return null;
+  const elapsed = (Date.now() - move.startAt) / 1000;
+  const total = (move.path.length - 1) * move.secPerCell;
+  if (elapsed >= total) return { done:true, idx:move.path.length-1, t:0 };
+  const exact = elapsed / move.secPerCell;
+  return { done:false, idx:Math.floor(exact), t:exact % 1 };
+}
+
+function currentCell(){
+  if (!move) return pos;
+  const p = moveProgress();
+  const idx = p.done ? move.path.length-1 : p.idx;
+  const c = move.path[idx];
+  return { cx: c % W, cy: (c - c % W) / W };
+}
+
+function currentXY(){                       // 含格內插值，畫面用
+  if (!move) return { x:pos.cx+0.5, y:pos.cy+0.5 };
+  const p = moveProgress();
+  const a = move.path[p.idx];
+  const b = move.path[Math.min(p.idx+1, move.path.length-1)];
+  const ax = a%W, ay = (a-ax)/W, bx = b%W, by = (b-bx)/W;
+  return { x: ax + (bx-ax)*p.t + 0.5, y: ay + (by-ay)*p.t + 0.5 };
+}
+
+function finishMove(){
+  const last = move.path[move.path.length-1];
+  pos = { cx: last % W, cy: (last - last % W) / W };
+  const shop = shopAt.get(last);
+  move = null;
+  save(); refreshList();
+  if (shop) toast('抵達 ' + shop.name);
+}
+
+let toastTimer = null;
+function toast(msg){
+  const el = $('arrive');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// ── 繪製 ─────────────────────────────────────────────────────────────────
+const canvas = $('map'), ctx = canvas.getContext('2d');
+
+function resize(){
+  const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(r.width * dpr);
+  canvas.height = Math.round(r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function draw(){
+  if (!board) { requestAnimationFrame(draw); return; }
+  if (move && moveProgress().done) finishMove();
+
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 0, w, h);
+
+  const px = cam.px;
+  const ox = w/2 - cam.x*px, oy = h/2 - cam.y*px;
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(terrainCanvas, ox, oy, W*px, H*px);
+
+  // 路徑
+  if (move) {
+    const p = moveProgress();
+    ctx.strokeStyle = 'rgba(232,176,58,.85)';
+    ctx.lineWidth = Math.max(1.5, px*0.5); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = p.idx; i < move.path.length; i++) {
+      const c = move.path[i], cx = c%W, cy = (c-cx)/W;
+      const sx = ox + (cx+0.5)*px, sy = oy + (cy+0.5)*px;
+      i === p.idx ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+  }
+
+  // 店家（已踩點的加金框）
+  for (const s of shops) {
+    const sx = ox + (s.cx+0.5)*px, sy = oy + (s.cy+0.5)*px;
+    if (sx < -20 || sy < -20 || sx > w+20 || sy > h+20) continue;
+    const r = Math.max(2.5, px*0.9);
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, 6.284);
+    ctx.fillStyle = stamped.has(s.shopId) ? '#e8b03a' : '#d64541';
+    ctx.fill();
+    if (px >= 4) { ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.stroke(); }
+  }
+
+  // 角色
+  const me = currentXY();
+  const mx = ox + me.x*px, my = oy + me.y*px;
+  const R = Math.max(4, px*1.1);
+  ctx.beginPath(); ctx.arc(mx, my+1, R*0.9, 0, 6.284);
+  ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(mx, my, R, 0, 6.284);
+  ctx.fillStyle = '#f2f0eb'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#16181d'; ctx.stroke();
+
+  updateHud();
+  requestAnimationFrame(draw);
+}
+
+function fmtSec(s){
+  s = Math.max(0, Math.round(s));
+  const m = Math.floor(s/60);
+  return m > 0 ? `${m} 分 ${String(s%60).padStart(2,'0')} 秒` : `${s} 秒`;
+}
+function fmtDist(m){ return m >= 1000 ? (m/1000).toFixed(2)+' km' : Math.round(m)+' m'; }
+
+function updateHud(){
+  if (move) {
+    const p = moveProgress();
+    const left = (move.path.length-1 - p.idx - p.t) * move.secPerCell;
+    const shop = shopAt.get(move.path[move.path.length-1]);
+    const vname = VEHICLES.find(v => v.key === move.vehicle).name;
+    $('status').textContent = `${vname}前往 ${shop ? shop.name : '目的地'}`;
+    $('eta').textContent = fmtSec(left);
+    $('etaSub').textContent =
+      `剩 ${fmtDist((move.path.length-1 - p.idx) * cellSize)}` +
+      `　全程 ${fmtDist((move.path.length-1) * cellSize)}`;
+  } else {
+    const here = shopAt.get(pos.cy*W + pos.cx);
+    $('status').textContent = here ? ('在 ' + here.name) : '待命中';
+    $('eta').textContent = '—';
+    $('etaSub').textContent = '點地圖或右側店家出發';
+  }
+  $('stampCount').textContent = stamped.size;
+
+  const here = !move && shopAt.get(pos.cy*W + pos.cx);
+  const btn = $('stampBtn');
+  btn.disabled = !here || stamped.has(here.shopId);
+  btn.textContent = !here ? '走到店家才能踩點'
+                  : stamped.has(here.shopId) ? '已踩點 ✓'
+                  : '踩點 — ' + here.name;
+}
+
+// ── 任務欄 ───────────────────────────────────────────────────────────────
+function refreshList(){
+  const from = currentCell();
+  const dist = bfsFrom(from);
+  const spc = secPerCell();
+
+  const rows = shops.map(s => {
+    const d = dist[s.cy*W + s.cx];
+    return { s, steps:d, m: d < 0 ? Infinity : d*cellSize, sec: d < 0 ? Infinity : d*spc };
+  }).sort((a,b) => a.m - b.m);
+
+  const list = $('list');
+  list.innerHTML = '';
+  for (const r of rows) {
+    const el = document.createElement('div');
+    el.className = 'shop'
+      + (stamped.has(r.s.shopId) ? ' done' : '')
+      + (r.steps === 0 ? ' here' : '');
+    el.innerHTML =
+      `<span class="pin"></span><span class="nm"></span>` +
+      (r.steps < 0
+        ? `<span class="d x">走不到</span>`
+        : `<span class="d">${r.steps === 0 ? '在這裡' : fmtDist(r.m)}<em>${r.steps === 0 ? '' : fmtSec(r.sec)}</em></span>`);
+    el.querySelector('.nm').textContent = r.s.name;
+    if (r.steps > 0) el.onclick = () => { if (!startMove({cx:r.s.cx, cy:r.s.cy})) toast('走不到那裡'); };
+    list.appendChild(el);
+  }
+}
+
+// ── 存檔 ─────────────────────────────────────────────────────────────────
+function save(){
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      pos, move, vehicle, multiplier, stamped:[...stamped],
+    }));
+  } catch (e) { /* 無痕模式等情境，存不了就算了 */ }
+}
+
+function load(){
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    pos = s.pos; move = s.move;
+    vehicle = s.vehicle || 'walk';
+    multiplier = s.multiplier || 3;
+    stamped = new Set(s.stamped || []);
+    // 存的是「出發時間」而不是「走到哪」，所以關掉分頁期間角色照樣在走。
+    if (move && moveProgress().done) finishMove();
+    return !!(pos || move);
+  } catch (e) { return false; }
+}
+
+// ── 互動 ─────────────────────────────────────────────────────────────────
+let drag = null;
+canvas.addEventListener('pointerdown', e => {
+  drag = { x:e.clientX, y:e.clientY, cx:cam.x, cy:cam.y, moved:false };
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (Math.abs(dx) + Math.abs(dy) > 6) drag.moved = true;
+  cam.x = drag.cx - dx/cam.px;
+  cam.y = drag.cy - dy/cam.px;
+});
+canvas.addEventListener('pointerup', e => {
+  const wasDrag = drag && drag.moved;
+  drag = null;
+  if (wasDrag || !board) return;
+  const r = canvas.getBoundingClientRect();
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const cx = Math.floor((e.clientX - r.left - (w/2 - cam.x*cam.px)) / cam.px);
+  const cy = Math.floor((e.clientY - r.top  - (h/2 - cam.y*cam.px)) / cam.px);
+  if (cx < 0 || cy < 0 || cx >= W || cy >= H) return;
+  if (!passable[cy*W + cx]) { toast('那裡過不去'); return; }
+  if (!startMove({cx, cy})) toast('找不到路');
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoom(e.deltaY < 0 ? 1.2 : 1/1.2);
+}, {passive:false});
+
+function zoom(f){ cam.px = Math.max(1, Math.min(24, cam.px * f)); }
+$('zoomIn').onclick  = () => zoom(1.35);
+$('zoomOut').onclick = () => zoom(1/1.35);
+$('recenter').onclick = () => { const c = currentXY(); cam.x = c.x; cam.y = c.y; };
+
+$('stampBtn').onclick = () => {
+  const here = !move && shopAt.get(pos.cy*W + pos.cx);
+  if (!here || stamped.has(here.shopId)) return;
+  stamped.add(here.shopId);
+  save(); refreshList();
+  toast('🏅 取得徽章 — ' + here.name);
+};
+
+// 載具切換：正在移動中改載具會依「剩下的路」重新出發，不是瞬移。
+function buildVehicles(){
+  const box = $('veh');
+  for (const v of VEHICLES) {
+    const b = document.createElement('button');
+    b.textContent = `${v.name} ${v.kmh}`;
+    b.className = v.key === vehicle ? 'on' : '';
+    b.onclick = () => {
+      vehicle = v.key;
+      [...box.children].forEach((c, i) => c.className = VEHICLES[i].key === vehicle ? 'on' : '');
+      if (move) {
+        const p = moveProgress();
+        move = { ...move, path: move.path.slice(p.idx), startAt: Date.now(),
+                 secPerCell: secPerCell(), vehicle };
+      }
+      save(); refreshList();
+    };
+    box.appendChild(b);
+  }
+}
+
+$('mult').oninput = e => {
+  multiplier = +e.target.value;
+  $('multOut').textContent = 'x' + multiplier;
+  if (move) {
+    const p = moveProgress();
+    move = { ...move, path: move.path.slice(p.idx), startAt: Date.now(),
+             secPerCell: secPerCell() };
+  }
+  save(); refreshList();
+};
+
+// ── 啟動 ─────────────────────────────────────────────────────────────────
+(async function init(){
+  window.addEventListener('resize', resize);
+  resize();
+  await loadBoard();
+  board = true;
+
+  if (!load()) {
+    // 出生地：店家最密的地方（南邊中山北路一帶），比丟在區中心有意義
+    const seed = shops.reduce((best, s) => {
+      const n = shops.filter(o =>
+        Math.abs(o.cx-s.cx) + Math.abs(o.cy-s.cy) < 40).length;
+      return n > best.n ? { s, n } : best;
+    }, { s:shops[0], n:0 }).s;
+    pos = { cx: seed.cx, cy: seed.cy };
+  }
+
+  buildVehicles();
+  $('mult').value = multiplier;
+  $('multOut').textContent = 'x' + multiplier;
+
+  const c = currentXY();
+  cam.x = c.x; cam.y = c.y; cam.px = 4;
+  refreshList();
+  draw();
+})();
+</script>
+</body>
+</html>
