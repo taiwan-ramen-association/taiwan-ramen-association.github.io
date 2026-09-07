@@ -1,0 +1,23 @@
+{
+  "_comment": "棋盤生成的冷參數。改這裡要重跑 gen_board.py，不是改完就生效的熱參數（熱參數在 Firestore game/v1/config/params）。",
+
+  "cellSize": 25,
+  "marginMeters": 400,
+
+  "waterLineRadiusCells": 1,
+  "bridgeRadiusCells": 1,
+
+  "excludeStatuses": ["已歇業"],
+
+  "boundarySource": "https://raw.githubusercontent.com/ronnywang/twgeojson/master/twtown2010.4.json",
+  "overpassEndpoint": "https://overpass-api.de/api/interpreter",
+
+  "boards": [
+    {
+      "id": "tpe-zhongshan",
+      "county": "臺北市",
+      "town": "中山區",
+      "out": "data/boards/tpe-zhongshan.json"
+    }
+  ]
+}

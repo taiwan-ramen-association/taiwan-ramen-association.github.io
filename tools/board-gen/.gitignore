@@ -1,0 +1,8 @@
+# 行政區界原始檔 5 MB，隨時可用 fetch_boundary.py 重抓，不進版控
+cache/twtown2010.json
+
+# 水域／橋樑圖層要進版控 —— 雲端環境連不到 overpass，
+# 沒有它 gen_board.py 生出來的棋盤沒有河也沒有橋
+!cache/water-*.geojson
+
+__pycache__/
