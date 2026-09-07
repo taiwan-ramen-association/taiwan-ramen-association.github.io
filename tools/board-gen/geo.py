@@ -287,3 +287,142 @@ def nearest_free_cell(taken, passable, width, height, start):
             seen.add(nxt)
             queue.append(nxt)
     return None
+
+
+# ── 路網 ─────────────────────────────────────────────────────────────────────
+
+
+def delaunay_edges(points):
+    """Bowyer-Watson 三角化，回傳去重後的邊 [(i, j), ...]。
+
+    為什麼用 Delaunay 而不是「每間店連最近的 k 間」：
+        kNN 會產生交叉的連線，畫成走廊之後看起來像亂麻。Delaunay 是平面圖，
+        連出來的網天生不交叉，長得像一張「合理的路網」而不是蜘蛛網。
+
+    純標準函式庫（40 個點的規模，O(n²) 完全夠用）。
+    """
+    n = len(points)
+    if n < 2:
+        return []
+    if n == 2:
+        return [(0, 1)]
+
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    span = max(max(xs) - min(xs), max(ys) - min(ys)) or 1.0
+
+    # 超級三角形：大到把所有點包住，最後再把碰到它的三角形丟掉
+    big = span * 20
+    pts = list(points) + [(cx - big, cy - big), (cx + big, cy - big), (cx, cy + big)]
+    tris = [(n, n + 1, n + 2)]
+
+    def circumcircle(a, b, c):
+        ax, ay = pts[a]; bx, by = pts[b]; cx_, cy_ = pts[c]
+        d = 2 * (ax * (by - cy_) + bx * (cy_ - ay) + cx_ * (ay - by))
+        if abs(d) < 1e-12:
+            return None
+        ux = ((ax*ax + ay*ay) * (by - cy_) + (bx*bx + by*by) * (cy_ - ay)
+              + (cx_*cx_ + cy_*cy_) * (ay - by)) / d
+        uy = ((ax*ax + ay*ay) * (cx_ - bx) + (bx*bx + by*by) * (ax - cx_)
+              + (cx_*cx_ + cy_*cy_) * (bx - ax)) / d
+        return ux, uy, (ux - ax) ** 2 + (uy - ay) ** 2
+
+    for i in range(n):
+        px, py = pts[i]
+        bad = []
+        for t in tris:
+            cc = circumcircle(*t)
+            if cc and (px - cc[0]) ** 2 + (py - cc[1]) ** 2 < cc[2] - 1e-9:
+                bad.append(t)
+        # 壞三角形的邊界（只出現一次的邊）就是要重新連到新點的洞
+        counts = {}
+        for t in bad:
+            for e in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+                key = (min(e), max(e))
+                counts[key] = counts.get(key, 0) + 1
+        for t in bad:
+            tris.remove(t)
+        for (a, b), cnt in counts.items():
+            if cnt == 1:
+                tris.append((a, b, i))
+
+    edges = set()
+    for t in tris:
+        if any(v >= n for v in t):       # 碰到超級三角形的丟掉
+            continue
+        for a, b in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            edges.add((min(a, b), max(a, b)))
+    return sorted(edges)
+
+
+def astar_path(passable, width, height, start, goal):
+    """4 向 A*，回傳格子索引串（含頭尾），走不到回 None。
+
+    走廊就是靠這支連出來的：它走的是「建置期通行圖」（陸地+橋可走），
+    所以連線會自動避開水面、自動繞到橋上——不需要任何「過橋」特例。
+    """
+    import heapq
+    sx, sy = start
+    gx, gy = goal
+    s = sy * width + sx
+    g = gy * width + gx
+    if not passable[s] or not passable[g]:
+        return None
+    if s == g:
+        return [s]
+
+    dist = {s: 0}
+    prev = {s: -1}
+    heap = [(abs(sx - gx) + abs(sy - gy), s)]
+    while heap:
+        _, cur = heapq.heappop(heap)
+        if cur == g:
+            break
+        cy, cx = divmod(cur, width)
+        base = dist[cur] + 1
+        for ox, oy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = cx + ox, cy + oy
+            if not (0 <= nx < width and 0 <= ny < height):
+                continue
+            nxt = ny * width + nx
+            if not passable[nxt] or dist.get(nxt, 1 << 30) <= base:
+                continue
+            dist[nxt] = base
+            prev[nxt] = cur
+            heapq.heappush(heap, (base + abs(nx - gx) + abs(ny - gy), nxt))
+
+    if g not in prev:
+        return None
+    path = []
+    node = g
+    while node != -1:
+        path.append(node)
+        node = prev[node]
+    return path[::-1]
+
+
+def mst_and_extras(nodes, edges, extra):
+    """Kruskal 最小生成樹 + 額外邊。
+
+    MST 保證「任兩店之間恰好一條路」；再把剩下最短的 `extra` 條邊加回去，
+    就會長出環路，出現兩三條替代路線。extra=0 就是純樹狀，沒有任何替代道路。
+    edges 是 [(w, i, j), ...]。
+    """
+    parent = list(range(nodes))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    chosen, rest = [], []
+    for w, i, j in sorted(edges):
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[ri] = rj
+            chosen.append((w, i, j))
+        else:
+            rest.append((w, i, j))
+    return chosen + rest[:max(0, extra)]

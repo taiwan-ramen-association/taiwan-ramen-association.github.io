@@ -173,9 +173,10 @@
   <div id="combo"></div>
 
   <div id="legend">
-    <span><i style="background:#ded8c8"></i>陸地</span>
+    <span><i style="background:#786e60"></i>道路（只能走這）</span>
+    <span><i style="background:#a27446"></i>過河道路</span>
+    <span><i style="background:#ded8c8"></i>陸地（風景）</span>
     <span><i style="background:#4a90c4"></i>水域</span>
-    <span><i style="background:#96693e"></i>橋樑</span>
     <span><i style="background:#d64541"></i>店家</span>
     <span><i style="background:#e8b03a"></i>已踩點</span>
     <span>🎁 事件格</span>
@@ -230,8 +231,8 @@ python -m http.server 8000
   <div class="ctrl">
     <label>事件格密度 <span style="color:#5b626f">（每幾格一個）</span></label>
     <div class="row">
-      <input type="range" id="dens" min="10" max="150" step="5" value="30">
-      <output id="densOut">1/30</output>
+      <input type="range" id="dens" min="3" max="40" step="1" value="8">
+      <output id="densOut">1/8</output>
     </div>
   </div>
 
@@ -262,24 +263,31 @@ const VEHICLES = [
 ];
 
 // 地形色（key 對應 Tiled tileset 的 terrain property，不是寫死索引順序）
+// 只有道路可以走，陸地/水域/橋樑都是風景——看得到、走不上去。
+// 店家格本身也不可通行：玩家停在相鄰的道路格上，那就是「店門口」。
 const COLOR = {
-  outside:  [26, 28, 33, 255],
-  land:     [222,216,200, 255],
-  water:    [ 74,144,196, 255],
-  bridge:   [150,105, 62, 255],
-  shop:     [214, 69, 65, 255],
-  shop_coop:[232,176, 58, 255],
+  outside:     [ 26, 28, 33, 255],
+  land:        [222,216,200, 255],
+  water:       [ 74,144,196, 255],
+  bridge:      [150,105, 62, 255],
+  road:        [120,110, 96, 255],
+  road_bridge: [162,116, 70, 255],
+  shop:        [214, 69, 65, 255],
+  shop_coop:   [232,176, 58, 255],
 };
 
 // 事件格。經過即觸發：前三種自動收取，猜謎會讓角色停下來。
 // 「停下來」是刻意的——全部自動收取的話玩家還是只能乾等，
 // 要有一件需要動手的事，等待才會變成參與。
+// weight 是抽中的相對機率。猜謎刻意稀有——它會打斷移動，
+// 一趟路被攔下來十次不叫參與，叫煩。
 const EVENTS = [
-  { key:'chest', icon:'🎁', label:'寶箱',     soft:8,  auto:true  },
-  { key:'info',  icon:'📣', label:'店家情報', soft:3,  auto:true  },
-  { key:'meet',  icon:'👤', label:'路人',     soft:4,  auto:true  },
-  { key:'quiz',  icon:'❓', label:'拉麵猜謎', soft:12, auto:false },
+  { key:'chest', icon:'🎁', label:'寶箱',     soft:8,  auto:true,  weight:30 },
+  { key:'info',  icon:'📣', label:'店家情報', soft:3,  auto:true,  weight:25 },
+  { key:'meet',  icon:'👤', label:'路人',     soft:4,  auto:true,  weight:35 },
+  { key:'quiz',  icon:'❓', label:'拉麵猜謎', soft:12, auto:false, weight:10 },
 ];
+const EVENT_WEIGHT_TOTAL = EVENTS.reduce((a, e) => a + e.weight, 0);
 
 // 猜謎題庫是原型佔位內容，正式版來自 Firestore game/v1/quests。
 const QUIZ = [
@@ -301,13 +309,15 @@ let board = null;
 let W = 0, H = 0, cellSize = 25;
 let passable = null, terrainKey = null;
 let TERRAIN_KEYS = [];
-let shops = [], shopAt = new Map();
+let shops = [];
+let shopAt = new Map();     // 店家格 cellIndex → shop
+let doorAt = new Map();     // 門口格 cellIndex → [shop, ...]（一格可能同時是兩家的門口）
 
 let pos = null;
 let move = null;      // {path, startAt, secPerCell, vehicle, seenIdx, pauseAt}
 let vehicle = 'walk';
 let multiplier = 3;
-let density = 30;
+let density = 8;      // 每幾格道路一個事件。道路只有數百格，分母跟開放平原時代不同
 let senseRadius = 32;        // 感知範圍（格）。32 格 x 25 m = 800 m
 let stamped = new Set();
 let collected = new Set();   // 已收取的事件格（cellIndex）
@@ -359,7 +369,21 @@ async function loadBoard(){
     const p = Object.fromEntries(o.properties.map(x => [x.name, x.value]));
     return { shopId:p.shopId, name:o.name, cx:p.cx, cy:p.cy, lat:p.lat, lng:p.lng };
   });
-  shops.forEach(s => shopAt.set(s.cy*W + s.cx, s));
+  // 門口不從檔案的 doors 屬性讀，而是從地形現算：與店家四相鄰、且可通行的格。
+  // 這樣你在 Tiled 裡改了路，門口就跟著變，不會有兩份真相。
+  shops.forEach(s => {
+    shopAt.set(s.cy*W + s.cx, s);
+    s.doors = [];
+    for (const [ox, oy] of DIRS) {
+      const nx = s.cx+ox, ny = s.cy+oy;
+      if (nx<0 || ny<0 || nx>=W || ny>=H) continue;
+      const idx = ny*W + nx;
+      if (!passable[idx]) continue;
+      s.doors.push(idx);
+      if (!doorAt.has(idx)) doorAt.set(idx, []);
+      doorAt.get(idx).push(s);
+    }
+  });
 
   bakeTerrain();
 }
@@ -411,7 +435,12 @@ function eventAt(cell){
   if (!passable[cell] || shopAt.has(cell)) return null;
   const h = hash32(cell ^ 0x5bf03635);
   if (h % density !== 0) return null;
-  return EVENTS[hash32(h) % EVENTS.length];
+  let roll = hash32(h) % EVENT_WEIGHT_TOTAL;
+  for (const ev of EVENTS) {
+    if (roll < ev.weight) return ev;
+    roll -= ev.weight;
+  }
+  return EVENTS[0];
 }
 
 // ── 尋路 ─────────────────────────────────────────────────────────────────
@@ -492,6 +521,25 @@ function secPerCell(){
   return cellSize / (kmh * 1000 / 3600) / multiplier;
 }
 
+// 走到某間店 = 走到它「最近的那個門口格」。店家格本身不可通行。
+function startMoveToShop(shop){
+  if (!shop.doors.length) { toast('這間店沒有臨路', 'info'); return false; }
+  const dist = bfsFrom(currentCell());
+  let best = null, bestD = Infinity;
+  for (const idx of shop.doors) {
+    const d = dist[idx];
+    if (d >= 0 && d < bestD) { bestD = d; best = idx; }
+  }
+  if (best === null) { toast('走不到那間店', 'info'); return false; }
+  return startMove({ cx: best % W, cy: (best - best % W) / W });
+}
+
+// 目前站的位置旁邊有沒有店（可能同時臨兩家）
+function shopsHere(){
+  if (move) return [];
+  return doorAt.get(pos.cy*W + pos.cx) || [];
+}
+
 function startMove(target){
   const path = astar(currentCell(), target);
   if (!path || path.length < 2) return false;
@@ -562,10 +610,10 @@ function collectAlongPath(){
 function finishMove(){
   const last = move.path[move.path.length-1];
   pos = { cx: last % W, cy: (last - last % W) / W };
-  const shop = shopAt.get(last);
+  const here = doorAt.get(last) || [];
   move = null;
   save(); refreshList();
-  if (shop) toast('抵達 ' + shop.name);
+  if (here.length) toast('抵達 ' + here.map(s => s.name).join('、') + ' 門口');
 }
 
 // ── 猜謎 ─────────────────────────────────────────────────────────────────
@@ -754,17 +802,18 @@ function updateHud(){
   if (move) {
     const p = moveProgress();
     const left = (move.path.length-1 - p.idx - p.t) * move.secPerCell;
-    const shop = shopAt.get(move.path[move.path.length-1]);
+    const dest = doorAt.get(move.path[move.path.length-1]) || [];
     const vname = VEHICLES.find(v => v.key === move.vehicle).name;
     $('status').textContent = (move.pauseAt ? '［停下作答］' : '')
-      + `${vname}前往 ${shop ? shop.name : '目的地'}`;
+      + `${vname}前往 ${dest.length ? dest[0].name : '目的地'}`;
     $('eta').textContent = fmtSec(left);
     $('etaSub').textContent =
       `剩 ${fmtDist((move.path.length-1 - p.idx) * cellSize)}` +
       `　全程 ${fmtDist((move.path.length-1) * cellSize)}`;
   } else {
-    const here = shopAt.get(pos.cy*W + pos.cx);
-    $('status').textContent = here ? ('在 ' + here.name) : '待命中';
+    const here = shopsHere();
+    $('status').textContent = here.length
+      ? ('在 ' + here.map(s => s.name).join('、') + ' 門口') : '待命中';
     $('eta').textContent = '—';
     $('etaSub').textContent = '點地圖或右側店家出發';
   }
@@ -772,12 +821,13 @@ function updateHud(){
   $('softCount').textContent = soft;
   $('pickCount').textContent = picks;
 
-  const here = !move && shopAt.get(pos.cy*W + pos.cx);
+  const here = shopsHere().filter(s => !stamped.has(s.shopId));
   const btn = $('stampBtn');
-  btn.disabled = !here || stamped.has(here.shopId);
-  btn.textContent = !here ? '走到店家才能踩點'
-                  : stamped.has(here.shopId) ? '已踩點 ✓'
-                  : '踩點 — ' + here.name;
+  btn.disabled = !here.length;
+  btn.textContent = !shopsHere().length ? '走到店門口才能踩點'
+                  : !here.length ? '已踩點 ✓'
+                  : here.length > 1 ? `踩點 — ${here.length} 間店`
+                  : '踩點 — ' + here[0].name;
 }
 
 // ── 任務欄 ───────────────────────────────────────────────────────────────
@@ -786,7 +836,11 @@ function refreshList(){
   const spc = secPerCell();
 
   const rows = shops.map(s => {
-    const d = dist[s.cy*W + s.cx];
+    let d = -1;
+    for (const idx of s.doors) {              // 取最近的門口
+      const v = dist[idx];
+      if (v >= 0 && (d < 0 || v < d)) d = v;
+    }
     return { s, steps:d, m: d < 0 ? Infinity : d*cellSize, sec: d < 0 ? Infinity : d*spc };
   }).sort((a,b) => a.m - b.m);
 
@@ -803,7 +857,7 @@ function refreshList(){
         ? `<span class="d x">走不到</span>`
         : `<span class="d">${r.steps === 0 ? '在這裡' : fmtDist(r.m)}<em>${r.steps === 0 ? '' : fmtSec(r.sec)}</em></span>`);
     el.querySelector('.nm').textContent = r.s.name;
-    if (r.steps > 0) el.onclick = () => { if (!startMove({cx:r.s.cx, cy:r.s.cy})) toast('走不到那裡'); };
+    if (r.steps > 0) el.onclick = () => startMoveToShop(r.s);
     list.appendChild(el);
   }
 }
@@ -826,7 +880,7 @@ function load(){
     pos = s.pos; move = s.move;
     vehicle = s.vehicle || 'walk';
     multiplier = s.multiplier || 3;
-    density = s.density || 30;
+    density = s.density || 8;
     senseRadius = s.senseRadius || 32;
     soft = s.soft || 0; picks = s.picks || 0; combo = s.combo || 0;
     stamped = new Set(s.stamped || []);
@@ -861,7 +915,9 @@ canvas.addEventListener('pointerup', e => {
   const cx = Math.floor((e.clientX - r.left - (w/2 - cam.x*cam.px)) / cam.px);
   const cy = Math.floor((e.clientY - r.top  - (h/2 - cam.y*cam.px)) / cam.px);
   if (cx < 0 || cy < 0 || cx >= W || cy >= H) return;
-  if (!passable[cy*W + cx]) { toast('那裡過不去', 'info'); return; }
+  const clickedShop = shopAt.get(cy*W + cx);
+  if (clickedShop) { startMoveToShop(clickedShop); return; }   // 點店家 → 走到門口
+  if (!passable[cy*W + cx]) { toast('沒有路過去', 'info'); return; }
   if (!startMove({cx, cy})) toast('找不到路', 'info');
 });
 canvas.addEventListener('wheel', e => {
@@ -878,15 +934,18 @@ $('recenter').onclick = () => {
 };
 
 $('stampBtn').onclick = () => {
-  const here = !move && shopAt.get(pos.cy*W + pos.cx);
-  if (!here || stamped.has(here.shopId)) return;
-  stamped.add(here.shopId);
-  combo++;
-  const bonus = 10 + (combo - 1) * 5;         // 連續踩點越多，單次獎勵越高
-  soft += bonus;
+  // 一個門口格可能同時臨兩家店（並排店家共用側邊通道），一次全踩
+  const here = shopsHere().filter(s => !stamped.has(s.shopId));
+  if (!here.length) return;
+  for (const shop of here) {
+    stamped.add(shop.shopId);
+    combo++;
+    const bonus = 10 + (combo - 1) * 5;       // 連續踩點越多，單次獎勵越高
+    soft += bonus;
+    toast('🏅 取得徽章 — ' + shop.name);
+    if (combo >= 2) showCombo(`連續 ${combo} 間！ +${bonus} 探索點`);
+  }
   save(); refreshList();
-  toast('🏅 取得徽章 — ' + here.name);
-  if (combo >= 2) showCombo(`連續 ${combo} 間！ +${bonus} 探索點`);
 };
 
 function buildVehicles(){
@@ -942,10 +1001,12 @@ $('sense').oninput = e => {
   if (!load()) {
     // 出生地：店家最密的地方，比丟在區中心有意義
     const seed = shops.reduce((best, s) => {
+      if (!s.doors.length) return best;
       const n = shops.filter(o => Math.abs(o.cx-s.cx) + Math.abs(o.cy-s.cy) < 40).length;
       return n > best.n ? { s, n } : best;
-    }, { s:shops[0], n:0 }).s;
-    pos = { cx: seed.cx, cy: seed.cy };
+    }, { s:shops.find(s => s.doors.length), n:0 }).s;
+    const door = seed.doors[0];
+    pos = { cx: door % W, cy: (door - door % W) / W };
   }
 
   buildVehicles();

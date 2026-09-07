@@ -19,15 +19,24 @@ import zlib
 
 # ── 地形種類（index 即 tileset 內的 tile id，gid = id + firstgid）─────────────
 
+# 只有「道路」可以走。陸地、水域、橋樑都是風景——看得到、走不上去。
+# 這是刻意的：玩家在店與店之間有明確的幾條路可選，而不是在一整片平原上亂走。
+# 店家格本身也不可通行，玩家停在相鄰的道路格上，那就是「店門口」。
 TERRAIN = [
-    # (key,        名稱,        RGBA 佔位色,           可通行)
-    ('outside',   '區外',       (32, 34, 38, 255),    False),
-    ('land',      '陸地',       (222, 216, 200, 255), True),
-    ('water',     '水域',       (74, 144, 196, 255),  False),
-    ('bridge',    '橋樑',       (150, 105, 62, 255),  True),
-    ('shop',      '店家',       (214, 69, 65, 255),   True),
-    ('shop_coop', '合作店家',   (232, 176, 58, 255),  True),
+    # (key,          名稱,        RGBA 佔位色,           可通行)
+    ('outside',     '區外',       (32, 34, 38, 255),    False),
+    ('land',        '陸地',       (222, 216, 200, 255), False),
+    ('water',       '水域',       (74, 144, 196, 255),  False),
+    ('bridge',      '橋樑',       (150, 105, 62, 255),  False),
+    ('road',        '道路',       (120, 110, 96, 255),  True),
+    ('road_bridge', '過河道路',   (162, 116, 70, 255),  True),
+    ('shop',        '店家',       (214, 69, 65, 255),   False),
+    ('shop_coop',   '合作店家',   (232, 176, 58, 255),  False),
 ]
+
+# 可通行的地形（給生成腳本與驗證共用，避免各自寫死索引）
+ROAD_KEYS = ('road', 'road_bridge')
+SHOP_KEYS = ('shop', 'shop_coop')
 
 TERRAIN_INDEX = {key: i for i, (key, _, _, _) in enumerate(TERRAIN)}
 TILE_PX = 32
@@ -139,6 +148,11 @@ def build_map(terrain, width, height, shops, meta, image_name, image_size):
                 {'name': 'lng', 'type': 'float', 'value': shop['lng']},
                 {'name': 'moved', 'type': 'bool', 'value': shop['moved']},
                 {'name': 'status', 'type': 'string', 'value': shop['status']},
+                # 門口格：與店家相鄰且是道路的格子。玩家站在這裡才叫「在店門口」。
+                # 寫進檔案是為了讓 Tiled 上看得到，遊戲端仍會自己從地形推算，
+                # 這樣你在 Tiled 裡改了路，門口會跟著變，不會有兩份真相。
+                {'name': 'doors', 'type': 'string',
+                 'value': ';'.join(f'{d[0]},{d[1]}' for d in shop.get('doors', []))},
             ],
         })
 

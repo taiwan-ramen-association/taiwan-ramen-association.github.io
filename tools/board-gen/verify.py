@@ -50,15 +50,16 @@ def load_board(board_id):
 def board_arrays(tmap, drop_bridges=False):
     """回傳 (passable bytearray, width, height)。
 
-    drop_bridges=True 時把橋當成水，用來檢驗「沒有橋的話會不會斷」。
+    只有道路可通行——陸地、水域、橋樑、店家都是不可通行的。
+    drop_bridges=True 時把「過河道路」也拿掉，用來檢驗「沒有橋的話會不會斷」。
     """
     width, height = tmap['width'], tmap['height']
     terrain = next(l for l in tmap['layers'] if l['name'] == 'terrain')['data']
-    bridge_idx = tiled.TERRAIN_INDEX['bridge']
+    rb_idx = tiled.TERRAIN_INDEX['road_bridge']
     passable = bytearray(width * height)
     for i, gid in enumerate(terrain):
         idx = gid - 1
-        if drop_bridges and idx == bridge_idx:
+        if drop_bridges and idx == rb_idx:
             passable[i] = 0
         else:
             passable[i] = 1 if tiled.TERRAIN[idx][3] else 0
@@ -142,13 +143,24 @@ def main(board_id):
     cell = props['cellSize']
     m_lat, m_lng = props['metersPerDegLat'], props['metersPerDegLng']
 
+    # 店家格本身不可通行，所有距離都以「門口格」為準——玩家是站在店門口，
+    # 不是站在店的上面。
     shops = []
     for obj in next(l for l in tmap['layers'] if l['name'] == 'shops')['objects']:
         p = {x['name']: x['value'] for x in obj['properties']}
+        doors = [tuple(int(v) for v in d.split(','))
+                 for d in (p.get('doors') or '').split(';') if d]
+        if not doors:
+            print(f"  ⚠ 沒有門口，略過：{obj['name']}")
+            continue
         shops.append({'name': obj['name'], 'shop_id': p['shopId'],
-                      'cx': p['cx'], 'cy': p['cy'], 'lat': p['lat'], 'lng': p['lng']})
+                      'cx': doors[0][0], 'cy': doors[0][1],
+                      'shop_cx': p['cx'], 'shop_cy': p['cy'],
+                      'doors': doors, 'lat': p['lat'], 'lng': p['lng']})
 
-    print(f"=== {props['county']}{props['town']}｜{len(shops)} 間店｜{cell} m/格 ===\n")
+    doors_total = sum(len(s['doors']) for s in shops)
+    print(f"=== {props['county']}{props['town']}｜{len(shops)} 間店｜{cell} m/格 ===")
+    print(f"    門口格共 {doors_total} 個（平均每店 {doors_total/max(1,len(shops)):.1f} 個）\n")
 
     passable, width, height = board_arrays(tmap)
     no_bridge, _, _ = board_arrays(tmap, drop_bridges=True)
@@ -156,9 +168,9 @@ def main(board_id):
     # ① 拆橋測試 ────────────────────────────────────────────────────────────
     with_bridge = components(passable, width, height, shops)
     without = components(no_bridge, width, height, shops)
-    print(f'① 有橋：{len(with_bridge)} 個連通群'
+    print(f'① 有過河道路：{len(with_bridge)} 個連通群'
           f'（{"、".join(str(len(g)) for g in with_bridge)} 間）')
-    print(f'   拆橋：{len(without)} 個連通群'
+    print(f'   拆掉：{len(without)} 個連通群'
           f'（{"、".join(str(len(g)) for g in without)} 間）')
     if len(without) > len(with_bridge):
         print('   ✓ 河確實切開了棋盤，橋是唯一通路')

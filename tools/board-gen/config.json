@@ -7,6 +7,9 @@
   "waterLineRadiusCells": 1,
   "bridgeRadiusCells": 1,
 
+  "_extraEdges": "路網在 MST（任兩店恰好一條路）之外要多加幾條邊。0 = 純樹狀、完全沒有替代路線；越大環路越多、可繞的路越多。",
+  "extraEdges": 12,
+
   "excludeStatuses": ["已歇業"],
 
   "boundarySource": "https://raw.githubusercontent.com/ronnywang/twgeojson/master/twtown2010.4.json",
