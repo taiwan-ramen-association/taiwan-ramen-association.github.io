@@ -16,8 +16,10 @@
     就發現，不能等玩家卡在對岸才知道。
 
 用法：
-    python gen_board.py                  # 產生 config.json 裡所有棋盤
-    python gen_board.py tpe-zhongshan    # 只產生指定棋盤
+    python gen_board.py                       # 產生 config.json 裡所有棋盤
+    python gen_board.py tpe-zhongshan         # 只產生指定棋盤
+    python gen_board.py tpe-zhongshan --extra 30
+                                              # 臨時覆蓋 extraEdges，不用改 config
 """
 
 import json
@@ -259,7 +261,7 @@ def build_board(cfg, board, boundary):
     # 每條連線用 A* 在建置期通行圖上走出實際路徑（自動避水、自動繞橋），
     # 再取 MST 保證「任兩店之間恰好一條路」，最後加回 extraEdges 條最短的邊
     # 形成環路，才會有兩三條替代路線。
-    extra = int(cfg.get('extraEdges', 0))
+    extra = int(board.get('_extraOverride', cfg.get('extraEdges', 0)))
     road_i, road_bridge_i = tiled.TERRAIN_INDEX['road'], tiled.TERRAIN_INDEX['road_bridge']
     pts = [(s['cx'], s['cy']) for s in placed]
     cand = geo.delaunay_edges(pts)
@@ -353,6 +355,19 @@ def build_board(cfg, board, boundary):
     print('  最終地形：' + '、'.join(
         f'{tiled.TERRAIN[k][1]} {v:,}' for k, v in sorted(counts.items())))
 
+    # 路口 = 有 3 條以上道路相鄰的格。這是「路網像迷宮還是像樹」最直觀的指標：
+    # 純 MST 幾乎只有店家分岔，路口少；extraEdges 越多環路越多、路口越密。
+    junctions = 0
+    for i, t in enumerate(terrain):
+        if not tiled.TERRAIN[t][3]:
+            continue
+        cy, cx = divmod(i, width)
+        n = sum(1 for nx, ny, idx in neighbours(cx, cy) if passable[idx])
+        if n >= 3:
+            junctions += 1
+    road_total = sum(1 for t in terrain if tiled.TERRAIN[t][3])
+    print(f'  路網：道路 {road_total} 格、路口 {junctions} 個')
+
     # ── 連通性檢查（走道路，不是走陸地）──────────────────────────────────
     stranded = []
     if placed and placed[0]['doors']:
@@ -404,12 +419,21 @@ def build_board(cfg, board, boundary):
 def main():
     cfg = fetch_boundary.load_config()
     boundary = fetch_boundary.fetch()
-    only = sys.argv[1] if len(sys.argv) > 1 else None
+
+    args = [a for a in sys.argv[1:]]
+    extra_override = None
+    if '--extra' in args:
+        i = args.index('--extra')
+        extra_override = int(args[i + 1])
+        del args[i:i + 2]
+    only = args[0] if args else None
 
     results = []
     for board in cfg['boards']:
         if only and board['id'] != only:
             continue
+        if extra_override is not None:
+            board = dict(board, _extraOverride=extra_override)
         results.append(build_board(cfg, board, boundary))
 
     if not results:
