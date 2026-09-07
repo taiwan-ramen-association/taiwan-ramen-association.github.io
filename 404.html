@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D5PB53XF7P"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D5PB53XF7P');
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>找不到頁面 | 台灣拉麵協會</title>
+  <meta property="og:site_name" content="台灣拉麵協會">
+  <!-- 404 會在任意深度的路徑被觸發（/a/b/c），所有資源與連結一律用絕對路徑，
+       用相對路徑會解析成 /a/b/assets/... 而全部載入失敗。 -->
+  <link rel="icon" href="/assets/icons/03.png">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <style>
+    main { max-width: 860px; margin: 0 auto; padding: 120px 24px 120px; }
+    .page-title { font-family: 'Noto Serif TC', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 900; letter-spacing: 0.06em; margin-bottom: 32px; }
+    .lead { font-size: 14px; line-height: 2.2; color: var(--muted); margin-bottom: 12px; }
+    .path { font-size: 13px; color: var(--red); word-break: break-all; }
+
+    .links { display: flex; flex-direction: column; align-items: flex-start; gap: 20px; margin-top: 56px; }
+    .go-link {
+      display: inline-flex; align-items: center; gap: 12px;
+      font-size: 12px; letter-spacing: 3px; color: var(--ink);
+      text-decoration: none; border-bottom: 1px solid var(--ink);
+      padding-bottom: 4px; transition: color 0.2s, border-color 0.2s;
+    }
+    .go-link:hover { color: var(--red); border-color: var(--red); }
+
+    @media (max-width: 600px) {
+      main { padding: 80px 20px 80px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/index.html" class="nav-logo">台灣<span>拉麵</span>協會</a>
+    <a href="/index.html" class="nav-back">← 返回首頁</a>
+  </nav>
+
+  <main>
+    <p class="page-label">404</p>
+    <h1 class="page-title">找不到這個頁面</h1>
+    <p class="lead">你要找的頁面不存在，可能是網址打錯了，或這個頁面已經搬走。</p>
+    <p class="lead path" id="badPath"></p>
+
+    <div class="links">
+      <a href="/index.html" class="go-link">回到首頁 →</a>
+      <a href="/finder.html" class="go-link">找拉麵店 →</a>
+    </div>
+  </main>
+
+  <script>
+    // 顯示使用者實際打錯的網址（伺服器回 404 時不會改寫網址列）
+    document.getElementById('badPath').textContent = location.pathname + location.search;
+    // GA4：記錄撞到 404 的路徑，用來發現壞掉的外部連結
+    if (typeof gtag !== 'undefined') {
+      gtag('event', 'page_not_found', { bad_path: location.pathname + location.search });
+    }
+  </script>
+</body>
+</html>
