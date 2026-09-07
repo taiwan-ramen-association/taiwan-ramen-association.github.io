@@ -151,14 +151,17 @@ def build_board(cfg, board, boundary):
                     geo.rasterize_line(line, proj, width, height, terrain,
                                        tiled.TERRAIN_INDEX['water'], radius=wr)
             water_stats[kind] += 1
-        # 橋最後畫，把被水淹掉的通路補回來
+        # 橋最後畫，把被水淹掉的通路補回來。
+        # only_over 限定只覆蓋水域格：OSM 的 bridge=yes 涵蓋所有高架道路
+        # （中山區 bbox 內有 882 條），蓋在陸地上方的高架對通行性沒有意義。
+        water_only = {tiled.TERRAIN_INDEX['water']}
         for f in water['features']:
             if f['properties'].get('kind') != 'bridge':
                 continue
             for line in geo.iter_lines(f['geometry']):
                 geo.rasterize_line(line, proj, width, height, terrain,
-                                   tiled.TERRAIN_INDEX['bridge'], radius=br)
-            water_stats['bridge'] += 1
+                                   tiled.TERRAIN_INDEX['bridge'], radius=br,
+                                   only_over=water_only)
         print(f'  水域圖層 {dict(water_stats)}')
 
     # 區外的水／橋不需要保留（棋盤只玩區內）

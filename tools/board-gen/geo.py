@@ -170,19 +170,25 @@ def rasterize_rings(rings, proj, width, height, out, value):
                 out[base + col] = value
 
 
-def rasterize_line(line, proj, width, height, out, value, radius=1):
+def rasterize_line(line, proj, width, height, out, value, radius=1, only_over=None):
     """把一條折線畫進 out（橋樑用）。radius 是筆刷半徑（格）。
 
     橋在 OSM 是 way（線）不是面，光靠水域填色會把橋一起淹掉，
     所以橋要在水域之後疊上來，且要有寬度——寬度 0 的橋在格子上會被
     對角線切斷，A* 走不過去。
+
+    only_over：限定「原本是這些地形」的格子才會被覆蓋。
+        畫橋時傳水域，因為 OSM 的 bridge=yes 涵蓋所有高架道路
+        （中山區 bbox 內就有 882 條，建國高架、市民大道、捷運高架全算），
+        而蓋在陸地上方的高架橋對通行性毫無意義——底下本來就能走。
+        只讓橋在穿過水面時存在，語意才對，畫面也才不會被高架網糊掉。
     """
     pts = [proj.to_cell(pt[1], pt[0]) for pt in line]
     for i in range(len(pts) - 1):
-        _draw_segment(pts[i], pts[i + 1], width, height, out, value, radius)
+        _draw_segment(pts[i], pts[i + 1], width, height, out, value, radius, only_over)
 
 
-def _draw_segment(p0, p1, width, height, out, value, radius):
+def _draw_segment(p0, p1, width, height, out, value, radius, only_over=None):
     x0, y0 = p0
     x1, y1 = p1
     dx = abs(x1 - x0)
@@ -195,7 +201,9 @@ def _draw_segment(p0, p1, width, height, out, value, radius):
             for oy in range(-radius, radius + 1):
                 cx, cy = x0 + ox, y0 + oy
                 if 0 <= cx < width and 0 <= cy < height:
-                    out[cy * width + cx] = value
+                    idx = cy * width + cx
+                    if only_over is None or out[idx] in only_over:
+                        out[idx] = value
         if x0 == x1 and y0 == y1:
             break
         e2 = 2 * err
