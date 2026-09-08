@@ -35,6 +35,7 @@ data.json (lat/lng)  ┐
 | `config.json` | **冷參數**：格子邊長、margin、要生成哪些區 |
 | `fetch_boundary.py` | 下載鄉鎮市區界（與 `domination.html` 同一份資料源） |
 | `fetch_water.py` | 從 OpenStreetMap 抓水域與橋樑 ⚠️ 需外網 |
+| `fetch_roads.py` | 從 OpenStreetMap 抓真實道路（R1：只抓主幹道）⚠️ 需外網 |
 | `gen_board.py` | 主生成腳本 |
 | `preview.py` | 把棋盤畫成 PNG（沒裝 Tiled 也能檢查） |
 | `geo.py` | 投影、掃描線填色、Bresenham、連通性 |
@@ -53,6 +54,9 @@ python fetch_boundary.py
 
 # 2. 抓水域與橋樑 —— 需要能連 overpass-api.de
 python fetch_water.py tpe-zhongshan
+
+# 2b.（選用）抓真實道路。有這份快取就會用真實道路，沒有就用程式生成的路網
+python fetch_roads.py tpe-zhongshan
 
 # 3. 產生棋盤
 python gen_board.py tpe-zhongshan
@@ -80,6 +84,27 @@ Claude Code 的雲端執行環境對外連線受政策限制，`overpass-api.de`
 `hasWaterLayer: false` 會寫在地圖屬性裡，別把這種棋盤當成品。
 
 ---
+
+## 兩種路網
+
+| | 來源 | 特性 |
+|---|---|---|
+| **生成路網**（預設） | Delaunay + MST + `extraEdges` | 任兩店之間 1～3 條路，每條路都是被選過的，事件格必經。像大富翁 |
+| **真實道路**（R1） | OSM 主幹道（trunk/primary/secondary/tertiary） | 路是真的，玩家認得出自己家附近；但選擇多，事件格繞得開 |
+
+有 `cache/roads-*.geojson` 就自動用真實道路（`roadMode: "auto"`）。
+要強制比較：`python gen_board.py tpe-zhongshan --roads generated`。
+
+**只抓主幹道是刻意的。** 全抓（含 residential/service/footway）在 25 m 格下會糊成
+一團網，店與店之間出現數百條等價路徑，路網對玩法就失去意義，只剩導航。
+
+真實道路模式下多做三件事，都是實測逼出來的：
+
+1. **先鋪路、再放店家。** 真實道路會直接經過店家格，而店家格不可通行——
+   先放店家再鋪路的話，路會在店家身上被切斷。所以店家落在「路旁邊」而不是路上。
+2. **連通性自動修補。** 道路跑出行政區界會被裁掉、跨水的小橋沒抓到會斷。
+   從最大連通塊做一次多源 BFS，把所有碎塊接回去。
+3. **支線接上後再修一次。** 支線連到的「最近道路」可能屬於某個小碎塊。
 
 ## 在 Tiled 裡怎麼改
 

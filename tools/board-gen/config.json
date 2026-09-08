@@ -10,6 +10,15 @@
   "_extraEdges": "路網在 MST（任兩店恰好一條路）之外要多加幾條邊。0 = 純樹狀、完全沒有替代路線；越大環路越多、可繞的路越多。上限是 Delaunay 候選邊數減 MST（中山區 = 110-39 = 71）。要臨時試值不必改這裡：python gen_board.py tpe-zhongshan --extra 30",
   "extraEdges": 30,
 
+  "_roadMode": "路網來源。'auto' = 有 cache/roads-*.geojson 就用真實道路，沒有就用 Delaunay 生成；'generated' 強制用生成的；'osm' 強制用真實道路（沒有快取會報錯）。可用 CLI 覆蓋：python gen_board.py <id> --roads generated",
+  "roadMode": "auto",
+
+  "_roadTypes": "fetch_roads.py 要抓哪些 highway。R1（預設）只抓主幹道；加 residential/living_street 就是 R2；再加 service/footway 是 R3（25m 格下會糊成一團）。",
+  "roadTypes": ["trunk", "primary", "secondary", "tertiary"],
+
+  "_roadRadiusCells": "真實道路的筆刷半徑（格）。0 = 一格寬。主幹道實際寬度 20-40 m，25 m 格用 0 就夠。",
+  "roadRadiusCells": 0,
+
   "excludeStatuses": ["已歇業"],
 
   "boundarySource": "https://raw.githubusercontent.com/ronnywang/twgeojson/master/twtown2010.4.json",
