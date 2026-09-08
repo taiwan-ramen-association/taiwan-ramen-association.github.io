@@ -118,6 +118,23 @@ def load_roads(board_id, mode):
         return json.load(fh)
 
 
+def _pave(terrain, cell, road_i, road_bridge_i, bridge_i, water_i):
+    """把一格鋪成道路，並正確保留「過河」屬性。
+
+    三個步驟（鋪主路網、修補連通性、接支線）都會鋪路，早期是各寫一份
+    if/else，結果修補與支線把前一步標好的 road_bridge 覆寫成一般 road——
+    因為它們只問「原本是不是水或橋」，而那時那格已經是 road_bridge 了。
+    症狀：拆橋測試報「河沒有切開兩岸」，但河其實是連續的，只是標記被抹掉。
+    """
+    cur = terrain[cell]
+    if cur == road_bridge_i:
+        return                                   # 已經是過河道路，別降級
+    if cur in (bridge_i, water_i):
+        terrain[cell] = road_bridge_i
+    else:
+        terrain[cell] = road_i
+
+
 def _spur_to_road(build_ok, terrain, passable, width, height, shop, taken,
                   road_i, road_bridge_i, bridge_i, water_i):
     """從沒有臨路的店家接一條支線到最近的道路格。
@@ -161,7 +178,7 @@ def _spur_to_road(build_ok, terrain, passable, width, height, shop, taken,
     for cell in path:
         if cell in taken:
             continue
-        terrain[cell] = road_bridge_i if terrain[cell] in (bridge_i, water_i) else road_i
+        _pave(terrain, cell, road_i, road_bridge_i, bridge_i, water_i)
         passable[cell] = 1
     return True
 
@@ -242,9 +259,7 @@ def _repair_connectivity(terrain, build_ok, width, height,
                 node = nxt
                 while node != -1:
                     if node not in taken:
-                        terrain[node] = (road_bridge_i
-                                         if terrain[node] in (bridge_i, water_i)
-                                         else road_i)
+                        _pave(terrain, node, road_i, road_bridge_i, bridge_i, water_i)
                     node = prev[node]
                 added += 1
             queue.append(nxt)
@@ -303,9 +318,10 @@ def _generated_roads(cfg, board, placed, taken, terrain, build_ok,
     tree_n = len(pts) - 1 if pts else 0
     print(f'  路網：採用 {len(kept)} 條（MST {min(tree_n, len(kept))} + 額外 {max(0, len(kept)-tree_n)}）')
 
+    water_i = tiled.TERRAIN_INDEX['water']
     for w, a, b in kept:
         for c in paths[(a, b)]:          # 別用 cell 當迴圈變數：外層的 cell 是格子邊長
-            terrain[c] = road_bridge_i if terrain[c] == bridge_i else road_i
+            _pave(terrain, c, road_i, road_bridge_i, bridge_i, water_i)
 
 
 
@@ -462,10 +478,8 @@ def build_board(cfg, board, boundary):
             # 順序不能反：build_ok 本身就含橋樑格，先問 build_ok 的話
             # 「鋪在橋上的路」會被記成一般道路，拆橋測試就驗不出河有沒有
             # 真的切開兩岸——中山區實測就是這樣漏掉大直的。
-            if terrain[i] in (water_i, bridge_i):
-                terrain[i] = road_bridge_i
-            elif build_ok[i]:
-                terrain[i] = road_i
+            if terrain[i] in (water_i, bridge_i) or build_ok[i]:
+                _pave(terrain, i, road_i, road_bridge_i, bridge_i, water_i)
     else:
         # ── 模式 B：程式生成的抽象路網 ────────────────────────────────────
         # Delaunay 給出「哪些店該互相連」（平面圖，連線不交叉，長得像路網不像
