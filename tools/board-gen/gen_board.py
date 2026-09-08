@@ -119,13 +119,20 @@ def load_roads(board_id, mode):
 
 
 def _spur_to_road(build_ok, terrain, passable, width, height, shop, taken,
-                  road_i, road_bridge_i, bridge_i):
+                  road_i, road_bridge_i, bridge_i, water_i):
     """從沒有臨路的店家接一條支線到最近的道路格。
 
     找最近道路用 BFS（在建置期通行圖上），找到之後把整條路徑鋪成道路。
     這種店多半是落點被擠開後掉到路網邊緣的，不接的話玩家永遠走不到它。
     """
+    # 尋路時要把「其他店家的格子」擋掉。不擋的話支線會穿過別家店，
+    # 而店家格不鋪路，支線就在那裡斷掉，這間店還是沒有門口。
+    route_ok = bytearray(build_ok)
+    for idx in taken:
+        route_ok[idx] = 0
     start = shop['cy'] * width + shop['cx']
+    route_ok[start] = 1                      # 只開放自己這一格當起點
+
     seen = {start}
     queue = [start]
     head = 0
@@ -138,7 +145,7 @@ def _spur_to_road(build_ok, terrain, passable, width, height, shop, taken,
             if not (0 <= nx < width and 0 <= ny < height):
                 continue
             nxt = ny * width + nx
-            if nxt in seen or not build_ok[nxt]:
+            if nxt in seen or not route_ok[nxt]:
                 continue
             if passable[nxt]:
                 target = (nx, ny)
@@ -148,13 +155,13 @@ def _spur_to_road(build_ok, terrain, passable, width, height, shop, taken,
 
     if target is None:
         return False
-    path = geo.astar_path(build_ok, width, height, (shop['cx'], shop['cy']), target)
+    path = geo.astar_path(route_ok, width, height, (shop['cx'], shop['cy']), target)
     if not path:
         return False
     for cell in path:
         if cell in taken:
             continue
-        terrain[cell] = road_bridge_i if terrain[cell] == bridge_i else road_i
+        terrain[cell] = road_bridge_i if terrain[cell] in (bridge_i, water_i) else road_i
         passable[cell] = 1
     return True
 
@@ -452,10 +459,13 @@ def build_board(cfg, board, boundary):
         for i, on in enumerate(road_mask):
             if not on or i in taken:
                 continue
-            if build_ok[i]:
-                terrain[i] = road_i
-            elif terrain[i] in (water_i, bridge_i):
+            # 順序不能反：build_ok 本身就含橋樑格，先問 build_ok 的話
+            # 「鋪在橋上的路」會被記成一般道路，拆橋測試就驗不出河有沒有
+            # 真的切開兩岸——中山區實測就是這樣漏掉大直的。
+            if terrain[i] in (water_i, bridge_i):
                 terrain[i] = road_bridge_i
+            elif build_ok[i]:
+                terrain[i] = road_i
     else:
         # ── 模式 B：程式生成的抽象路網 ────────────────────────────────────
         # Delaunay 給出「哪些店該互相連」（平面圖，連線不交叉，長得像路網不像
@@ -497,7 +507,8 @@ def build_board(cfg, board, boundary):
             # 沒有任何一面臨路：從店家往最近的道路格接一條支線。
             # 這種店多半是被擠開後落在路網邊緣的，不接的話玩家永遠到不了。
             spur = _spur_to_road(build_ok, terrain, passable, width, height,
-                                 shop, taken, road_i, road_bridge_i, bridge_i)
+                                 shop, taken, road_i, road_bridge_i, bridge_i,
+                                 tiled.TERRAIN_INDEX['water'])
             if spur:
                 spurs += 1
                 doors = [(nx, ny) for nx, ny, idx in neighbours(shop['cx'], shop['cy'])
