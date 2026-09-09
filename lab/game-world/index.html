@@ -267,7 +267,11 @@ python -m http.server 8000
 
 // ── 設定 ─────────────────────────────────────────────────────────────────
 // 這些之後全部搬到 Firestore game/v1/config/params（熱參數）。
-const BOARD_URL = '../../data/boards/tpe-zhongshan.json';
+// ?board=tpe-zhongshan-slice 可切到別張棋盤（1 m 實驗切片用）；不給參數行為與過去完全相同。
+// 過濾掉非 [a-z0-9-] 的字元，免得 ?board=../../ 之類的路徑跑出 data/boards 之外。
+const BOARD_ID = (new URLSearchParams(location.search).get('board') || 'tpe-zhongshan')
+  .replace(/[^a-z0-9-]/gi, '');
+const BOARD_URL = `../../data/boards/${BOARD_ID}.json`;
 
 const VEHICLES = [
   { key:'walk',  name:'走路',   kmh:5  },
@@ -316,7 +320,10 @@ const QUIZ = [
 // 4 向移動。與 tools/board-gen/verify.py 的 NEIGHBOURS 必須一致。
 const DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
 
-const LS_KEY = 'gw_state_v2';
+// 存檔一盤一份：切片是 500x500、正式盤是 239x245，共用存檔的話 pos 會直接出界；
+// density／senseRadius 也是依格子大小調出來的，不能互相帶過去。
+// 正式盤維持原本的 key，既有存檔不會掉。
+const LS_KEY = 'gw_state_v2' + (BOARD_ID === 'tpe-zhongshan' ? '' : '_' + BOARD_ID);
 
 // ── 狀態 ─────────────────────────────────────────────────────────────────
 let board = null;
