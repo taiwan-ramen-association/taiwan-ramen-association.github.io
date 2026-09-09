@@ -13,6 +13,7 @@
     不會出現「畫面看起來是橋、資料還是水」的兩份真相。
 """
 
+import base64
 import json
 import struct
 import zlib
@@ -119,6 +120,41 @@ def _tileset(image_name, image_w, image_h):
     }
 
 
+def encode_layer(terrain):
+    """bytearray（TERRAIN index）→ Tiled 的 base64 + zlib layer data。
+
+    Tiled 的 tile layer 可以是 CSV 陣列，也可以是 base64 編碼的 little-endian
+    uint32 gid 串（可再加 zlib/gzip 壓縮）。這裡用後者：3 m 格的中山區有
+    405 萬格，CSV 是 7.9 MB，手機抓不動；同一份資料 base64+zlib 之後兩個
+    數量級以內。城市地形大片同質，壓縮率很好。
+
+    Tiled 原生看得懂這個格式，人工潤飾的流程不受影響。
+    """
+    gids = struct.pack(f'<{len(terrain)}I', *(t + 1 for t in terrain))
+    return base64.b64encode(zlib.compress(gids, 9)).decode('ascii')
+
+
+def decode_layer(layer):
+    """Tiled tile layer → list of gid。CSV 與 base64(+zlib/gzip) 都吃。
+
+    舊的棋盤檔是 CSV，新的是壓縮的；讀取端（preview.py / verify.py）走這裡
+    就不必各自判斷。
+    """
+    data = layer['data']
+    if isinstance(data, list):
+        return data
+    raw = base64.b64decode(data)
+    comp = layer.get('compression') or ''
+    if comp == 'zlib':
+        raw = zlib.decompress(raw)
+    elif comp == 'gzip':
+        import gzip
+        raw = gzip.decompress(raw)
+    elif comp:
+        raise ValueError(f'不支援的 compression: {comp}')
+    return list(struct.unpack(f'<{len(raw) // 4}I', raw))
+
+
 def build_map(terrain, width, height, shops, meta, image_name, image_size):
     """組出 Tiled JSON（orthogonal / right-down / finite）。
 
@@ -126,7 +162,6 @@ def build_map(terrain, width, height, shops, meta, image_name, image_size):
     shops   : list of dict，見 gen_board.py
     meta    : 寫進 map properties 的欄位（cellSize、原點經緯度、生成時間…）
     """
-    data = [t + 1 for t in terrain]           # gid = index + firstgid
 
     objects = []
     for i, shop in enumerate(shops, start=1):
@@ -190,7 +225,9 @@ def build_map(terrain, width, height, shops, meta, image_name, image_size):
                 'y': 0,
                 'opacity': 1,
                 'visible': True,
-                'data': data,
+                'encoding': 'base64',
+                'compression': 'zlib',
+                'data': encode_layer(terrain),
             },
             {
                 'id': 2,

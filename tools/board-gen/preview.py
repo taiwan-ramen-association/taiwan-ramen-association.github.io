@@ -37,7 +37,8 @@ def render(board_id, scale=1):
         tmap = json.load(fh)
 
     width, height = tmap['width'], tmap['height']
-    terrain = next(l for l in tmap['layers'] if l['name'] == 'terrain')['data']
+    terrain = tiled.decode_layer(
+        next(l for l in tmap['layers'] if l['name'] == 'terrain'))
     palette = [rgba for _, _, rgba, _ in tiled.TERRAIN]
 
     rows = []

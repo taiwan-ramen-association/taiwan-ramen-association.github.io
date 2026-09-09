@@ -352,6 +352,28 @@ let follow = true;
 let placeMode = false;      // 手動設定人物位置
 let terrainCanvas = null;
 
+// Tiled 的 tile layer 可以是 CSV 陣列，也可以是 base64 的 little-endian uint32
+// gid 串（可再壓縮）。3 m 格的中山區有 405 萬格，CSV 是 7.9 MB、zlib 之後 141 KB，
+// 所以棋盤一律走壓縮輸出；這裡兩種都吃，舊格式的檔不會壞。
+// 端序：Tiled 規定 little-endian，Uint32Array 用的是平台端序——目標平台都是 LE，
+// 為了 405 萬格的解碼速度不繞 DataView。
+async function decodeLayer(layer){
+  if (Array.isArray(layer.data)) return layer.data;
+  const bin = atob(layer.data);
+  let bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const comp = layer.compression || '';
+  if (comp) {
+    // zlib（RFC 1950）對應 'deflate'；'deflate-raw' 是不帶 header 的那種
+    const fmt = comp === 'zlib' ? 'deflate' : comp === 'gzip' ? 'gzip' : null;
+    if (!fmt) throw new Error('不支援的 compression: ' + comp);
+    const stream = new Blob([bytes]).stream()
+      .pipeThrough(new DecompressionStream(fmt));
+    bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  return new Uint32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength >> 2);
+}
+
 const $ = id => document.getElementById(id);
 
 // ── 載入棋盤 ─────────────────────────────────────────────────────────────
@@ -378,7 +400,7 @@ async function loadBoard(){
   }
   TERRAIN_KEYS = keyByTile;
 
-  const data = map.layers.find(l => l.name === 'terrain').data;
+  const data = await decodeLayer(map.layers.find(l => l.name === 'terrain'));
   passable   = new Uint8Array(W*H);
   terrainKey = new Uint8Array(W*H);
   for (let i = 0; i < data.length; i++) {

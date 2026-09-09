@@ -54,7 +54,8 @@ def board_arrays(tmap, drop_bridges=False):
     drop_bridges=True 時把「過河道路」也拿掉，用來檢驗「沒有橋的話會不會斷」。
     """
     width, height = tmap['width'], tmap['height']
-    terrain = next(l for l in tmap['layers'] if l['name'] == 'terrain')['data']
+    terrain = tiled.decode_layer(
+        next(l for l in tmap['layers'] if l['name'] == 'terrain'))
     rb_idx = tiled.TERRAIN_INDEX['road_bridge']
     passable = bytearray(width * height)
     for i, gid in enumerate(terrain):
