@@ -16,8 +16,16 @@
   "_roadTypes": "fetch_roads.py 要抓哪些 highway。R1（預設）只抓主幹道；加 residential/living_street 就是 R2；再加 service/footway 是 R3（25m 格下會糊成一團）。",
   "roadTypes": ["trunk", "primary", "secondary", "tertiary"],
 
+  "_roadSets": "命名的道路組合，給 fetch_roads.py --set 用。抓到的存成 cache/roads-<board>-<set>.geojson，與 R1 的 cache/roads-<board>.geojson 並存互不覆蓋——25 m 正式盤要 R1（巷弄在那個格子下會糊成一團），小格切片要 R2（3 m 格分得出 3 m 的巷子）。生成時吃哪一份由 board 的 cacheId 決定。",
+  "roadSets": {
+    "r2": ["trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service", "pedestrian"]
+  },
+
   "_roadRadiusCells": "真實道路的筆刷半徑（格）。0 = 一格寬。主幹道實際寬度 20-40 m，25 m 格用 0 就夠。",
   "roadRadiusCells": 0,
+
+  "_roadWidthMeters": "道路寬度（公尺），依 highway 類型。筆刷半徑 = round((寬度/cellSize - 1)/2)，而筆刷寬度永遠是奇數格（2r+1），所以會量化：cellSize=1 時 3→3 格、6→7 格、9→9 格；cellSize=25 時三種寬度都算出 0（＝一格寬），與 roadRadiusCells 的舊行為完全相同，既有 25 m 棋盤重生不會變。查不到的 highway 類型走 _default。移除這個鍵就退回吃 roadRadiusCells。",
+  "roadWidthMeters": { "trunk": 9, "primary": 9, "secondary": 6, "tertiary": 6, "_default": 3 },
 
   "excludeStatuses": ["已歇業"],
 
@@ -30,6 +38,50 @@
       "county": "臺北市",
       "town": "中山區",
       "out": "data/boards/tpe-zhongshan.json"
+    },
+
+    {
+      "_comment": "完整中山區，3 m 格 + R2 道路。驗證 M1 規模的真實數字：檔案大小、40 間店的連通性與門口。切片實測 3 m 是「麒麟／木麒麟中間夾得到 140 巷」的最大格子。",
+      "id": "tpe-zhongshan-3m",
+      "county": "臺北市", "town": "中山區",
+      "out": "data/boards/tpe-zhongshan-3m.json",
+      "cacheId": "tpe-zhongshan",
+      "roadSet": "r2",
+      "cellSize": 3
+    },
+
+    {
+      "_comment": "1 m 基礎單位的實驗切片（見 ramen-finder-notes/game-world-system.md §十四）。中心是中山區店家最密的 500x500 m（中山站／林森北路一帶，40 間裡有 12 間）。cacheId 讓它沿用母區的道路／水域快取，不必另外抓；cellSize 覆寫全域值；有 slice 就不吃行政區外框也不加 margin。",
+      "id": "tpe-zhongshan-slice",
+      "county": "臺北市",
+      "town": "中山區",
+      "out": "data/boards/tpe-zhongshan-slice.json",
+      "cacheId": "tpe-zhongshan",
+      "roadSet": "r2",
+      "cellSize": 1,
+      "slice": { "centerLat": 25.050692, "centerLng": 121.522549, "sideMeters": 500 }
+    },
+
+    {
+      "_comment": "同一塊 500 m，3 m 格。比例尺比較用。",
+      "id": "tpe-zhongshan-slice3",
+      "county": "臺北市", "town": "中山區",
+      "out": "data/boards/tpe-zhongshan-slice3.json",
+      "cacheId": "tpe-zhongshan",
+      "roadSet": "r2",
+      "cellSize": 3,
+      "slice": { "centerLat": 25.050692, "centerLng": 121.522549, "sideMeters": 500 }
+    },
+
+    {
+      "_comment": "同一塊 500 m，5 m 格。保住「麒麟／木麒麟中間夾一格巷子」的最低成本。",
+      "id": "tpe-zhongshan-slice5",
+      "county": "臺北市", "town": "中山區",
+      "out": "data/boards/tpe-zhongshan-slice5.json",
+      "cacheId": "tpe-zhongshan",
+      "roadSet": "r2",
+      "cellSize": 5,
+      "slice": { "centerLat": 25.050692, "centerLng": 121.522549, "sideMeters": 500 }
     }
   ]
 }

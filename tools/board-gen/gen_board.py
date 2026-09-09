@@ -22,6 +22,8 @@
                                               # 臨時覆蓋 extraEdges，不用改 config
     python gen_board.py tpe-zhongshan --roads generated
                                               # 強制用生成路網（跟真實道路比較用）
+    python gen_board.py tpe-zhongshan-slice   # 1 m 格的 500 m 實驗切片
+                                              # （config.json 裡帶 slice / cellSize / cacheId）
 """
 
 import json
@@ -103,16 +105,28 @@ def load_water(board_id):
         return json.load(fh)
 
 
-def load_roads(board_id, mode):
-    """讀真實道路快取。mode='generated' 時直接不讀。"""
+def load_roads(cache_id, mode, road_set=None):
+    """讀真實道路快取。mode='generated' 時直接不讀。
+
+    road_set 對應 fetch_roads.py --set 寫出來的檔名（roads-<board>-<set>.geojson）。
+    cacheId 決定「借哪一區的圖資」、roadSet 決定「用哪一組道路」——這兩件事必須
+    分開：R1 與 R2 是同一區的兩份道路快取，但水域快取只有一份。把 roadSet 混進
+    cacheId 的話，水域會跟著去找 water-<區>-r2.geojson 而找不到，棋盤就會沒有河
+    也沒有橋，A* 直接穿越水面，而連通性檢查還會回報「40/40 間店互相走得到」。
+    """
     if mode == 'generated':
         return None
-    path = CACHE_DIR / f'roads-{board_id}.geojson'
+    suffix = f'-{road_set}' if road_set else ''
+    path = CACHE_DIR / f'roads-{cache_id}{suffix}.geojson'
     if not path.exists():
+        hint = ('python fetch_roads.py ' + cache_id
+                + (f' --set {road_set}' if road_set else ''))
         if mode == 'osm':
-            raise SystemExit(f'roadMode=osm 但找不到 {path}\n'
-                             f'  → 先在能連 overpass-api.de 的機器上跑 '
-                             f'`python fetch_roads.py {board_id}`')
+            raise SystemExit(f'roadMode=osm 但找不到 {path}。'
+                             f'先在能連 overpass-api.de 的機器上跑 `{hint}`')
+        # 靜默退回生成路網會產出「看起來正常、其實不是真實道路」的盤，一定要出聲
+        print(f'  ⚠ 找不到 {path}')
+        print(f'    → 改用生成路網。要真實道路請跑 `{hint}`')
         return None
     with open(path, encoding='utf-8') as fh:
         return json.load(fh)
@@ -341,20 +355,45 @@ def build_board(cfg, board, boundary):
         min_lng = min(min_lng, shop['lng'])
         max_lng = max(max_lng, shop['lng'])
 
-    cell = float(cfg['cellSize'])
+    cell = float(board.get('cellSize', cfg['cellSize']))
     margin = float(cfg['marginMeters'])
-    mid_lat = (min_lat + max_lat) / 2
-    m_lat, m_lng = geo.meters_per_degree(mid_lat)
+    sl = board.get('slice')
 
-    origin_lat = max_lat + margin / m_lat          # 西北角
-    origin_lng = min_lng - margin / m_lng
-    span_x = (max_lng - min_lng) * m_lng + 2 * margin
-    span_y = (max_lat - min_lat) * m_lat + 2 * margin
+    if sl:
+        # 切片：以指定中心切一塊正方形，不吃行政區外框、不加 margin。
+        # 用途是在小範圍上試不同的 cellSize（1 m 全區有 3,660 萬格，跑不動也讀不動）。
+        mid_lat, mid_lng = float(sl['centerLat']), float(sl['centerLng'])
+        m_lat, m_lng = geo.meters_per_degree(mid_lat)
+        half = float(sl['sideMeters']) / 2
+        origin_lat = mid_lat + half / m_lat        # 西北角
+        origin_lng = mid_lng - half / m_lng
+        span_x = span_y = float(sl['sideMeters'])
+    else:
+        mid_lat = (min_lat + max_lat) / 2
+        mid_lng = (min_lng + max_lng) / 2
+        m_lat, m_lng = geo.meters_per_degree(mid_lat)
+        origin_lat = max_lat + margin / m_lat      # 西北角
+        origin_lng = min_lng - margin / m_lng
+        span_x = (max_lng - min_lng) * m_lng + 2 * margin
+        span_y = (max_lat - min_lat) * m_lat + 2 * margin
+
     width = int(math.ceil(span_x / cell))
     height = int(math.ceil(span_y / cell))
 
-    proj = geo.Projection(mid_lat, (min_lng + max_lng) / 2, cell, origin_lat, origin_lng)
-    print(f'  版圖 {span_x:,.0f} m x {span_y:,.0f} m → {width} x {height} = {width * height:,} 格')
+    proj = geo.Projection(mid_lat, mid_lng, cell, origin_lat, origin_lng)
+    print(f'  版圖 {span_x:,.0f} m x {span_y:,.0f} m → {width} x {height} = {width * height:,} 格'
+          f'（{cell:g} m/格）')
+
+    if sl:
+        # 切片外的店必須在這裡丟掉，不能留到落點階段——那裡對界外座標會呼叫
+        # nearest_free_cell 把它硬拉進盤內，整個區的店會全部擠進切片裡。
+        inside = []
+        for shop in shops:
+            cx, cy = proj.to_cell(shop['lat'], shop['lng'])
+            if 0 <= cx < width and 0 <= cy < height:
+                inside.append(shop)
+        print(f'  切片內店家 {len(inside)}/{len(shops)} 間')
+        shops = inside
 
     # ── 地形填色（順序即優先權：後畫的蓋前面的）────────────────────────────
     terrain = bytearray([tiled.TERRAIN_INDEX['outside']] * (width * height))
@@ -362,7 +401,7 @@ def build_board(cfg, board, boundary):
     geo.rasterize_rings(list(geo.iter_rings(feat['geometry'])), proj, width, height,
                         terrain, tiled.TERRAIN_INDEX['land'])
 
-    water = load_water(board['id'])
+    water = load_water(board.get('cacheId', board['id']))
     water_stats = Counter()
     if water:
         wr = int(cfg.get('waterLineRadiusCells', 1))
@@ -419,15 +458,48 @@ def build_board(cfg, board, boundary):
     # 所以先算出路在哪，店家再落在「路旁邊」而不是路上。
     road_i, road_bridge_i = tiled.TERRAIN_INDEX['road'], tiled.TERRAIN_INDEX['road_bridge']
     road_mode = board.get('_roadModeOverride', cfg.get('roadMode', 'auto'))
-    roads = load_roads(board['id'], road_mode)
+    roads = load_roads(board.get('cacheId', board['id']), road_mode,
+                       board.get('roadSet'))
 
     road_mask = None
     if roads:
-        rr = int(cfg.get('roadRadiusCells', 0))
-        kinds = Counter(f['properties'].get('highway', '') for f in roads['features'])
-        print(f"  路網：真實 OSM 道路 {len(roads['features'])} 條 {dict(kinds)}")
-        road_mask = bytearray(width * height)
+        # 先用 bbox 濾掉盤外的道路。Bresenham 會把整條線走完才丟掉界外的格，
+        # 1 m 格下整份 340 km 主幹道要走上千萬步，切片會慢到不能用。
+        south = origin_lat - span_y / m_lat
+        east = origin_lng + span_x / m_lng
+        pad = 0.001                                # 約 100 m，邊界上的線不要被誤刪
+        feats = []
         for f in roads['features']:
+            lo_lat, lo_lng, hi_lat, hi_lng = geo.geometry_bounds(f['geometry'])
+            if hi_lat < south - pad or lo_lat > origin_lat + pad:
+                continue
+            if hi_lng < origin_lng - pad or lo_lng > east + pad:
+                continue
+            feats.append(f)
+
+        kinds = Counter(f['properties'].get('highway', '') for f in feats)
+        skipped = len(roads['features']) - len(feats)
+        print(f"  路網：真實 OSM 道路 {len(feats)} 條 {dict(kinds)}"
+              + (f'（盤外略過 {skipped} 條）' if skipped else ''))
+
+        # 筆刷寬度永遠是奇數格（2r+1），公尺寬度因此會量化：
+        # cell=1 時 3→3 格、6→7 格、9→9 格；cell=25 時三種寬度都算出 0（一格寬），
+        # 與舊的 roadRadiusCells: 0 相同，所以既有 25 m 棋盤重生不會變。
+        widths = cfg.get('roadWidthMeters')
+        radius_of = {}
+        for hw in kinds:
+            if widths:
+                w = float(widths.get(hw, widths.get('_default', 3)))
+                radius_of[hw] = max(0, int(math.floor((w / cell - 1) / 2 + 0.5)))
+            else:
+                radius_of[hw] = int(cfg.get('roadRadiusCells', 0))
+        if widths:
+            print('  路寬：' + '、'.join(
+                f'{hw or "?"} {2 * radius_of[hw] + 1} 格' for hw in sorted(kinds)))
+
+        road_mask = bytearray(width * height)
+        for f in feats:
+            rr = radius_of[f['properties'].get('highway', '')]
             for line in geo.iter_lines(f['geometry']):
                 geo.rasterize_line(line, proj, width, height, road_mask, 1, radius=rr)
 
