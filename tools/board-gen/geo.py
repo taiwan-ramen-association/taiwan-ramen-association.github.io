@@ -196,21 +196,36 @@ def _draw_segment(p0, p1, width, height, out, value, radius, only_over=None):
     sx = 1 if x0 < x1 else -1
     sy = 1 if y0 < y1 else -1
     err = dx + dy
-    while True:
+
+    def plot(px, py):
         for ox in range(-radius, radius + 1):
             for oy in range(-radius, radius + 1):
-                cx, cy = x0 + ox, y0 + oy
+                cx, cy = px + ox, py + oy
                 if 0 <= cx < width and 0 <= cy < height:
                     idx = cy * width + cx
                     if only_over is None or out[idx] in only_over:
                         out[idx] = value
+
+    while True:
+        plot(x0, y0)
         if x0 == x1 and y0 == y1:
             break
         e2 = 2 * err
-        if e2 >= dy:
+        step_x = e2 >= dy
+        step_y = e2 <= dx
+        if step_x and step_y:
+            # 對角步要補畫轉角那一格，線才會 4 向連通。
+            # Bresenham 的 (x,y)→(x+sx,y+sy) 在 4 向鄰接下是斷開的，而 A* 與
+            # verify.py 都走 4 向——少了這一格，1 格寬的路每個斜段都是裂口，
+            # 連通性檢查會把完整的路網誤判成一堆碎塊，_repair_connectivity
+            # 接著沿路補出現實中不存在的連接道。
+            # 實測（中山區 500 m 切片、道路 675 格）：修之前 4 向 151 塊、
+            # 8 向 1 塊；路有 3 格寬以上時斜線自然填滿，不受影響。
+            plot(x0 + sx, y0)
+        if step_x:
             err += dy
             x0 += sx
-        if e2 <= dx:
+        if step_y:
             err += dx
             y0 += sy
 
