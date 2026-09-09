@@ -155,7 +155,8 @@ def decode_layer(layer):
     return list(struct.unpack(f'<{len(raw) // 4}I', raw))
 
 
-def build_map(terrain, width, height, shops, meta, image_name, image_size):
+def build_map(terrain, width, height, shops, meta, image_name, image_size,
+              junctions=None):
     """組出 Tiled JSON（orthogonal / right-down / finite）。
 
     terrain : bytearray，每格存 TERRAIN 的 index
@@ -191,7 +192,7 @@ def build_map(terrain, width, height, shops, meta, image_name, image_size):
             ],
         })
 
-    return {
+    tmap = {
         'type': 'map',
         'version': '1.10',
         'tiledversion': '1.10.2',
@@ -242,6 +243,35 @@ def build_map(terrain, width, height, shops, meta, image_name, image_size):
             },
         ],
     }
+
+    # 路口另開一層。事件之後要綁在路口（「事件格必經」在細格下不成立），而路口是
+    # 從 OSM 幾何算出來的、不是柵格特徵，前端沒有幾何可重算，所以必須存進地圖檔。
+    # 獨立一層也方便在 Tiled 裡手動增刪：算錯的刪掉、想埋的地點自己加。
+    if junctions:
+        tmap['layers'].append({
+            'id': 3,
+            'type': 'objectgroup',
+            'name': 'junctions',
+            'draworder': 'topdown',
+            'x': 0, 'y': 0,
+            'opacity': 1,
+            'visible': True,
+            # 只留 Tiled 必要的欄位。中山區 3 m 有 2,473 個路口，帶完整
+            # object 樣板（width/height/visible/rotation/properties）會讓地圖
+            # 檔從 141 KB 漲到 649 KB——比壓縮過的地形層還大四倍。
+            # point:true 是 Tiled 的點物件，格座標由 x/y 除以 tilewidth 得到。
+            'objects': [
+                {
+                    'id': 10000 + i,
+                    'type': 'junction',
+                    'point': True,
+                    'x': cx * TILE_PX,
+                    'y': cy * TILE_PX,
+                }
+                for i, (cx, cy) in enumerate(junctions, start=1)
+            ],
+        })
+    return tmap
 
 
 def save_map(path, tiled_map):

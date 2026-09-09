@@ -462,6 +462,7 @@ def build_board(cfg, board, boundary):
                        board.get('roadSet'))
 
     road_mask = None
+    junction_pts = None
     if roads:
         # 先用 bbox 濾掉盤外的道路。Bresenham 會把整條線走完才丟掉界外的格，
         # 1 m 格下整份 340 km 主幹道要走上千萬步，切片會慢到不能用。
@@ -476,6 +477,19 @@ def build_board(cfg, board, boundary):
             if hi_lng < origin_lng - pad or lo_lng > east + pad:
                 continue
             feats.append(f)
+
+        # 路口從 OSM 幾何算，不從柵格數鄰居：同一個座標被 3 段以上道路共用才是
+        # 路口。柵格版量到的是「路寬」——3 格寬的路，每個內部格都有 4 個可通行
+        # 鄰居，3 m 全區會把 61% 的道路格判成路口，數字沒有意義。
+        # OSM 的 way 在交叉口會共用節點座標，所以統計每個座標的「相接線段端數」
+        # 就夠：路中間的點是 2、端點是 1、T 字路口 3、十字路口 4。
+        ends = Counter()
+        for f in feats:
+            for line in geo.iter_lines(f['geometry']):
+                for k, pt in enumerate(line):
+                    key = (round(pt[0], 7), round(pt[1], 7))
+                    ends[key] += 1 if k in (0, len(line) - 1) else 2
+        junction_pts = [k for k, v in ends.items() if v >= 3]
 
         kinds = Counter(f['properties'].get('highway', '') for f in feats)
         skipped = len(roads['features']) - len(feats)
@@ -626,18 +640,32 @@ def build_board(cfg, board, boundary):
     print('  最終地形：' + '、'.join(
         f'{tiled.TERRAIN[k][1]} {v:,}' for k, v in sorted(counts.items())))
 
-    # 路口 = 有 3 條以上道路相鄰的格。這是「路網像迷宮還是像樹」最直觀的指標：
-    # 純 MST 幾乎只有店家分岔，路口少；extraEdges 越多環路越多、路口越密。
-    junctions = 0
-    for i, t in enumerate(terrain):
-        if not tiled.TERRAIN[t][3]:
-            continue
-        cy, cx = divmod(i, width)
-        n = sum(1 for nx, ny, idx in neighbours(cx, cy) if passable[idx])
-        if n >= 3:
-            junctions += 1
+    # 路口：「路網像迷宮還是像樹」的指標，也是事件系統之後要綁的錨點
+    # （事件格必經在細格下不成立，見規劃書 §十三）。
     road_total = sum(1 for t in terrain if tiled.TERRAIN[t][3])
-    print(f'  路網：道路 {road_total} 格、路口 {junctions} 個')
+    junction_cells = []
+    if junction_pts is not None:
+        seen = set()
+        for lng, lat in junction_pts:
+            cx, cy = proj.to_cell(lat, lng)
+            if not (0 <= cx < width and 0 <= cy < height):
+                continue
+            idx = cy * width + cx
+            if not passable[idx] or idx in seen:
+                continue            # 落在區外或被裁掉的路上
+            seen.add(idx)
+            junction_cells.append((cx, cy))
+        print(f'  路網：道路 {road_total} 格、路口 {len(junction_cells)} 個（OSM 幾何）')
+    else:
+        # 生成路網沒有 OSM 幾何可用。那個模式的路一律 1 格寬，柵格數鄰居還算得準。
+        junctions = 0
+        for i, t in enumerate(terrain):
+            if not tiled.TERRAIN[t][3]:
+                continue
+            cy, cx = divmod(i, width)
+            if sum(1 for nx, ny, idx in neighbours(cx, cy) if passable[idx]) >= 3:
+                junctions += 1
+        print(f'  路網：道路 {road_total} 格、路口 {junctions} 個（柵格）')
 
     # ── 連通性檢查（走道路，不是走陸地）──────────────────────────────────
     stranded = []
@@ -680,7 +708,8 @@ def build_board(cfg, board, boundary):
         'generatedAt': datetime.now(timezone.utc).isoformat(timespec='seconds'),
         'generator': 'tools/board-gen/gen_board.py',
     }
-    tmap = tiled.build_map(terrain, width, height, placed, meta, image_name, image_size)
+    tmap = tiled.build_map(terrain, width, height, placed, meta, image_name, image_size,
+                           junctions=junction_cells)
     tiled.save_map(out_path, tmap)
     size = out_path.stat().st_size
     print(f'  ✓ 已輸出 {board["out"]}（{size / 1024:,.0f} KB）')
