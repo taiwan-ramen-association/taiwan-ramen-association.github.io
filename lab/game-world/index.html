@@ -343,10 +343,47 @@ let multiplier = 3;
 // 每換一次 cellSize 就要重調一次。
 let densityM = 200;          // 每幾公尺道路一個事件
 let senseM = 800;            // 感知範圍（公尺）
+// ── 進度：一條 append-only 事件流，畫面用的數字全部從它推導 ──────────────
+// 欄位比照 game/v1/events（規劃書 §六）。正式版由 Cloud Function 寫進 Firestore，
+// 前端只換寫入端，下面的推導邏輯不用動。
+//
+// 為什麼現在就這樣做，而不是先累加欄位、之後再改：現有的 userVisits/{uid} 正是
+// 「一人一份文件、只有最終狀態、沒有逐筆事件」的形狀，撐不起 combo／能量／發幣／
+// 排行／防作弊，規劃書 §六 已經把它列為要改掉的東西。如果原型繼續往「直接累加」
+// 長，M2 接 Firestore 時整個進度層要重寫一次——同一個坑不踩第二次。
+//
+// 事件流是唯一的真實來源，所以任何爭議都查得出來、可重算、可回溯。
+let log = [];   // [{type, at, shopId?, cell?, softDelta, ...}]
+
+// 推導出來的，不要直接改這些
 let stamped = new Set();
-let collected = new Set();   // 已收取的事件格（cellIndex）
-let collectedDay = today();  // 事件格每天重生一次，否則走過的路第二次就變空的
+let collected = new Set();   // 今天已收取的事件格（cellIndex），跨日自動長回來
 let soft = 0, picks = 0, combo = 0;
+
+function dayOf(ms){
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+}
+
+function derive(){
+  const day = today();
+  soft = 0; picks = 0; combo = 0;
+  stamped = new Set(); collected = new Set();
+  for (const e of log) {
+    soft += e.softDelta || 0;
+    if (e.type === 'stamp') { stamped.add(e.shopId); combo++; }
+    if (e.type === 'pickup' || e.type === 'quiz') {
+      picks++;
+      // 「今天收過了嗎」也是從事件流推導，不另外存一份 Set 再定時清空
+      if (e.cell != null && dayOf(e.at) === day) collected.add(e.cell);
+    }
+  }
+}
+
+function logEvent(e){
+  log.push({ at: Date.now(), softDelta: 0, ...e });
+  derive();
+}
 
 let cam = { x:0, y:0, px:4 };
 // 鏡頭自動跟隨角色。不跟的話角色一走出畫面，路上撿到什麼玩家都看不到——
@@ -716,12 +753,13 @@ function collectAlongPath(){
     if (collected.has(cell)) continue;
     const ev = eventAt(cell);
     if (!ev) continue;
-    collected.add(cell);
-    picks++;
     if (ev.auto) {
-      soft += ev.soft;
+      logEvent({ type:'pickup', cell, ev: ev.label, softDelta: ev.soft });
       toast(`${ev.icon} ${ev.label} +${ev.soft}`, 'soft');
     } else {
+      // 猜謎在觸發時就記一筆（softDelta 0），這格才算收過；答對與否是另一筆。
+      // append-only：不回頭改已經寫下的事件。
+      logEvent({ type:'quiz', cell, ev: ev.label });
       openQuiz(ev);
       save();
       return;                 // 停下來等作答
@@ -762,7 +800,7 @@ function answerQuiz(btn, right){
   [...$('quizOpts').children].forEach(b => b.disabled = true);
   btn.className = right ? 'right' : 'wrong';
   const gain = right ? quizEv.soft : 2;
-  soft += gain;
+  logEvent({ type:'quiz_answer', ev: quizEv.label, right, softDelta: gain });
   $('quizNote').textContent = right ? `答對！+${gain} 探索點` : `可惜，+${gain} 探索點`;
   setTimeout(() => {
     $('quiz').classList.remove('on');
@@ -989,8 +1027,7 @@ function refreshList(){
 function save(){
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
-      pos, move, vehicle, multiplier, densityM, senseM, soft, picks, combo, collectedDay,
-      stamped:[...stamped], collected:[...collected],
+      pos, move, vehicle, multiplier, densityM, senseM, log,
     }));
   } catch (e) { /* 無痕模式等情境，存不了就算了 */ }
 }
@@ -1006,12 +1043,16 @@ function load(){
     // 舊存檔的 density／senseRadius 是「格」，語意已經不同，直接忽略回到預設
     densityM = s.densityM || 200;
     senseM = s.senseM || 800;
-    soft = s.soft || 0; picks = s.picks || 0; combo = s.combo || 0;
-    stamped = new Set(s.stamped || []);
-    // 跨日就把事件格全部長回來，走過的路才有再走一次的理由
-    collectedDay = s.collectedDay || today();
-    collected = collectedDay === today() ? new Set(s.collected || []) : new Set();
-    collectedDay = today();
+    if (Array.isArray(s.log)) {
+      log = s.log;
+    } else {
+      // 舊存檔沒有事件流，只有累加好的最終狀態。造不出逐筆歷史，但可以誠實地
+      // 記一筆「遷移」事件把數字帶過來，而不是假裝那些事件真的發生過。
+      log = [];
+      for (const id of (s.stamped || [])) log.push({ type:'stamp', at:0, shopId:id, softDelta:0 });
+      if (s.soft) log.push({ type:'migrate', at:0, softDelta:s.soft, note:'舊存檔累加值' });
+    }
+    derive();   // 跨日的事件格重生也由 derive() 處理（只認今天的 pickup／quiz）
     if (move) { move.pauseAt = null; if (moveProgress().done) { collectAlongPath(); finishMove(); } }
     return !!(pos || move);
   } catch (e) { return false; }
@@ -1077,10 +1118,8 @@ $('stampBtn').onclick = () => {
   const here = shopsHere().filter(s => !stamped.has(s.shopId));
   if (!here.length) return;
   for (const shop of here) {
-    stamped.add(shop.shopId);
-    combo++;
-    const bonus = 10 + (combo - 1) * 5;       // 連續踩點越多，單次獎勵越高
-    soft += bonus;
+    const bonus = 10 + combo * 5;             // 連續踩點越多，單次獎勵越高
+    logEvent({ type:'stamp', shopId: shop.shopId, softDelta: bonus });
     toast('🏅 取得徽章 — ' + shop.name);
     if (combo >= 2) showCombo(`連續 ${combo} 間！ +${bonus} 探索點`);
   }
