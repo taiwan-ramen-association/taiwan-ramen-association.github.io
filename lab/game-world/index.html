@@ -238,17 +238,17 @@ python -m http.server 8000
   </div>
 
   <div class="ctrl">
-    <label>事件格密度 <span style="color:#5b626f">（每幾格一個）</span></label>
+    <label>事件格密度 <span style="color:#5b626f">（每幾公尺一個）</span></label>
     <div class="row">
-      <input type="range" id="dens" min="3" max="40" step="1" value="8">
-      <output id="densOut">1/8</output>
+      <input type="range" id="dens" min="50" max="1000" step="25" value="200">
+      <output id="densOut">200 m</output>
     </div>
   </div>
 
   <div class="ctrl">
     <label>感知範圍 <span style="color:#5b626f">（看得到多遠的事件）</span></label>
     <div class="row">
-      <input type="range" id="sense" min="8" max="80" step="4" value="32">
+      <input type="range" id="sense" min="100" max="1500" step="50" value="800">
       <output id="senseOut">800 m</output>
     </div>
   </div>
@@ -320,8 +320,8 @@ const QUIZ = [
 // 4 向移動。與 tools/board-gen/verify.py 的 NEIGHBOURS 必須一致。
 const DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
 
-// 存檔一盤一份：切片是 500x500、正式盤是 239x245，共用存檔的話 pos 會直接出界；
-// density／senseRadius 也是依格子大小調出來的，不能互相帶過去。
+// 存檔一盤一份：切片是 500x500、正式盤是 239x245，共用存檔的話 pos 會直接出界。
+// （事件密度與感知範圍已改成公尺，那兩個現在是跨棋盤通用的，不再是分開存的理由。）
 // 正式盤維持原本的 key，既有存檔不會掉。
 const LS_KEY = 'gw_state_v2' + (BOARD_ID === 'tpe-zhongshan' ? '' : '_' + BOARD_ID);
 
@@ -338,8 +338,11 @@ let pos = null;
 let move = null;      // {path, startAt, secPerCell, vehicle, seenIdx, pauseAt}
 let vehicle = 'walk';
 let multiplier = 3;
-let density = 8;      // 每幾格道路一個事件。道路只有數百格，分母跟開放平原時代不同
-let senseRadius = 32;        // 感知範圍（格）。32 格 x 25 m = 800 m
+// 事件密度與感知範圍都以「公尺」為單位，不以格。用格的話同一個數字在 25 m 盤
+// 和 3 m 盤上代表完全不同的事（density=8 是每 200 m 一個 vs 每 24 m 一個），
+// 每換一次 cellSize 就要重調一次。
+let densityM = 200;          // 每幾公尺道路一個事件
+let senseM = 800;            // 感知範圍（公尺）
 let stamped = new Set();
 let collected = new Set();   // 已收取的事件格（cellIndex）
 let collectedDay = today();  // 事件格每天重生一次，否則走過的路第二次就變空的
@@ -475,16 +478,52 @@ function hash32(n){
 // 用格子索引的雜湊決定，不另外存資料：同一張棋盤永遠長出同一組事件，
 // 換裝置、重整都一樣，而且改密度就是換一組。正式版會改成從 Firestore 讀，
 // 好讓店家可以指定「我門口這格放什麼」。
-function eventAt(cell){
-  if (!passable[cell] || shopAt.has(cell)) return null;
-  const h = hash32(cell ^ 0x5bf03635);
-  if (h % density !== 0) return null;
-  let roll = hash32(h) % EVENT_WEIGHT_TOTAL;
-  for (const ev of EVENTS) {
-    if (roll < ev.weight) return ev;
-    roll -= ev.weight;
+// 事件錨定在 EVENT_GRID_M 見方的空間網格上，不是「每 N 格道路一個」。
+// 用格的話密度是按道路「面積」算的：25 m 時路只有 1 格寬，面積＝長度，兩者
+// 剛好一致；3 m 時路有 1~3 格寬，面積比長度多好幾倍，畫面被圖示淹掉，而實際
+// 走過去遇到的頻率又是另一個數字。錨定到固定公尺網格之後，「畫面上多密」與
+// 「走多遠遇到一個」兩件事都不再隨 cellSize 漂移。
+// cellSize = 25 時每一格正好就是一個區塊、錨點恆成立，行為與改版前完全相同。
+const EVENT_GRID_M = 25;
+let eventCells = new Map();       // cellIndex → event，buildEvents() 建好
+
+// 一個 25 m 區塊最多一個事件，區塊裡由「第一個掃到的道路格」代表。
+//
+// 不能用「格索引雜湊 % N」：那樣密度是按道路**面積**算的。25 m 格時路只有
+// 1 格寬，面積＝長度，兩者剛好一致；3 m 格時路有 1~3 格寬，面積多好幾倍，
+// 畫面被圖示淹掉，而走過去實際遇到的頻率又是另一個數字。
+//
+// 也不能只用「cx 與 cy 都是區塊左上角」當錨點：1 格寬的橫向道路只有 1/8 的
+// 機率落在錨點列上，其餘的路整條都不會有事件。所以改成載入時掃一次、
+// 每個區塊挑一個代表格，區塊本身再去對雜湊。
+//
+// cellSize = 25 時每格正好是一個區塊，等同於改版前的「每 N 格一個」。
+function buildEvents(){
+  const modulus = Math.max(1, Math.round(densityM / EVENT_GRID_M));
+  const g = EVENT_GRID_M / cellSize;          // 一個區塊幾格
+  const bw = Math.ceil(W / g);
+  const claimed = new Set();
+  eventCells = new Map();
+  for (let cell = 0; cell < W*H; cell++) {
+    if (!passable[cell] || shopAt.has(cell)) continue;
+    const bx = Math.floor((cell % W) / g), by = Math.floor(((cell / W) | 0) / g);
+    const b = by * bw + bx;
+    if (claimed.has(b)) continue;             // 這個區塊已經有代表格了
+    claimed.add(b);
+    const h = hash32(b ^ 0x5bf03635);
+    if (h % modulus !== 0) continue;
+    let roll = hash32(h) % EVENT_WEIGHT_TOTAL;
+    let picked = EVENTS[0];
+    for (const ev of EVENTS) {
+      if (roll < ev.weight) { picked = ev; break; }
+      roll -= ev.weight;
+    }
+    eventCells.set(cell, picked);
   }
-  return EVENTS[0];
+}
+
+function eventAt(cell){
+  return eventCells.get(cell) || null;
 }
 
 // 從任意一格往外找最近的可通行格。
@@ -814,7 +853,7 @@ function draw(){
     const me0 = currentXY();
     ctx.font = `${Math.round(px*1.4)}px serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const rr = senseRadius, rr2 = rr*rr;
+    const rr = senseM / cellSize, rr2 = rr*rr;
     const er0 = Math.max(r0, Math.floor(me0.y - rr)), er1 = Math.min(r1, Math.ceil(me0.y + rr));
     const ec0 = Math.max(c0, Math.floor(me0.x - rr)), ec1 = Math.min(c1, Math.ceil(me0.x + rr));
     for (let r = er0; r <= er1; r++) {
@@ -950,7 +989,7 @@ function refreshList(){
 function save(){
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
-      pos, move, vehicle, multiplier, density, senseRadius, soft, picks, combo, collectedDay,
+      pos, move, vehicle, multiplier, densityM, senseM, soft, picks, combo, collectedDay,
       stamped:[...stamped], collected:[...collected],
     }));
   } catch (e) { /* 無痕模式等情境，存不了就算了 */ }
@@ -964,8 +1003,9 @@ function load(){
     pos = s.pos; move = s.move;
     vehicle = s.vehicle || 'walk';
     multiplier = s.multiplier || 3;
-    density = s.density || 8;
-    senseRadius = s.senseRadius || 32;
+    // 舊存檔的 density／senseRadius 是「格」，語意已經不同，直接忽略回到預設
+    densityM = s.densityM || 200;
+    senseM = s.senseM || 800;
     soft = s.soft || 0; picks = s.picks || 0; combo = s.combo || 0;
     stamped = new Set(s.stamped || []);
     // 跨日就把事件格全部長回來，走過的路才有再走一次的理由
@@ -1079,14 +1119,15 @@ $('mult').oninput = e => {
 };
 
 $('dens').oninput = e => {
-  density = +e.target.value;
-  $('densOut').textContent = '1/' + density;
+  densityM = +e.target.value;
+  $('densOut').textContent = densityM + ' m';
+  buildEvents();
   save();
 };
 
 $('sense').oninput = e => {
-  senseRadius = +e.target.value;
-  $('senseOut').textContent = (senseRadius * cellSize) + ' m';
+  senseM = +e.target.value;
+  $('senseOut').textContent = senseM + ' m';
   save();
 };
 
@@ -1108,6 +1149,9 @@ $('sense').oninput = e => {
     pos = { cx: door % W, cy: (door - door % W) / W };
   }
 
+  // 一定要在 load() 之後：densityM 可能被存檔覆寫，事件要照最終值建
+  buildEvents();
+
   // 舊存檔救援：地形語意改過（以前陸地可走，現在只有道路可走），
   // 存檔裡的位置可能已經在路外，不救的話玩家開起來就是卡死的。
   if (!move && pos && !passable[pos.cy*W + pos.cx]) {
@@ -1120,8 +1164,8 @@ $('sense').oninput = e => {
 
   buildVehicles();
   $('mult').value = multiplier; $('multOut').textContent = 'x' + multiplier;
-  $('dens').value = density;    $('densOut').textContent = '1/' + density;
-  $('sense').value = senseRadius; $('senseOut').textContent = (senseRadius * cellSize) + ' m';
+  $('dens').value = densityM;  $('densOut').textContent = densityM + ' m';
+  $('sense').value = senseM;   $('senseOut').textContent = senseM + ' m';
 
   const c = currentXY();
   cam.x = c.x; cam.y = c.y; cam.px = 6;
