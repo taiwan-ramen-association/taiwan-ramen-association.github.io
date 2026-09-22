@@ -168,10 +168,12 @@ function initMap() {
   leafletMap  = L.map('mapContainer').setView([23.97, 120.97], 8);
   markerLayer = L.layerGroup().addTo(leafletMap);
   // CARTO 2026-08 起不帶 key 會回浮水印圖磚；key 限 Referer（taiwanramen.org），管理在 CARTO dashboard
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_3t3w_1_26f8be9010804e9250bfb17a', {
+  // 樣式 light_all（Positron）：底圖低彩度，店家紅點與捷運線較醒目
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=cb1_3t3w_1_26f8be9010804e9250bfb17a', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
     maxZoom: 19
   }).addTo(leafletMap);
+  loadMrtLayer();
 
   // 左下角：縮放到自身位置（約 1km）
   const LocateMeControl = L.Control.extend({
@@ -211,6 +213,54 @@ function initMap() {
   leafletMap.on('dragstart', () => { if (followMode) toggleFollow(); });
 
   showUserMarker();
+}
+
+// ── 捷運路線疊加 ───────────────────────────────────────────────────────────────
+// 資料 data/mrt.json 由 tools/build_mrt.py 從 OpenStreetMap 產生；載入失敗時地圖照常，只是少了捷運線
+
+const MRT_STATION_MIN_ZOOM = 13;   // 車站圓點
+const MRT_LABEL_MIN_ZOOM   = 15;   // 站名
+
+function loadMrtLayer() {
+  // 獨立 pane（z 350）：高於底圖（200）、低於店家與定位點（overlayPane 400 / markerPane 600），且不吃點擊
+  const pane = leafletMap.createPane('mrtPane');
+  pane.style.zIndex = 350;
+  pane.style.pointerEvents = 'none';
+
+  fetch('./data/mrt.json')
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => {
+      const renderer = L.canvas({ pane: 'mrtPane', padding: 0.5 });
+      const opts = { renderer, pane: 'mrtPane', interactive: false };
+
+      // 先畫全部白色外框、再畫彩色線，轉乘處的外框才不會蓋住別條線
+      data.lines.forEach(line => L.polyline(line.paths, { ...opts, color: '#fff', weight: 6, opacity: 0.9 }).addTo(leafletMap));
+      data.lines.forEach(line => L.polyline(line.paths, { ...opts, color: line.color, weight: 3.5, opacity: 0.9 }).addTo(leafletMap));
+
+      const stationLayer = L.layerGroup();
+      const labelLayer   = L.layerGroup();
+      data.stations.forEach(s => {
+        L.circleMarker([s.lat, s.lng], { ...opts, radius: 3.5, color: '#555', weight: 1.5, fillColor: '#fff', fillOpacity: 1 })
+          .addTo(stationLayer);
+        L.marker([s.lat, s.lng], {
+          pane: 'mrtPane', interactive: false, keyboard: false,
+          icon: L.divIcon({ className: 'mrt-station-label', html: escapeHtml(s.name), iconSize: null, iconAnchor: [-6, 8] })
+        }).addTo(labelLayer);
+      });
+
+      const syncByZoom = () => {
+        const z = leafletMap.getZoom();
+        const toggle = (layer, show) => {
+          if (show && !leafletMap.hasLayer(layer)) layer.addTo(leafletMap);
+          if (!show && leafletMap.hasLayer(layer)) leafletMap.removeLayer(layer);
+        };
+        toggle(stationLayer, z >= MRT_STATION_MIN_ZOOM);
+        toggle(labelLayer,   z >= MRT_LABEL_MIN_ZOOM);
+      };
+      leafletMap.on('zoomend', syncByZoom);
+      syncByZoom();
+    })
+    .catch(err => console.warn('捷運路線載入失敗：', err));
 }
 
 function renderMap() {
