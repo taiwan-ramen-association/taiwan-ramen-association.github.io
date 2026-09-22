@@ -167,7 +167,8 @@ function switchView(v) {
 function initMap() {
   leafletMap  = L.map('mapContainer').setView([23.97, 120.97], 8);
   markerLayer = L.layerGroup().addTo(leafletMap);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  // CARTO 2026-08 起不帶 key 會回浮水印圖磚；key 限 Referer（taiwanramen.org），管理在 CARTO dashboard
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_3t3w_1_26f8be9010804e9250bfb17a', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
     maxZoom: 19
   }).addTo(leafletMap);

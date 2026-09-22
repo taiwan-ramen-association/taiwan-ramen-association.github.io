@@ -327,7 +327,8 @@ async function loadMapTab(uid) {
     pane.style.height = '460px';
 
     const map = L.map(pane).setView([23.97, 120.97], 7);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    // CARTO key 同 js/map.js，換 key 兩處都要改
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_3t3w_1_26f8be9010804e9250bfb17a', {
       attribution: '© OpenStreetMap © CARTO',
       maxZoom: 18
     }).addTo(map);
