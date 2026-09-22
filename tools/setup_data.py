@@ -218,13 +218,15 @@ def step_fill_city_district():
 # ════════════════════════════════════════════════════════════════════════════════
 # STEP 3：補 lat/lng 座標
 # ════════════════════════════════════════════════════════════════════════════════
-def step_geocode():
+def step_geocode(mode=None):
+    """mode=None：互動詢問（進階選單 3）；mode='1'：只補缺少座標，不詢問（C 流程自動呼叫）"""
     section(3, '補 lat/lng 座標')
 
-    print('  模式選擇（直接 Enter = 只補缺少座標）：')
-    print('    1. 只補缺少座標的店家  ← 預設')
-    print('    2. 重新更正所有有 Map URL 的店家（修正舊座標精度）')
-    mode = input('  請輸入 1 或 2：').strip() or '1'
+    if mode is None:
+        print('  模式選擇（直接 Enter = 只補缺少座標）：')
+        print('    1. 只補缺少座標的店家  ← 預設')
+        print('    2. 重新更正所有有 Map URL 的店家（修正舊座標精度）')
+        mode = input('  請輸入 1 或 2：').strip() or '1'
 
     rows  = load_data()
     total = len(rows)
@@ -1172,6 +1174,7 @@ def run_path_c():
     step_normalize_dates()
     step_auto_close()
     step_sort()
+    step_geocode(mode='1')      # 要在 Map 標準化之前：標準化會用 lat/lng 改寫 /@ 座標
     step_normalize_map_urls(mode='new_only')
     step_json_to_excel()
 
