@@ -82,6 +82,22 @@
       "roadSet": "r2",
       "cellSize": 5,
       "slice": { "centerLat": 25.050692, "centerLng": 121.522549, "sideMeters": 500 }
+    },
+
+    {
+      "id": "tpe-daan",
+      "county": "臺北市", "town": "大安區",
+      "out": "data/boards/tpe-daan.json"
+    },
+
+    {
+      "_comment": "完整大安區，3 m 格 + R2 道路（同 tpe-zhongshan-3m 的定案規格）。",
+      "id": "tpe-daan-3m",
+      "county": "臺北市", "town": "大安區",
+      "out": "data/boards/tpe-daan-3m.json",
+      "cacheId": "tpe-daan",
+      "roadSet": "r2",
+      "cellSize": 3
     }
   ]
 }
