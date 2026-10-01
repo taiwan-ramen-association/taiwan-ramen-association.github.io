@@ -1186,6 +1186,26 @@ def run_path_c():
     print('  ✅ 完成！data.json 與 data.xlsx 均已更新')
     print('═' * 54)
 
+# ── 防呆：店家資料只能在 main 上處理 ────────────────────────────────────────
+# A～D 都作用在「目前所在分支」。在其他分支上跑的話，commit 會記在那條分支、
+# push 也推到那條分支：網站（只從 main 部署）不會更新，而且之後推那條分支時
+# sync-sheets 會用分支版 data.json 覆寫 Google Sheet。
+_branch = subprocess.run(
+    ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+    cwd=root_dir, capture_output=True, text=True, encoding='utf-8'
+).stdout.strip()
+if _branch != 'main':
+    print('\n' + '═' * 54)
+    print(f'  ⛔ 目前在分支「{_branch or "無法判斷"}」，店家資料只能在 main 上處理。')
+    print('     請先切回 main：git switch main')
+    print('     （開發分支請用另一個工作目錄，例如 git worktree）')
+    print('═' * 54)
+    try:
+        input('\n按 Enter 離開...')   # 雙擊執行時視窗才不會一閃就關
+    except EOFError:
+        pass
+    sys.exit(1)
+
 while True:
     show_menu()
     choice = input('\n請輸入選項：').strip().lower()
