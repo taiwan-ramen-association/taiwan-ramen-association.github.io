@@ -20,13 +20,16 @@ data.json 更新讓棋盤改變是正常的，壞掉才不正常。
 用法：
     python regress.py              # 全部棋盤
     python regress.py tpe-daan-3m  # 只測一張
+    python regress.py --fixtures lab/game-world-3d/test/fixtures.json
+                                   # 另外輸出每張棋盤的解碼摘要（尺寸、店家、各地形格數），
+                                   # 給 3D 頁的 test/ 比對 JS 解碼結果與 Python 一致
 """
 import array
 import base64
 import json
 import sys
 import zlib
-from collections import deque
+from collections import Counter, deque
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -79,7 +82,7 @@ def inside(geometry, lat, lng):
 
 
 def check_board(cfg, board, boundary, rows_by_id):
-    """回傳 (店數, {檢查名: (ok, 說明)})。"""
+    """回傳 (店數, {檢查名: (ok, 說明)}, 解碼摘要)。"""
     results = {}
     path = REPO_ROOT / board['out']
     tmap = json.loads(path.read_text(encoding='utf-8'))
@@ -97,7 +100,7 @@ def check_board(cfg, board, boundary, rows_by_id):
     tiles = decode_terrain(next(l for l in tmap['layers'] if l['name'] == 'terrain'))
     if len(tiles) != W * H:
         results['地形'] = (False, f'地形格數 {len(tiles)} ≠ {W}x{H}')
-        return 0, results
+        return 0, results, None
     passable = bytearray(passable_tile.get(g - first, False) for g in tiles)
 
     shops = []
@@ -177,7 +180,14 @@ def check_board(cfg, board, boundary, rows_by_id):
     # ⑦ 預覽
     pv = REPO_ROOT / 'data' / 'boards' / f"{board['id']}-preview.png"
     results['預覽'] = (pv.exists(), '' if pv.exists() else f'缺 {pv.name}')
-    return len(shops), results
+
+    summary = {
+        'id': board['id'], 'W': W, 'H': H, 'cell': props['cellSize'],
+        'county': props.get('county'), 'town': props.get('town'),
+        'shops': sorted(s['id'] for s in shops),
+        'terrainCounts': {terrain_of[g - first]: n for g, n in sorted(Counter(tiles).items())},
+    }
+    return len(shops), results, summary
 
 
 def main():
@@ -185,24 +195,40 @@ def main():
     boundary = fetch_boundary.fetch()
     rows = json.loads((REPO_ROOT / 'data' / 'data.json').read_text(encoding='utf-8'))
     rows_by_id = {r.get('ID'): r for r in rows}
-    only = sys.argv[1] if len(sys.argv) > 1 else None
+    args = sys.argv[1:]
+    fixtures = None
+    if '--fixtures' in args:
+        i = args.index('--fixtures')
+        fixtures = args[i + 1]
+        del args[i:i + 2]
+    only = args[0] if args else None
 
     print(f"\n{'棋盤':<22}{'店數':>4}  " + '  '.join(CHECKS))
     failed = []
+    summaries = []
     for board in cfg['boards']:
         if only and board['id'] != only:
             continue
         try:
-            n, res = check_board(cfg, board, boundary, rows_by_id)
+            n, res, summary = check_board(cfg, board, boundary, rows_by_id)
         except Exception as e:  # 檔案壞掉也算 FAIL，不要讓整支測試炸掉
-            n, res = 0, {k: (False, '') for k in CHECKS}
+            n, res, summary = 0, {k: (False, '') for k in CHECKS}, None
             res['狀態'] = (False, f'{type(e).__name__}: {e}')
+        if summary:
+            summaries.append(summary)
         marks = '  '.join(('✓' if res.get(k, (True, ''))[0] else '✗').center(len(k) * 2) for k in CHECKS)
         print(f"{board['id']:<22}{n:>4}  {marks}")
         for k in CHECKS:
             ok, why = res.get(k, (True, ''))
             if not ok:
                 failed.append(f"{board['id']}｜{k}｜{why}")
+
+    if fixtures:
+        out = Path(fixtures)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps({'generatedBy': 'tools/board-gen/regress.py --fixtures', 'boards': summaries},
+                                  ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+        print(f'\nfixtures → {out}（{len(summaries)} 張棋盤）')
 
     print()
     if failed:

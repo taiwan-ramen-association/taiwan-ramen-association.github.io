@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>3D 回歸測試</title>
+<style>
+  body { margin: 16px; background: #16181d; color: #e8e4da; font: 13px/1.5 system-ui, "Microsoft JhengHei", sans-serif; }
+  h1 { font-size: 16px; margin: 0 0 8px; }
+  #summary { margin: 6px 0 12px; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border-bottom: 1px solid rgba(255,255,255,0.1); padding: 3px 8px; text-align: left; vertical-align: top; }
+  .ok { color: #8fd18f; } .ng { color: #ff7a72; } .run { color: #e8c35a; }
+  #stage { position: fixed; left: -10000px; top: 0; }
+  #stage iframe { width: 1280px; height: 720px; border: 0; display: block; }
+</style>
+</head>
+<body>
+<h1>拉麵養成世界 3D — 回歸測試</h1>
+<div id="summary" class="run">執行中…</div>
+<table><thead><tr><th>測試</th><th>棋盤</th><th>結果</th><th>說明</th></tr></thead><tbody id="rows"></tbody></table>
+<div id="stage"></div>
+<pre id="result-json" hidden></pre>
+
+<script type="module">
+// 用法：
+//   直接開 http://127.0.0.1:8000/lab/game-world-3d/test/      → 在頁面上看結果
+//   test/run.py 會帶 ?auto=1 開 headless 瀏覽器                → 結果與截圖 POST 回本機伺服器
+// 只測一張：?board=tpe-daan-3m
+import { loadBoard, terrainCounts } from '../js/board.js';
+import { COLOR, hash32 } from '../js/terrain.js';
+
+const Q = new URLSearchParams(location.search);
+const AUTO = Q.has('auto');
+const ONLY = Q.get('board');
+const SHOT_BOARDS = ['tpe-zhongshan-3m', 'tpe-daan-3m'];
+const SHOT_VIEWS = ['overview', 'oblique', 'top'];
+const BG = [22, 24, 29];                       // #16181d
+const TIMEOUT = 120000;
+
+const results = [];
+const rowsEl = document.getElementById('rows');
+function record(test, board, ok, detail = '') {
+  results.push({ test, board, ok, detail });
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${test}</td><td>${board}</td><td class="${ok ? 'ok' : 'ng'}">${ok ? 'PASS' : 'FAIL'}</td><td></td>`;
+  tr.lastChild.textContent = detail;
+  rowsEl.appendChild(tr);
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function waitFor(fn, ms, what) {
+  const t0 = performance.now();
+  for (;;) {
+    let v;
+    try { v = await fn(); } catch (e) { v = undefined; }
+    if (v) return v;
+    if (performance.now() - t0 > ms) throw new Error('逾時：' + what);
+    await sleep(100);
+  }
+}
+
+function openFrame(src) {
+  const f = document.createElement('iframe');
+  f.src = src;
+  document.getElementById('stage').appendChild(f);
+  return f;
+}
+const closeFrame = f => f.remove();
+
+const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+async function post(path, body, type) {
+  if (!AUTO) return;
+  await fetch(path, { method: 'POST', headers: { 'Content-Type': type }, body });
+}
+
+// ① 解碼一致：JS 解出的棋盤 vs regress.py 的 fixtures（Python 解碼）
+async function testDecode(fx) {
+  try {
+    const b = await loadBoard(fx.id);
+    const diffs = [];
+    if (b.W !== fx.W || b.H !== fx.H) diffs.push(`尺寸 ${b.W}×${b.H} ≠ ${fx.W}×${fx.H}`);
+    if (b.cell !== fx.cell) diffs.push(`格長 ${b.cell} ≠ ${fx.cell}`);
+    const ids = b.shops.map(s => s.id).sort();
+    if (!sameJson(ids, fx.shops)) diffs.push(`店家 ${ids.length} 間 ≠ ${fx.shops.length} 間`);
+    const tc = terrainCounts(b);
+    if (!sameJson(tc, fx.terrainCounts)) diffs.push(`地形格數不同：JS ${JSON.stringify(tc)}`);
+    record('解碼一致', fx.id, diffs.length === 0, diffs.join('；') || `${fx.W}×${fx.H}、${ids.length} 間、${Object.keys(tc).length} 種地形`);
+  } catch (e) {
+    record('解碼一致', fx.id, false, e.message);
+  }
+}
+
+// ② 3D 繪製：載得起來、零錯誤、標記數 = 店數、畫面上真的有棋盤
+async function test3D(fx) {
+  const f = openFrame(`../index.html?board=${fx.id}&test`);
+  try {
+    const gw = await waitFor(() => f.contentWindow && f.contentWindow.__GW3D__, TIMEOUT, '__GW3D__');
+    await Promise.race([gw.ready, sleep(TIMEOUT).then(() => { throw new Error('逾時：ready'); })]);
+    await waitFor(() => gw.frames >= 3, TIMEOUT, '畫面更新');
+    const s = gw.stats();
+    const probes = [];
+    for (const fy of [0.35, 0.5, 0.65]) for (const fx_ of [0.35, 0.5, 0.65]) probes.push(gw.probe(fx_, fy));
+    const bright = probes.filter(p => p[0] + p[1] + p[2] > 400).length;
+    const notBg = probes.filter(p => Math.abs(p[0] - BG[0]) + Math.abs(p[1] - BG[1]) + Math.abs(p[2] - BG[2]) > 12).length;
+    const problems = [];
+    if (s.errors) problems.push(`錯誤 ${s.errors} 筆：${gw.errors.slice(0, 3).join(' / ')}`);
+    if (s.markers !== fx.shops.length) problems.push(`標記 ${s.markers} ≠ 店數 ${fx.shops.length}`);
+    if (s.W !== fx.W || s.H !== fx.H) problems.push('尺寸不符');
+    if (s.drawCalls < 3) problems.push(`draw calls 只有 ${s.drawCalls}`);
+    if (bright === 0 || notBg < 3) problems.push(`畫面取樣看不到棋盤（亮點 ${bright}/9、非背景 ${notBg}/9）`);
+    if (s.texScale < 1) problems.push(`貼圖被縮小 ${s.texScale.toFixed(2)}（GPU 上限 ${s.maxTextureSize}）`);
+    record('3D 繪製', fx.id, problems.length === 0,
+      problems.join('；') || `${s.markers} 標記 · ${s.drawCalls} draw calls · ${s.triangles} 三角形 · 貼圖 ${s.texW}×${s.texH} · 取樣亮點 ${bright}/9`);
+
+    if (AUTO && SHOT_BOARDS.includes(fx.id)) {
+      for (const v of SHOT_VIEWS) {
+        gw.setView(v);
+        await sleep(50);
+        await post(`/__test/shot?name=${fx.id}-${v}`, gw.snapshot(), 'text/plain');
+      }
+    }
+  } catch (e) {
+    record('3D 繪製', fx.id, false, e.message);
+  } finally {
+    closeFrame(f);
+  }
+}
+
+// ③ 2D 冒煙：2D 頁仍然載得起來（標題變成縣市＋行政區、沒有跳錯誤框）
+async function test2D(fx) {
+  const f = openFrame(`../../game-world/index.html?board=${fx.id}`);
+  const want = (fx.county || '') + (fx.town || '');
+  try {
+    const verdict = await waitFor(() => {
+      const d = f.contentDocument;
+      if (!d) return null;
+      const err = d.getElementById('err');
+      if (err && err.style.display === 'grid') return { ok: false, why: '2D 頁顯示錯誤框：' + (d.getElementById('errDetail') || {}).textContent };
+      const h1 = d.querySelector('#hud h1');
+      return h1 && h1.textContent === want ? { ok: true } : null;
+    }, TIMEOUT, '2D 標題');
+    record('2D 冒煙', fx.id, verdict.ok, verdict.ok ? `標題「${want}」` : verdict.why);
+    return f;
+  } catch (e) {
+    record('2D 冒煙', fx.id, false, e.message);
+    closeFrame(f);
+    return null;
+  }
+}
+
+// ④ 配色一致：2D 頁裡的 COLOR、hash32 與 3D 的 terrain.js 逐值相同
+function testPalette(frame, id) {
+  try {
+    const w = frame.contentWindow;
+    const color2d = JSON.parse(w.eval('JSON.stringify(COLOR)'));
+    const ins = [0, 1, 2, 7, 12345, 58554, 4051492, 0x7fffffff];
+    const h2d = JSON.parse(w.eval(`JSON.stringify(${JSON.stringify(ins)}.map(hash32))`));
+    const h3d = ins.map(hash32);
+    const okC = sameJson(color2d, COLOR), okH = sameJson(h2d, h3d);
+    record('配色一致', id, okC && okH,
+      [okC ? `COLOR ${Object.keys(COLOR).length} 種相同` : 'COLOR 不同：' + JSON.stringify(color2d),
+       okH ? 'hash32 相同' : 'hash32 不同'].join('；'));
+  } catch (e) {
+    record('配色一致', id, false, e.message);
+  }
+}
+
+(async () => {
+  let fixtures;
+  try {
+    fixtures = (await (await fetch('./fixtures.json', { cache: 'no-store' })).json()).boards;
+  } catch (e) {
+    record('fixtures', '-', false, '讀不到 fixtures.json：先跑 python tools/board-gen/regress.py --fixtures lab/game-world-3d/test/fixtures.json');
+    fixtures = [];
+  }
+  if (ONLY) fixtures = fixtures.filter(b => b.id === ONLY);
+
+  let paletteDone = false;
+  for (const fx of fixtures) {
+    await testDecode(fx);
+    await test3D(fx);
+    const f2 = await test2D(fx);
+    if (f2) {
+      if (!paletteDone) { testPalette(f2, fx.id); paletteDone = true; }
+      closeFrame(f2);
+    }
+  }
+
+  const fail = results.filter(r => !r.ok).length;
+  const pass = results.length - fail;
+  const summary = document.getElementById('summary');
+  summary.className = fail ? 'ng' : 'ok';
+  summary.textContent = fail ? `FAIL ${fail} 項（PASS ${pass}）` : `全部通過（${pass} 項）`;
+  document.title = fail ? `FAIL ${fail}` : `PASS ${pass}`;
+  const payload = JSON.stringify({ pass, fail, results, userAgent: navigator.userAgent });
+  document.getElementById('result-json').textContent = payload;
+  window.__TEST_RESULT__ = JSON.parse(payload);
+  await post('/__test/result', payload, 'application/json');
+})();
+</script>
+</body>
+</html>
