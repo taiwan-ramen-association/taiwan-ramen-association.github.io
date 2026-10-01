@@ -52,8 +52,12 @@ CACHE_DIR = HERE / 'cache'
 OUTLIER_THRESHOLD_M = 8000
 
 
-def load_shops(county, town, exclude_statuses):
-    """從 data.json 取出該區的店家，並剔除座標離群值。"""
+def load_shops(county, town, exclude_statuses=(), include_statuses=None):
+    """從 data.json 取出該區的店家，並剔除座標離群值。
+
+    include_statuses 有值時只收這些營業狀態（白名單，優先於 exclude_statuses）；
+    沒給才退回舊的 exclude_statuses 黑名單。
+    """
     with open(REPO_ROOT / 'data' / 'data.json', encoding='utf-8') as fh:
         rows = json.load(fh)
 
@@ -61,7 +65,10 @@ def load_shops(county, town, exclude_statuses):
     for row in rows:
         if row.get('縣市') != county or row.get('鄉鎮市區') != town:
             continue
-        if row.get('營業狀態') in exclude_statuses:
+        status = row.get('營業狀態')
+        if include_statuses is not None and status not in include_statuses:
+            continue
+        if status in exclude_statuses:
             continue
         try:
             lat = float(row['lat'])
@@ -344,7 +351,8 @@ def build_board(cfg, board, boundary):
     print(f"\n=== {board['id']}｜{board['county']}{board['town']} ===")
 
     feat = fetch_boundary.find_town(boundary, board['county'], board['town'])
-    shops = load_shops(board['county'], board['town'], cfg.get('excludeStatuses', []))
+    shops = load_shops(board['county'], board['town'],
+                       cfg.get('excludeStatuses', []), cfg.get('includeStatuses'))
     print(f'  店家 {len(shops)} 間')
 
     # ── 版圖範圍：行政區界為主，若有店家落在界外則一併納入 ────────────────

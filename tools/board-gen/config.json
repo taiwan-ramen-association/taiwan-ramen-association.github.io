@@ -27,7 +27,8 @@
   "_roadWidthMeters": "道路寬度（公尺），依 highway 類型。筆刷半徑 = round((寬度/cellSize - 1)/2)，而筆刷寬度永遠是奇數格（2r+1），所以會量化：cellSize=1 時 3→3 格、6→7 格、9→9 格；cellSize=25 時三種寬度都算出 0（＝一格寬），與 roadRadiusCells 的舊行為完全相同，既有 25 m 棋盤重生不會變。查不到的 highway 類型走 _default。移除這個鍵就退回吃 roadRadiusCells。",
   "roadWidthMeters": { "trunk": 9, "primary": 9, "secondary": 6, "tertiary": 6, "_default": 3 },
 
-  "excludeStatuses": ["已歇業"],
+  "_includeStatuses": "只收這些營業狀態的店家（白名單）。已歇業／已搬遷／暫時關閉／暫停營業一律不進棋盤；data.json 之後出現新的狀態值也預設排除，要收就加進來。",
+  "includeStatuses": ["營業中"],
 
   "boundarySource": "https://raw.githubusercontent.com/ronnywang/twgeojson/master/twtown2010.4.json",
   "overpassEndpoint": "https://overpass-api.de/api/interpreter",
