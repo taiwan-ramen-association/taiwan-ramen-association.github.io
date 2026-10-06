@@ -241,29 +241,37 @@ jobs:
           HEADERS = {'User-Agent': 'ramen-finder/1.0'}
           updated = 0
 
+          # !3d!4d 是 Google Maps 標記點的精確座標。
+          # 不可用 /@lat,lng：那是地圖視角中心，桌面版有側欄會往西偏 200m～數 km。
+          PIN_RE = re.compile(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)')
+
           def coords_from_map_url(url):
               if not url or not url.startswith('http'):
                   return None, None
-              try:
-                  r = requests.get(url, headers=HEADERS, timeout=10, allow_redirects=True)
-                  final = r.url
-                  m = re.search(r'/@(-?\d+\.\d+),(-?\d+\.\d+)', final)
-                  if m:
-                      return float(m.group(1)), float(m.group(2))
-                  m = re.search(r'[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)', final)
-                  if m:
-                      return float(m.group(1)), float(m.group(2))
-              except Exception:
-                  pass
+              m = PIN_RE.search(url)
+              if not m:
+                  try:
+                      r = requests.get(url, headers=HEADERS, timeout=10, allow_redirects=True)
+                      m = PIN_RE.search(r.url)
+                  except Exception:
+                      pass
+              if m:
+                  return float(m.group(1)), float(m.group(2))
               return None, None
 
-          def geocode_nominatim(address):
+          def geocode_nominatim(address, city):
+              """回傳結果須含該店縣市，否則視為對錯地方（OSM 台灣門牌少，常對到別縣市同名路）"""
               try:
                   r = requests.get('https://nominatim.openstreetmap.org/search',
-                      params={'q': address, 'format': 'json', 'limit': 1, 'countrycodes': 'tw'},
+                      params={'q': address, 'format': 'json', 'limit': 1, 'countrycodes': 'tw',
+                              'accept-language': 'zh-TW'},
                       headers=HEADERS, timeout=10)
                   results = r.json()
                   if results:
+                      shown = results[0].get('display_name', '').replace('台', '臺')
+                      if city and city.replace('台', '臺') not in shown:
+                          print(f'    Nominatim 縣市不符（{city}）：{shown}')
+                          return None, None
                       return float(results[0]['lat']), float(results[0]['lon'])
               except Exception:
                   pass
@@ -277,7 +285,7 @@ jobs:
               lat, lng = coords_from_map_url(map_url)
               if not lat:
                   time.sleep(1.1)
-                  lat, lng = geocode_nominatim(address)
+                  lat, lng = geocode_nominatim(address, str(row.get('縣市', '')).strip())
 
               if lat:
                   # 存成字串，與 get_all_records(numericise_ignore) 的輸出型別一致

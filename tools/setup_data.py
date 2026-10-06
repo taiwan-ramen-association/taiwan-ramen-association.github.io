@@ -6,6 +6,7 @@ B  完成編輯：Excel → JSON → 正規化 → 寫回 Excel
 """
 import csv
 import json
+import math
 import os
 import random
 import re
@@ -228,14 +229,32 @@ def step_geocode(mode=None):
         print('    2. 重新更正所有有 Map URL 的店家（修正舊座標精度）')
         mode = input('  請輸入 1 或 2：').strip() or '1'
 
+    # !3d!4d 是 Google Maps 標記點的精確座標
+    # 不使用 /@：那是地圖視角中心，桌面版有側欄會往西偏 200m～數 km
+    PIN_RE = re.compile(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)')
+
+    def drift_m(row):
+        """已存座標與 Map 標記點的距離（公尺）；無法比較回傳 0"""
+        m = PIN_RE.search(row.get('Map', ''))
+        try:
+            lat, lng = float(row['lat']), float(row['lng'])
+        except (KeyError, ValueError, TypeError):
+            return 0
+        if not m:
+            return 0
+        return math.hypot((float(m.group(1)) - lat) * 111000,
+                          (float(m.group(2)) - lng) * 101000)
+
     rows  = load_data()
     total = len(rows)
     if mode == '2':
         to_geocode = [r for r in rows if r.get('Map', '').startswith('http') or not r.get('lat')]
         print(f'  重新 geocode：{len(to_geocode)} 筆（共 {total} 筆）')
     else:
-        to_geocode = [r for r in rows if not r.get('lat') or not r.get('lng')]
-        print(f'  需要 geocode：{len(to_geocode)} 筆（共 {total} 筆）')
+        # 缺座標，或已存座標與 Map 標記點差超過 100m（舊版 /@ 抓法留下的偏移）
+        to_geocode = [r for r in rows
+                      if not r.get('lat') or not r.get('lng') or drift_m(r) > 100]
+        print(f'  需要 geocode：{len(to_geocode)} 筆（共 {total} 筆，含座標偏移 >100m）')
 
     if not to_geocode:
         print('  ✅ 無需處理')
@@ -249,21 +268,31 @@ def step_geocode(mode=None):
 
     def from_map_url(url):
         if not url or not url.startswith('http'):
-            return None, None
-        r = requests.get(url, headers=UA, timeout=10, verify=False, allow_redirects=True)
-        # !3d!4d 是 Google Maps 標記點的精確座標
-        # 不使用 /@ 的 fallback：那是地圖視角中心，縮放狀態不同會漂移到海上
-        m = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', r.url)
+            return None, None, False
+        # 網址已含標記點就直接讀，不連網（mode 2 從數十分鐘縮到幾秒，也不會被 Google 限流）
+        m = PIN_RE.search(url)
         if m:
-            return float(m.group(1)), float(m.group(2))
-        return None, None
+            return float(m.group(1)), float(m.group(2)), False
+        r = requests.get(url, headers=UA, timeout=10, verify=False, allow_redirects=True)
+        m = PIN_RE.search(r.url)
+        if m:
+            return float(m.group(1)), float(m.group(2)), True
+        return None, None, True
 
-    def from_nominatim(address):
+    def from_nominatim(address, city):
+        """結果須含該店縣市，否則視為對錯地方（OSM 台灣門牌少，常對到別縣市同名路）"""
         r = requests.get('https://nominatim.openstreetmap.org/search',
-            params={'q': address, 'format': 'json', 'limit': 1},
+            params={'q': address, 'format': 'json', 'limit': 1, 'countrycodes': 'tw',
+                    'accept-language': 'zh-TW'},
             headers=UA, timeout=10, verify=False)
         res = r.json()
-        return (float(res[0]['lat']), float(res[0]['lon'])) if res else (None, None)
+        if not res:
+            return None, None
+        shown = res[0].get('display_name', '').replace('台', '臺')
+        if city and city.replace('台', '臺') not in shown:
+            print(f'    ✗ (Nominatim) 縣市不符（{city}）：{shown}')
+            return None, None
+        return float(res[0]['lat']), float(res[0]['lon'])
 
     def in_taiwan(lat, lng):
         """台灣合理座標範圍（含金門 ~118.3E、馬祖 ~119.9E、蘭嶼、綠島）"""
@@ -273,15 +302,17 @@ def step_geocode(mode=None):
         name    = row.get('店名', '')
         address = row.get('地址', '') or name
         print(f'  [{i+1}/{len(to_geocode)}] {name}')
+        used_net = True   # 例外時仍要節流
         try:
-            lat, lng = from_map_url(row.get('Map', ''))
+            lat, lng, used_net = from_map_url(row.get('Map', ''))
             if lat and in_taiwan(lat, lng):
                 print(f'    ✓ (Map URL) {lat:.6f}, {lng:.6f}')
             else:
                 if lat:
                     print(f'    ✗ (Map URL) 座標超出台灣範圍：{lat:.6f}, {lng:.6f}，改用 Nominatim')
                     lat = lng = None
-                lat, lng = from_nominatim(address)
+                used_net = True
+                lat, lng = from_nominatim(address, str(row.get('縣市', '')).strip())
                 if lat and in_taiwan(lat, lng):
                     print(f'    ✓ (Nominatim) {lat:.6f}, {lng:.6f}')
                 elif lat:
@@ -306,7 +337,8 @@ def step_geocode(mode=None):
         if consecutive >= MAX_CONSEC:
             print(f'\n  ⚠  連續失敗 {MAX_CONSEC} 筆，中斷作業')
             break
-        time.sleep(1.1)
+        if used_net:
+            time.sleep(1.1)
 
     save_data(rows)
     print(f'\n  ✅ 完成：更新 {updated} 筆（共 {total} 筆）')
