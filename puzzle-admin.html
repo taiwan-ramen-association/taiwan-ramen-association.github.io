@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="assets/icons/03.png">
+<title>Razuru 建題工具 ─ 台灣拉麵協會</title>
+<meta name="robots" content="noindex, nofollow">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="js/vendor/exifr.full.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans TC', -apple-system, sans-serif;
+    background: #faf7f2; color: #1a1209; min-height: 100vh;
+  }
+
+  /* ── 登入閘門（沿用 admin.html 樣式）───────────────────────────────────── */
+  #gate {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 100vh; gap: 16px; padding: 0 16px; text-align: center;
+  }
+  #gate p { color: #8a7d6e; font-size: 14px; }
+  .btn-google {
+    display: flex; align-items: center; gap: 8px;
+    background: #ffffff; border: 1px solid #e8e0d4;
+    padding: 10px 20px; border-radius: 8px;
+    font-size: 14px; cursor: pointer; color: #1a1209;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1); font-family: inherit;
+  }
+  .btn-google:hover { background: #fdf5f5; }
+  .btn-google svg { width: 18px; height: 18px; }
+
+  /* ── 主介面 ───────────────────────────────────────────────────────────── */
+  #app { display: none; max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #8a7d6e; font-size: 13px; margin-bottom: 20px; line-height: 1.7; }
+
+  .panel {
+    background: #fff; border: 1px solid #e8e0d4; border-radius: 10px;
+    padding: 18px; margin-bottom: 16px;
+  }
+  .panel h2 { font-size: 15px; margin-bottom: 12px; }
+  .note { color: #8a7d6e; font-size: 12px; line-height: 1.7; margin-top: 10px; }
+  .warn { color: #b3261e; font-size: 12.5px; line-height: 1.7; margin-top: 8px; }
+  .empty { color: #a8998a; font-size: 13px; text-align: center; padding: 24px 0; }
+
+  /* 上傳區 */
+  #dropZone {
+    border: 2px dashed #d8ccb8; border-radius: 10px;
+    padding: 36px 16px; text-align: center; cursor: pointer;
+    color: #8a7d6e; font-size: 14px; transition: background .15s, border-color .15s;
+  }
+  #dropZone:hover, #dropZone.drag { background: #fdf9f2; border-color: #b89b6a; }
+  #dropZone input { display: none; }
+
+  /* 選項列（店家、分類共用）*/
+  .opt {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; margin-bottom: 6px;
+    border: 1px solid #e8e0d4; border-radius: 8px;
+    font-size: 14px; cursor: pointer; line-height: 1.5;
+  }
+  .opt:hover { background: #fdf9f2; }
+  .opt.on { border-color: #b89b6a; background: #fdf6ea; }
+  .opt input { accent-color: #b89b6a; flex-shrink: 0; }
+  .opt .town, .opt .inc { color: #8a7d6e; font-size: 12px; }
+  .opt .d {
+    margin-left: auto; color: #8a7d6e; font-size: 12px;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .search { margin-top: 8px; }
+  #searchResults { margin-top: 6px; }
+  .picked { margin-top: 10px; font-size: 13.5px; }
+
+  input[type=text], input[type=url], input[type=date], select {
+    width: 100%; padding: 9px 10px; border: 1px solid #e8e0d4; border-radius: 8px;
+    font-size: 14px; font-family: inherit; background: #fff; color: #1a1209;
+  }
+  input:focus, select:focus { outline: 2px solid #b89b6a; border-color: transparent; }
+
+  /* 滑桿 */
+  .ctrl { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .ctrl label { width: 110px; font-size: 13px; flex-shrink: 0; }
+  .ctrl input[type=range] { flex: 1; min-width: 0; accent-color: #b89b6a; }
+  .ctrl .val {
+    width: 52px; text-align: right; font-size: 13px;
+    font-variant-numeric: tabular-nums; color: #6b5d4d;
+  }
+
+  /* 階梯預覽 */
+  .stages { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 6px; }
+  @media (max-width: 720px) { .stages { grid-template-columns: repeat(2, 1fr); } }
+  .stage { border: 1px solid #e8e0d4; border-radius: 8px; overflow: hidden; background: #f5f0e6; }
+  .stage-img {
+    width: 100%; aspect-ratio: 4 / 3; object-fit: contain;
+    background: #ece5d8; display: block; cursor: zoom-in;
+  }
+  .stage-meta { padding: 7px 9px; font-size: 12px; line-height: 1.6; }
+  .stage-meta .t { font-weight: 700; }
+  .stage-meta .d { color: #8a7d6e; font-variant-numeric: tabular-nums; }
+
+  .hint-note {
+    margin-top: 14px; padding: 12px 14px; background: #fdf9f2;
+    border-left: 3px solid #b89b6a; border-radius: 4px;
+    font-size: 12.5px; line-height: 1.8; color: #6b5d4d;
+  }
+
+  /* 表單 */
+  .field { margin-bottom: 12px; }
+  .field > label { display: block; font-size: 13px; margin-bottom: 5px; }
+  .req { color: #b3261e; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  @media (max-width: 560px) { .row2 { grid-template-columns: 1fr; } }
+  .check { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; line-height: 1.6; cursor: pointer; }
+  .check input { margin-top: 4px; accent-color: #b89b6a; }
+  #consentBox {
+    display: none; padding: 12px 12px 0; margin-bottom: 12px;
+    background: #fdf9f2; border-radius: 8px;
+  }
+
+  /* 送出 */
+  .reminder { font-size: 13px; line-height: 1.7; color: #6b5d4d; margin-bottom: 12px; }
+  #missing { font-size: 12.5px; color: #8a7d6e; margin-top: 8px; line-height: 1.7; }
+  #confirmBox {
+    display: none; margin-top: 12px; padding: 14px;
+    border: 1px solid #b89b6a; border-radius: 8px; background: #fdf6ea;
+    font-size: 13.5px; line-height: 1.8;
+  }
+  .btn-row { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+  #sendStatus { margin-top: 12px; font-size: 13.5px; line-height: 1.8; }
+  .files { list-style: none; font-size: 12.5px; color: #6b5d4d; font-variant-numeric: tabular-nums; }
+
+  /* 我出的題目 */
+  .mine-item {
+    display: flex; gap: 12px; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid #f0e9dd; font-size: 13.5px;
+  }
+  .mine-item:last-child { border-bottom: 0; }
+  .mine-item img {
+    width: 64px; height: 48px; object-fit: cover; flex-shrink: 0;
+    border-radius: 6px; background: #ece5d8;
+  }
+  .mine-item .body { flex: 1; min-width: 0; }
+  .badge { font-size: 11.5px; padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+  .badge.pending   { background: #fff2cc; color: #7a5800; }
+  .badge.approved  { background: #e3f4e5; color: #1e6b2c; }
+  .badge.withdrawn { background: #eeeeee; color: #6b6b6b; }
+
+  /* 放大檢視 */
+  #lightbox {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(20,14,8,.88); align-items: center; justify-content: center;
+    flex-direction: column; gap: 12px; padding: 20px;
+  }
+  #lightbox.open { display: flex; }
+  #lightbox img {
+    max-width: min(560px, 92vw); max-height: 74vh;
+    object-fit: contain; border-radius: 6px;
+  }
+  #lightbox .cap { color: #e8e0d4; font-size: 13px; }
+  #lightbox .close {
+    position: absolute; top: 16px; right: 20px; color: #e8e0d4;
+    font-size: 26px; cursor: pointer; line-height: 1; background: none; border: 0;
+  }
+
+  .btn {
+    background: #1a1209; color: #faf7f2; border: 0; border-radius: 8px;
+    padding: 9px 18px; font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  .btn:disabled { background: #cdc2b2; cursor: default; }
+  .btn.ghost { background: #fff; color: #1a1209; border: 1px solid #e8e0d4; }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <p id="gateMsg">驗證中…</p>
+  <button class="btn-google" id="loginBtn" style="display:none">
+    <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.4 30.2 0 24 0 14.7 0 6.8 5.4 3 13.3l7.8 6C12.7 13.2 17.9 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 6.9-10.1 6.9-17z"/><path fill="#FBBC05" d="M10.8 28.7A14.6 14.6 0 0 1 9.5 24c0-1.6.3-3.2.7-4.7L2.4 13.3A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.4 10.6l8.4-5.9z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.1 0-11.3-3.7-13.2-9l-7.8 6C6.8 42.6 14.7 48 24 48z"/></svg>
+    以 Google 帳號登入
+  </button>
+</div>
+
+<div id="app">
+  <h1>🧩 Razuru 建題工具</h1>
+  <p class="sub">
+    每題都要審過才會進題庫。送出後不能修改、撤回或刪除；要改請聯絡管理員駁回後重傳。
+  </p>
+
+  <div class="panel">
+    <h2>1. 照片</h2>
+    <div id="dropZone">
+      <input type="file" id="fileInput" accept="image/*">
+      <span id="dropLabel">點擊或拖曳一張照片</span>
+    </div>
+    <p class="note">照片的 GPS 只在你的裝置上用來找店，不會上傳；上傳的是重新壓縮過的圖，不含拍攝時間、地點等資訊。</p>
+  </div>
+
+  <div class="panel">
+    <h2>2. 哪一家店</h2>
+    <div id="nearNote" class="note" style="margin-top:0; margin-bottom:8px">選了照片之後，會依照片位置列出最近的店。</div>
+    <div id="nearList"></div>
+    <div class="search">
+      <input type="text" id="shopSearch" placeholder="或輸入任一段店名搜尋（只列營業中的店）" autocomplete="off">
+      <div id="searchResults"></div>
+    </div>
+    <div class="picked" id="picked">尚未選店家</div>
+  </div>
+
+  <div class="panel">
+    <h2>3. 馬賽克難度</h2>
+    <div class="ctrl">
+      <label for="c1">第 1 階格子數</label>
+      <input type="range" id="c1" min="4" max="40" value="8">
+      <span class="val" id="v1">8 格</span>
+    </div>
+    <div class="ctrl">
+      <label for="c2">第 2 階格子數</label>
+      <input type="range" id="c2" min="4" max="60" value="14">
+      <span class="val" id="v2">14 格</span>
+    </div>
+    <div class="ctrl">
+      <label for="c3">第 3 階格子數</label>
+      <input type="range" id="c3" min="4" max="90" value="24">
+      <span class="val" id="v3">24 格</span>
+    </div>
+    <div id="orderWarn" class="warn" style="display:none">格子數要一階比一階多（第 1 階 &lt; 第 2 階 &lt; 第 3 階）。</div>
+    <div id="stages" class="stages"></div>
+    <div id="stagesEmpty" class="empty">尚未選照片</div>
+    <div class="hint-note" id="hintNote">
+      格子數是<strong>橫向格子數</strong>，同一組設定在不同尺寸的照片上難度一致。第 4 階是清晰原圖；第 5 階加縣市、第 6 階再加鄉鎮市區與店名字數，由店家資料自動帶出。
+      <div id="hintShop" style="margin-top:6px"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>4. 分類與署名</h2>
+    <div class="field">
+      <label>分類 <span class="req">*</span>　一張只選一類，看主角</label>
+      <div id="catList"><div class="empty">載入中…</div></div>
+    </div>
+    <div id="consentBox">
+      <div class="field"><label><strong>人物照同意紀錄</strong> <span class="req">*</span></label></div>
+      <div class="row2">
+        <div class="field"><label for="cPerson">誰同意</label><input type="text" id="cPerson" maxlength="50" placeholder="例：店主 阿明"></div>
+        <div class="field"><label for="cDate">哪一天</label><input type="date" id="cDate"></div>
+        <div class="field">
+          <label for="cMethod">方式</label>
+          <select id="cMethod">
+            <option value="">請選擇</option>
+            <option value="line">LINE</option>
+            <option value="email">Email</option>
+            <option value="inPerson">當面</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="cScope">範圍</label>
+          <select id="cScope">
+            <option value="">請選擇</option>
+            <option value="game">只用在遊戲</option>
+            <option value="gameAndIg">協會 IG 也可用</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="revealNote">公布答案時的備註 <span class="req" id="noteReq" style="display:none">*（人物照必填姓名或綽號）</span></label>
+      <input type="text" id="revealNote" maxlength="200" placeholder="例：店主 阿明">
+    </div>
+    <div class="row2">
+      <div class="field"><label for="creditName">署名（公布答案時顯示）</label><input type="text" id="creditName" maxlength="50"></div>
+      <div class="field"><label for="creditLink">署名連結（選填）</label><input type="url" id="creditLink" maxlength="300" placeholder="https://www.instagram.com/…"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="anonymous"> 匿名：公布答案時不顯示署名（管理員仍看得到是誰出的）</label>
+  </div>
+
+  <div class="panel">
+    <h2>5. 送出</h2>
+    <p class="reminder">送出前再看一眼：拍到店家人員的臉請選「人物」；客人的臉一律不收；畫面裡不能看得出店名。</p>
+    <button class="btn" id="submitBtn" disabled>送出待審</button>
+    <div id="missing"></div>
+    <div id="confirmBox">
+      <div id="confirmText"></div>
+      <div class="btn-row">
+        <button class="btn" id="confirmBtn">確定送出</button>
+        <button class="btn ghost" id="cancelBtn">返回修改</button>
+      </div>
+    </div>
+    <div id="sendStatus"></div>
+  </div>
+
+  <div class="panel">
+    <h2>我出的題目</h2>
+    <div id="mineList"><div class="empty">載入中…</div></div>
+    <p class="note">被駁回的題目會直接刪除，不會出現在這裡。</p>
+  </div>
+</div>
+
+<div id="lightbox">
+  <button class="close" id="lbClose">✕</button>
+  <img id="lbImg" alt="">
+  <div class="cap" id="lbCap"></div>
+</div>
+
+<script>
+// ── Firebase 初始化（設定同 admin.html）──────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBdN0AYZMM2AU66QcH4BVNJHx1plwQBBYc",
+  authDomain: "taiwan-ramen-association.web.app",
+  projectId: "taiwan-ramen-association",
+  storageBucket: "taiwan-ramen-association.firebasestorage.app",
+  messagingSenderId: "66234065738",
+  appId: "1:66234065738:web:eb9fc4348a942da66ad7b3"
+};
+firebase.initializeApp(firebaseConfig);
+const _auth     = firebase.auth();
+const _db       = firebase.firestore();
+const _st       = firebase.storage();
+const _provider = new firebase.auth.GoogleAuthProvider();
+
+const $   = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ── 權限：等級對齊 js/auth.js getRoleLevel；featureFlags 缺 key 一律當 admin（同 firestore.rules flagLevel）──
+const ROLE_LEVEL   = { all: 0, viewer: 1, member: 2, director: 3, admin: 4 };
+const MEMBER_ROLES = ['member_individual', 'member_group', 'member_sponsor', 'member_honorary'];
+function getRoleLevel(role) {
+  if (role === 'admin')    return 4;
+  if (role === 'director') return 3;
+  if (MEMBER_ROLES.includes(role)) return 2;
+  if (role === 'viewer' || role === 'store') return 1;
+  return 0;
+}
+
+const gate     = $('gate');
+const gateMsg  = $('gateMsg');
+const loginBtn = $('loginBtn');
+let _user = null;
+
+loginBtn.addEventListener('click', () => {
+  _auth.signInWithPopup(_provider).catch(err => {
+    if (err.code === 'auth/popup-blocked') _auth.signInWithRedirect(_provider);
+    else if (err.code !== 'auth/popup-closed-by-user') console.error(err);
+  });
+});
+
+_auth.getRedirectResult().catch(err => {
+  if (err.code && err.code !== 'auth/no-auth-event') console.error('redirect 結果處理失敗', err);
+});
+
+_auth.onAuthStateChanged(async user => {
+  if (!user) {
+    gateMsg.textContent = '請先登入';
+    loginBtn.style.display = 'flex';
+    return;
+  }
+  loginBtn.style.display = 'none';
+  gateMsg.textContent = '驗證中…';
+
+  try {
+    const [uSnap, ffSnap] = await Promise.all([
+      _db.collection('users').doc(user.uid).get(),
+      _db.collection('meta').doc('featureFlags').get(),
+    ]);
+    const role = (uSnap.exists && uSnap.data().role) || 'viewer';
+    const perm = (ffSnap.exists && ffSnap.data().puzzleCreator?.perm) || 'admin';
+    if (role === 'warned' || getRoleLevel(role) < (ROLE_LEVEL[perm] ?? 4)) {
+      gateMsg.textContent = `⛔ 目前未開放出題（${user.email}）`;
+      return;
+    }
+  } catch (e) {
+    console.error(e);
+    gateMsg.textContent = '讀取權限失敗，請重新整理';
+    return;
+  }
+
+  _user = user;
+  gate.style.display = 'none';
+  $('app').style.display = 'block';
+  await Promise.all([loadShops(), loadCategories(), loadCredit()]);
+  loadMine();
+  refreshSubmit();
+});
+
+// ── 店家資料（營業中的才能出題；名稱對照用全部）─────────────────────────────
+let ACTIVE = [];
+let SHOP_BY_ID = {};
+
+async function loadShops() {
+  try {
+    const raw = await (await fetch('data/data.json')).json();
+    raw.forEach(r => {
+      const s = {
+        id: r.ID, name: r['店名'] || '', city: r['縣市'] || '', town: r['鄉鎮市區'] || '',
+        lat: parseFloat(r.lat), lng: parseFloat(r.lng),
+      };
+      SHOP_BY_ID[s.id] = s;
+      if (r['營業狀態'] === '營業中') ACTIVE.push(s);
+    });
+  } catch (e) {
+    console.error(e);
+    $('nearNote').innerHTML = '<span class="warn">店家資料載入失敗，請重新整理</span>';
+  }
+}
+
+function haversine(aLat, aLng, bLat, bLng) {
+  const R = 6371000, toR = Math.PI / 180;
+  const dLa = (bLat - aLat) * toR, dLo = (bLng - aLng) * toR;
+  const s = Math.sin(dLa / 2) ** 2 +
+            Math.cos(aLat * toR) * Math.cos(bLat * toR) * Math.sin(dLo / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+const fmtDist = m => m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
+
+// ── 分類（meta/puzzleSettings，admin.html 可改文字）──────────────────────────
+let CATS = [];
+
+async function loadCategories() {
+  try {
+    const snap = await _db.collection('meta').doc('puzzleSettings').get();
+    CATS = ((snap.exists && snap.data().categories) || [])
+      .slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+  } catch (e) { console.error(e); }
+
+  const box = $('catList');
+  if (!CATS.length) {
+    box.innerHTML = '<div class="warn">讀不到分類設定（meta/puzzleSettings），請聯絡管理員。</div>';
+    return;
+  }
+  box.innerHTML = CATS.map(c => `
+    <label class="opt">
+      <input type="radio" name="cat" value="${esc(c.key)}">
+      <span><strong>${esc(c.label)}</strong>　<span class="inc">${esc(c.includes)}</span></span>
+    </label>`).join('');
+  box.querySelectorAll('input[name=cat]').forEach(el => el.addEventListener('change', onCategory));
+}
+
+const currentCat = () => document.querySelector('input[name=cat]:checked')?.value || null;
+
+function onCategory() {
+  document.querySelectorAll('#catList .opt').forEach(o =>
+    o.classList.toggle('on', o.querySelector('input').checked));
+  const people = currentCat() === 'people';
+  $('consentBox').style.display = people ? 'block' : 'none';
+  $('noteReq').style.display    = people ? 'inline' : 'none';
+  formChanged();
+}
+
+// 署名預設帶暱稱
+async function loadCredit() {
+  let name = _user.displayName || '';
+  try {
+    const p = await _db.collection('userProfiles').doc(_user.uid).get();
+    if (p.exists) name = p.data().nickname || p.data().displayName || name;
+  } catch (e) {}
+  $('creditName').value = name.slice(0, 50);
+}
+
+// ── 1. 照片 ─────────────────────────────────────────────────────────────────
+const MAX_PX    = 1200;          // 輸出長邊（固定）
+const MAX_BYTES = 300 * 1024;    // storage.rules：每張 < 300 KB
+const STAGES = [
+  { key: 's1', title: '第 1 階',        ctrl: 'c1' },
+  { key: 's2', title: '第 2 階',        ctrl: 'c2' },
+  { key: 's3', title: '第 3 階',        ctrl: 'c3' },
+  { key: 's4', title: '第 4 階（清晰）', ctrl: null },
+];
+
+let _srcImg   = null;   // 已載入的照片
+let _blobs    = {};     // s1～s4 → Blob
+let _renderId = 0;      // 併發保護：滑桿連拖時只認最後一次
+let _format   = null;   // 'image/webp'，iOS 不支援時退成 'image/jpeg'
+
+function loadFile(file) {
+  if (!file) return;
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    _srcImg = img;
+    _blobs  = {};
+    $('dropLabel').textContent = `✓ ${file.name}（${img.naturalWidth}×${img.naturalHeight}）— 點擊更換`;
+    render();
+    findNearby(file);
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    $('dropLabel').textContent = '✕ 這個檔案讀不出來，換一張試試（電腦上的 HEIC 請先轉成 JPEG）';
+  };
+  img.src = url;
+}
+
+const dropZone  = $('dropZone');
+const fileInput = $('fileInput');
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
+['dragenter', 'dragover'].forEach(ev =>
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('drag'); }));
+['dragleave', 'drop'].forEach(ev =>
+  dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('drag'); }));
+dropZone.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+
+// ── 2. 店家：EXIF GPS 找最近 5 家，或店名搜尋 ────────────────────────────────
+let _shop    = null;
+let _gpsNear = [];
+
+async function findNearby(file) {
+  let gps = null;
+  try { if (window.exifr) gps = await exifr.gps(file); } catch (e) {}
+
+  if (gps && isFinite(gps.latitude) && isFinite(gps.longitude)) {
+    _gpsNear = ACTIVE
+      .filter(s => isFinite(s.lat) && isFinite(s.lng))
+      .map(s => ({ shop: s, d: haversine(gps.latitude, gps.longitude, s.lat, s.lng) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 5);
+    $('nearNote').textContent = '依照片位置列出最近 5 家營業中的店，已預選第一家——相鄰的店可能不到 25 公尺，請確認是不是這家。';
+    selectShop(_gpsNear.length ? _gpsNear[0].shop : null);
+  } else {
+    _gpsNear = [];
+    $('nearNote').textContent = '這張照片沒有位置資訊，請用下面的店名搜尋。';
+    selectShop(null);
+  }
+}
+
+function renderNear() {
+  $('nearList').innerHTML = _gpsNear.map(n => {
+    const on = _shop && _shop.id === n.shop.id;
+    return `
+    <label class="opt${on ? ' on' : ''}">
+      <input type="radio" name="near" value="${esc(n.shop.id)}"${on ? ' checked' : ''}>
+      <span>${esc(n.shop.name)} <span class="town">${esc(n.shop.town)}</span></span>
+      <span class="d">${fmtDist(n.d)}</span>
+    </label>`;
+  }).join('');
+  $('nearList').querySelectorAll('input[name=near]').forEach(el =>
+    el.addEventListener('change', () => selectShop(SHOP_BY_ID[el.value])));
+}
+
+function selectShop(s) {
+  _shop = s || null;
+  renderNear();
+  $('picked').innerHTML = _shop
+    ? `已選：<strong>${esc(_shop.name)}</strong>（${esc(_shop.city)} ${esc(_shop.town)}）`
+    : '尚未選店家';
+  $('hintShop').innerHTML = _shop
+    ? `這一題：第 5 階加「${esc(_shop.city)}」，第 6 階再加「${esc(_shop.town)}」與店名字數。`
+    : '';
+  formChanged();
+}
+
+$('shopSearch').addEventListener('input', () => {
+  const q = $('shopSearch').value.trim().toLowerCase();
+  const box = $('searchResults');
+  if (!q) { box.innerHTML = ''; return; }
+  const hits = ACTIVE.filter(s => s.name.toLowerCase().includes(q)).slice(0, 8);
+  box.innerHTML = hits.length
+    ? hits.map(s => `<div class="opt" data-id="${esc(s.id)}"><span>${esc(s.name)} <span class="town">${esc(s.town)}</span></span></div>`).join('')
+    : '<div class="note" style="margin-top:4px">找不到（只列營業中的店）</div>';
+  box.querySelectorAll('.opt').forEach(el => el.addEventListener('click', () => {
+    selectShop(SHOP_BY_ID[el.dataset.id]);
+    $('shopSearch').value = '';
+    box.innerHTML = '';
+  }));
+});
+
+// ── 3. 馬賽克：縮到 cols 格寬再用最近鄰放大回去（沿用 game-admin.html）──────────
+function pixelate(img, outW, outH, cols) {
+  const canvas = document.createElement('canvas');
+  canvas.width = outW; canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+
+  if (!cols) {
+    ctx.drawImage(img, 0, 0, outW, outH);
+    return canvas;
+  }
+
+  const rows = Math.max(1, Math.round(cols * outH / outW));
+  const small = document.createElement('canvas');
+  small.width = cols; small.height = rows;
+  small.getContext('2d').drawImage(img, 0, 0, cols, rows);
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(small, 0, 0, cols, rows, 0, 0, outW, outH);
+  return canvas;
+}
+
+const toBlob = (canvas, type, q) => new Promise(res => canvas.toBlob(res, type, q));
+
+// 先試 WebP；iOS 的 canvas 不能輸出 WebP（會退回 PNG），改用 JPEG（比照 js/reviews.js）。
+// 畫質從 0.82 往下調，直到 < 300 KB。
+async function encode(canvas) {
+  if (!_format) {
+    const probe = await toBlob(canvas, 'image/webp', 0.82);
+    _format = probe && probe.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+  }
+  for (let q = 0.82; ; q = Math.max(0.3, q - 0.12)) {
+    const blob = await toBlob(canvas, _format, q);
+    if (!blob) throw new Error('壓縮失敗');
+    if (blob.size < MAX_BYTES || q <= 0.3) return blob;
+  }
+}
+
+const orderOk = () => +$('c1').value < +$('c2').value && +$('c2').value < +$('c3').value;
+
+async function render() {
+  if (!_srcImg) return;
+  const myId = ++_renderId;
+
+  const w = _srcImg.naturalWidth, h = _srcImg.naturalHeight;
+  const scale = Math.min(1, MAX_PX / Math.max(w, h));
+  const outW  = Math.round(w * scale);
+  const outH  = Math.round(h * scale);
+
+  const wrap = $('stages');
+  $('stagesEmpty').style.display = 'none';
+  if (wrap.children.length !== STAGES.length) {
+    wrap.innerHTML = STAGES.map(s => `
+      <div class="stage">
+        <img class="stage-img" id="img-${s.key}" alt="${s.title}">
+        <div class="stage-meta">
+          <div class="t">${s.title}</div>
+          <div class="d" id="meta-${s.key}">—</div>
+        </div>
+      </div>`).join('');
+    wrap.querySelectorAll('.stage-img').forEach(el => {
+      el.addEventListener('click', () => {
+        if (!el.src) return;
+        $('lbImg').src = el.src;
+        $('lbCap').textContent = el.alt;
+        $('lightbox').classList.add('open');
+      });
+    });
+  }
+
+  for (const s of STAGES) {
+    if (!s.ctrl && _blobs[s.key]) continue;   // 清晰版不受滑桿影響，換照片才重算
+    const cols = s.ctrl ? +$(s.ctrl).value : null;
+    let blob;
+    try { blob = await encode(pixelate(_srcImg, outW, outH, cols)); }
+    catch (e) { console.error(e); $(`meta-${s.key}`).textContent = '✕ 處理失敗'; return; }
+    if (myId !== _renderId) return;   // 已有更新的一輪在跑，丟棄這次結果
+
+    _blobs[s.key] = blob;
+    const img = $(`img-${s.key}`);
+    if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+    img.dataset.url = URL.createObjectURL(blob);
+    img.src = img.dataset.url;
+    img.alt = `${s.title}（${cols ? cols + ' 格' : '清晰原圖'}）`;
+    $(`meta-${s.key}`).textContent =
+      `${cols ? cols + ' 格' : '原圖'} · ${(blob.size / 1024).toFixed(0)} KB` +
+      (blob.size >= MAX_BYTES ? ' ⚠ 超過 300 KB' : '');
+  }
+  formChanged();
+}
+
+[['c1', 'v1'], ['c2', 'v2'], ['c3', 'v3']].forEach(([id, vid]) => {
+  $(id).addEventListener('input', () => {
+    $(vid).textContent = $(id).value + ' 格';
+    $('orderWarn').style.display = orderOk() ? 'none' : 'block';
+    render();
+    formChanged();
+  });
+});
+
+// ── 4. 表單檢查 ─────────────────────────────────────────────────────────────
+const LINK_RE = /^https:\/\/[A-Za-z0-9._~%:\/?#@!$&*+,;=()-]+$/;   // 同 firestore.rules isSafeLink
+
+let _sending = false;
+let _pending = null;   // 題目已建立、圖片還沒傳完時保留，供「重試」補傳
+
+function missingItems() {
+  const miss = [];
+  if (_pending) miss.push('上一題的圖片還沒傳完（請按重試）');
+  if (!_srcImg) miss.push('照片');
+  else if (STAGES.some(s => !_blobs[s.key])) miss.push('圖片處理中');
+  else if (STAGES.some(s => _blobs[s.key].size >= MAX_BYTES)) miss.push('圖片超過 300 KB（換一張試試）');
+  if (!orderOk()) miss.push('格子數要一階比一階多');
+  if (!_shop) miss.push('店家');
+  const cat = currentCat();
+  if (!cat) miss.push('分類');
+  const link = $('creditLink').value.trim();
+  if (link && !LINK_RE.test(link)) miss.push('署名連結要用 https 開頭、不能有空白或引號');
+  if (cat === 'people') {
+    if (!$('revealNote').value.trim()) miss.push('公布備註（人物照必填）');
+    if (!$('cPerson').value.trim() || !$('cDate').value || !$('cMethod').value || !$('cScope').value)
+      miss.push('同意紀錄');
+  }
+  return miss;
+}
+
+function refreshSubmit() {
+  const miss = missingItems();
+  $('submitBtn').disabled = _sending || miss.length > 0;
+  $('missing').textContent = miss.length ? '還差：' + miss.join('、') : '';
+}
+
+// 任何欄位一改，就收起確認框（避免確認的內容與實際送出的不同）
+function formChanged() {
+  $('confirmBox').style.display = 'none';
+  refreshSubmit();
+}
+['revealNote', 'creditName', 'creditLink', 'cPerson', 'cDate', 'cMethod', 'cScope', 'anonymous']
+  .forEach(id => {
+    $(id).addEventListener('input', formChanged);
+    $(id).addEventListener('change', formChanged);
+  });
+
+// ── 5. 送出：先確認（頁面上，不用瀏覽器對話框）→ 建題目文件 → 上傳 4 張圖 ─────────
+$('submitBtn').addEventListener('click', () => {
+  if (missingItems().length) return;
+  const cat  = CATS.find(c => c.key === currentCat());
+  const anon = $('anonymous').checked;
+  $('confirmText').innerHTML = `
+    確定送出這一題？<br>
+    店家：<strong>${esc(_shop.name)}</strong>（${esc(_shop.city)} ${esc(_shop.town)}）<br>
+    分類：${esc(cat ? cat.label : currentCat())}｜署名：${anon ? '匿名' : esc($('creditName').value.trim() || '（未填）')}<br>
+    <span class="note">送出後不能修改、撤回或刪除；要改請聯絡管理員駁回後重傳。</span>`;
+  $('confirmBox').style.display = 'block';
+});
+$('cancelBtn').addEventListener('click', () => { $('confirmBox').style.display = 'none'; });
+$('confirmBtn').addEventListener('click', submitPuzzle);
+
+async function submitPuzzle() {
+  if (_sending || missingItems().length) return;
+  _sending = true;
+  $('confirmBox').style.display = 'none';
+  refreshSubmit();
+
+  const cat  = currentCat();
+  const ref  = _db.collection('puzzles').doc();
+  const ext  = _format === 'image/webp' ? 'webp' : 'jpg';
+  const base = `puzzles/${ref.id}/`;
+  const files = { s1: `${base}s1-v1.${ext}`, s2: `${base}s2-v1.${ext}`, s3: `${base}s3-v1.${ext}`, s4: `${base}s4.${ext}` };
+  const now  = firebase.firestore.FieldValue.serverTimestamp();
+  const anon = $('anonymous').checked;
+
+  const credit = { name: $('creditName').value.trim(), link: $('creditLink').value.trim(), anonymous: anon };
+  if (anon) { credit.anonymousSetBy = 'creator'; credit.anonymousSetAt = now; }
+
+  const data = {
+    shopId: _shop.id,
+    category: cat,
+    status: 'pending',
+    createdBy: _user.uid,
+    createdAt: now,
+    credit,
+    revealNote: $('revealNote').value.trim(),
+    consent: cat === 'people'
+      ? { person: $('cPerson').value.trim(), date: $('cDate').value, method: $('cMethod').value, scope: $('cScope').value }
+      : null,
+    mosaic: { c1: +$('c1').value, c2: +$('c2').value, c3: +$('c3').value, maxPx: MAX_PX, ver: 1 },
+    files,
+  };
+
+  $('sendStatus').textContent = '建立題目…';
+  try {
+    await ref.set(data);
+  } catch (e) {
+    console.error(e);
+    $('sendStatus').innerHTML = `<span class="warn">✕ 建立失敗：${
+      e.code === 'permission-denied' ? '沒有出題權限，或資料格式不符' : esc(e.message)}</span>`;
+    _sending = false;
+    refreshSubmit();
+    return;
+  }
+
+  _pending = {
+    shopName: _shop.name, files, blobs: { ..._blobs }, done: {},
+    contentType: _format,
+    // 人物照快取 1 天：撤回後最多 1 天就從各處快取消失（daily-puzzle-system.md「撤回的後路」）
+    cacheControl: cat === 'people' ? 'public, max-age=86400' : 'public, max-age=31536000',
+  };
+  await uploadPending(false);
+}
+
+function renderUploadStatus(head) {
+  const p = _pending;
+  $('sendStatus').innerHTML = head + '<ul class="files">' + STAGES.map(s =>
+    `<li>${p.done[s.key] === true ? '✓' : p.done[s.key] === false ? '✕' : '…'} ${s.title}</li>`).join('') + '</ul>';
+}
+
+async function uploadPending(isRetry) {
+  const p = _pending;
+  _sending = true;
+  refreshSubmit();
+  STAGES.forEach(s => { if (p.done[s.key] !== true) delete p.done[s.key]; });
+  renderUploadStatus('上傳圖片…');
+
+  await Promise.all(STAGES.map(async s => {
+    if (p.done[s.key] === true) return;
+    const fileRef = _st.ref(p.files[s.key]);
+    try {
+      if (isRetry) {
+        // 上一輪可能其實已傳上去（只是沒收到回應）；規則禁止覆蓋，先確認在不在
+        try { await fileRef.getMetadata(); p.done[s.key] = true; return; }
+        catch (e) { if (e.code !== 'storage/object-not-found') throw e; }
+      }
+      await fileRef.put(p.blobs[s.key], { contentType: p.contentType, cacheControl: p.cacheControl });
+      p.done[s.key] = true;
+    } catch (e) {
+      console.error(s.key, e);
+      p.done[s.key] = false;
+    } finally {
+      renderUploadStatus('上傳圖片…');
+    }
+  }));
+
+  _sending = false;
+  const failed = STAGES.filter(s => p.done[s.key] !== true).length;
+  if (failed) {
+    renderUploadStatus(`<span class="warn">✕ ${failed} 張圖上傳失敗（題目已建立，只差圖片）。</span> <button class="btn ghost" id="retryBtn">重試</button>`);
+    $('retryBtn').addEventListener('click', () => uploadPending(true));
+    refreshSubmit();
+    return;
+  }
+
+  $('sendStatus').innerHTML = `✓ 已送出「${esc(p.shopName)}」，等待審題。`;
+  _pending = null;
+  resetForm();
+  loadMine();
+}
+
+// 送出成功後清空這一題；署名、連結、匿名保留給下一題
+function resetForm() {
+  _srcImg = null; _blobs = {}; _renderId++;
+  fileInput.value = '';
+  $('dropLabel').textContent = '點擊或拖曳一張照片';
+  $('stages').innerHTML = '';
+  $('stagesEmpty').style.display = 'block';
+  _gpsNear = [];
+  $('nearNote').textContent = '選了照片之後，會依照片位置列出最近的店。';
+  selectShop(null);
+  document.querySelectorAll('input[name=cat]').forEach(el => { el.checked = false; });
+  ['revealNote', 'cPerson', 'cDate', 'cMethod', 'cScope'].forEach(id => { $(id).value = ''; });
+  [['c1', 8], ['c2', 14], ['c3', 24]].forEach(([id, v]) => {
+    $(id).value = v;
+    $('v' + id.slice(1)).textContent = v + ' 格';
+  });
+  $('orderWarn').style.display = 'none';
+  onCategory();
+}
+
+// ── 我出的題目（規則只允許帶 createdBy 條件的查詢；排序在前端做，免建索引）──────
+const STATUS_LABEL = {
+  pending:   ['待審',   'pending'],
+  approved:  ['已通過', 'approved'],
+  withdrawn: ['已下架', 'withdrawn'],
+};
+
+async function loadMine() {
+  const box = $('mineList');
+  try {
+    const snap = await _db.collection('puzzles').where('createdBy', '==', _user.uid).get();
+    const items = snap.docs.map(d => d.data())
+      .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+    if (!items.length) { box.innerHTML = '<div class="empty">還沒有出過題</div>'; return; }
+
+    box.innerHTML = items.map(p => {
+      const s   = SHOP_BY_ID[p.shopId];
+      const cat = CATS.find(c => c.key === p.category);
+      const [label, cls] = STATUS_LABEL[p.status] || [p.status, ''];
+      const day = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleDateString('zh-TW') : '';
+      return `
+        <div class="mine-item">
+          <img data-path="${esc(p.files?.s4 || '')}" alt="">
+          <div class="body">
+            <div>${esc(s ? s.name : p.shopId)}</div>
+            <div class="note" style="margin-top:2px">${esc(cat ? cat.label : p.category)}・${esc(day)}送出</div>
+          </div>
+          <span class="badge ${cls}">${esc(label)}</span>
+        </div>`;
+    }).join('');
+
+    box.querySelectorAll('img[data-path]').forEach(async img => {
+      if (!img.dataset.path) return;
+      try { img.src = await _st.ref(img.dataset.path).getDownloadURL(); }
+      catch (e) {}   // 圖還沒傳完或已下架：留空
+    });
+  } catch (e) {
+    console.error(e);
+    box.innerHTML = '<div class="warn">讀取失敗，請重新整理</div>';
+  }
+}
+
+// ── 放大檢視 ────────────────────────────────────────────────────────────────
+const lightbox = $('lightbox');
+$('lbClose').addEventListener('click', () => lightbox.classList.remove('open'));
+lightbox.addEventListener('click', e => { if (e.target === lightbox) lightbox.classList.remove('open'); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') lightbox.classList.remove('open');
+});
+</script>
+</body>
+</html>
