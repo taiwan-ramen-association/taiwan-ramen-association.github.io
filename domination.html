@@ -522,6 +522,15 @@ function scoreFromStatus(status) {
 }
 
 
+// ===== 開幕日還沒到的店：跟 finder 一樣，開幕日 0 點後才算進鄉鎮店數與完全制霸 =====
+// 預填「營業中＋已確定的開幕日」的店；data.json 的開幕日已由管線統一成 YYYY-MM-DD
+function isUpcoming(shop) {
+  if (shop['營業狀態'] !== '營業中') return false;
+  const m = String(shop['開幕日'] || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return !!m && new Date(+m[1], +m[2] - 1, +m[3]) > new Date();
+}
+
+
 // ===== ✅ 新：Firestore 更新（支援心得）=====
 async function updateVisit(uid, shopId, status, note = '') {
   const ref = db.collection('userVisits').doc(uid);
@@ -585,7 +594,7 @@ async function loadAll(uid) {
     const visits = visitsSnap.exists ? (visitsSnap.data().visits || {}) : {};
 
     // ===== 建立鄉鎮 index =====
-    // shopsByTown：只含營業中（地圖著色、完全制霸用）
+    // shopsByTown：只含營業中、且已開幕（地圖著色、完全制霸用）
     // allShopIds / allShopsByTown：所有狀態（制霸總分、已踩點、已涉足鄉鎮用）
     const allShopIds = new Set();
     const allShopsByTown = {};
@@ -596,7 +605,7 @@ async function loadAll(uid) {
       allShopIds.add(id);
       if (!allShopsByTown[key]) allShopsByTown[key] = [];
       allShopsByTown[key].push(id);
-      if (shop['營業狀態'] === '營業中') {
+      if (shop['營業狀態'] === '營業中' && !isUpcoming(shop)) {
         if (!shopsByTown[key]) shopsByTown[key] = [];
         shopsByTown[key].push(id);
       }

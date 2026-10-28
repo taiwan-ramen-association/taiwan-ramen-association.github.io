@@ -393,6 +393,14 @@ _auth.onAuthStateChanged(async user => {
 let ACTIVE = [];
 let SHOP_BY_ID = {};
 
+// 營業中但開幕日還沒到（預填已確定的開幕日）的店不能出題，跟 finder 一樣開幕日 0 點後才算；
+// data.json 的開幕日已由管線統一成 YYYY-MM-DD
+function isUpcoming(r) {
+  if (r['營業狀態'] !== '營業中') return false;
+  const m = String(r['開幕日'] || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return !!m && new Date(+m[1], +m[2] - 1, +m[3]) > new Date();
+}
+
 async function loadShops() {
   try {
     const raw = await (await fetch('data/data.json')).json();
@@ -402,7 +410,7 @@ async function loadShops() {
         lat: parseFloat(r.lat), lng: parseFloat(r.lng),
       };
       SHOP_BY_ID[s.id] = s;
-      if (r['營業狀態'] === '營業中') ACTIVE.push(s);
+      if (r['營業狀態'] === '營業中' && !isUpcoming(r)) ACTIVE.push(s);
     });
   } catch (e) {
     console.error(e);

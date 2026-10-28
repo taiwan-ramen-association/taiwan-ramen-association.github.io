@@ -71,16 +71,29 @@ function showShopState(id) {
   });
 }
 
+// ── 開幕日還沒到 ───────────────────────────────────────────────────────────────
+// 營業中但開幕日還沒到（預填已確定的開幕日）：跟 finder 一樣，開幕日 0 點後才算營業中。
+// data.json 的開幕日已由管線統一成 YYYY-MM-DD
+function isUpcoming(shop) {
+  if (shop['營業狀態'] !== '營業中') return false;
+  const m = String(shop['開幕日'] || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return !!m && new Date(+m[1], +m[2] - 1, +m[3]) > new Date();
+}
+
 // ── Render static shop info ───────────────────────────────────────────────────
 function renderShopPage(shop) {
   // Name
   document.getElementById('shopName').textContent = shop['店名'] || '';
 
-  // Status badge（非現存）
+  // Status badge（非現存／開幕日還沒到）
   const statusBadge = document.getElementById('shopStatusBadge');
   const status = shop['營業狀態'];
-  if (status && status !== '營業中') {
-    const cls = status === '暫停營業' ? 's-pause' : status === '籌備中' ? 's-prep' : 'nl-closed';
+  if (isUpcoming(shop)) {
+    const [mm, dd] = shop['開幕日'].slice(5, 10).split('-').map(Number);
+    statusBadge.outerHTML =
+      `<span id="shopStatusBadge" class="shop-status-badge s-prep">${mm}/${dd} 開幕</span>`;
+  } else if (status && status !== '營業中') {
+    const cls = status === '暫停營業' ? 's-pause' : (status === '籌備中' || status === '準備中') ? 's-prep' : 'nl-closed';
     statusBadge.outerHTML =
       `<span id="shopStatusBadge" class="shop-status-badge ${cls}">${escapeHtml(status)}</span>`;
   }
