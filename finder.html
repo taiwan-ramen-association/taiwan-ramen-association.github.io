@@ -2950,8 +2950,10 @@ async function loadData() {
     }
     const rows = await res.json();
 
-    ALL_DATA        = rows.filter(r => r['店名'] && r['店名'].trim() && r['營業狀態'] === '營業中');
-    NON_ACTIVE_DATA = rows.filter(r => r['店名'] && r['店名'].trim() && r['營業狀態'] !== '營業中');
+    // 營業中但開幕日還沒到的店（預填已確定的開幕日）先歸到非現存，開幕日 0 點後重新載入才上架
+    const isActive = r => r['營業狀態'] === '營業中' && !isUpcoming(r);
+    ALL_DATA        = rows.filter(r => r['店名'] && r['店名'].trim() && isActive(r));
+    NON_ACTIVE_DATA = rows.filter(r => r['店名'] && r['店名'].trim() && !isActive(r));
 
     // City chips — 自訂排序
     const CITY_ORDER = [
@@ -3048,16 +3050,35 @@ function isNewOpen(shop) {
   return d >= cutoff && d <= serverDate;
 }
 
+// 營業中但開幕日還沒到（預填已確定的開幕日）：loadData 會歸到非現存，開幕日 0 點後重新載入才上架。
+// 跟 isNewOpen 一樣以載入資料時的 serverDate 為準，清單分組和標籤才會一致。
+function isUpcoming(shop) {
+  if (shop['營業狀態'] !== '營業中') return false;
+  const d = parseOpenDate(shop['開幕日']);
+  return !!d && d > serverDate;
+}
+
+function upcomingLabel(shop) {
+  if (!isUpcoming(shop)) return '';
+  const d = parseOpenDate(shop['開幕日']);
+  return `<span class="name-label nl-prep">${d.getMonth() + 1}/${d.getDate()} 開幕</span>`;
+}
+
+// 本月壽星／本日壽星都排除開幕當年：當年開的店算 NEW OPEN，滿 1 年才算壽星
 function isThisMonth(shop) {
   const month = parseInt(shop['開幕月份']);
   if (!month) return false;
-  return month === serverNow().getMonth() + 1;
+  const now = serverNow();
+  const y = String(shop['開幕日'] || '').match(/^(\d{4})/);  // 只有開幕月份、沒有開幕日的店判斷不了年份，維持只看月份
+  if (y && parseInt(y[1]) >= now.getFullYear()) return false;
+  return month === now.getMonth() + 1;
 }
 
 function isBirthday(shop) {
   const d = parseOpenDate(shop['開幕日']);
   if (!d) return false;
   const now = serverNow();
+  if (d.getFullYear() >= now.getFullYear()) return false;
   return d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }
 

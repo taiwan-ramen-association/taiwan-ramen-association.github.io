@@ -6,7 +6,7 @@
 //   selectedDays, mealTime, isNowOpen, locEnabled, locRadius, activeCollection,
 //   userLat, userLng, currentView
 // 依賴全域函式：
-//   toMins, isOpenAt, isNewOpen, isThisMonth, isBirthday,
+//   toMins, isOpenAt, isNewOpen, isThisMonth, isBirthday, isUpcoming,
 //   shopDist, switchView, render, showStampToast, serverNow, locateUser
 
 // ── Filter ───────────────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ function getFiltered() {
       const memberQuery   = query === 'member shop' || query === '會員';
       const birthdayQuery = query === '本月壽星';
       if (nonActiveQuery) {
-        if (shop['營業狀態'] === '營業中') return false;
+        if (shop['營業狀態'] === '營業中' && !isUpcoming(shop)) return false;
       } else if (newOpenQuery) {
         if (!isNewOpen(shop)) return false;
       } else if (memberQuery) {
