@@ -278,6 +278,15 @@ function showBetaGate(msg, showLogin = false) {
 document.getElementById('betaLoginBtn').addEventListener('click', () => openPrivacyModal());
 
 // ── 8. onAuthStateChanged ────────────────────────────────────────────────────
+// finder.html 在 auth.js 之後才載入 stamps.js、card.js（render）、challenges.js、badges.js 與內嵌腳本。
+// 腳本送得慢時（2026-10-30 實測：經 SW 轉送，map.js 晚了 1.4 秒），這裡會先跑到 render() → ReferenceError，
+// 後半段整個被跳過：登入者看到「登入」按鈕，未讀、深連結、挑戰頁重抓都沒跑。
+// 所以兩個分支用到其他檔案的東西之前都先等這個（HTML 解析完＝前面的同步腳本都執行過了）
+const _pageScriptsReady = new Promise(resolve => {
+  if (document.readyState !== 'loading') resolve();
+  else document.addEventListener('DOMContentLoaded', resolve, { once: true });
+});
+
 auth.onAuthStateChanged(async user => {
   try {
     if (user) {
@@ -363,6 +372,9 @@ auth.onAuthStateChanged(async user => {
         gtag('config', 'G-D5PB53XF7P', { user_id: user.uid });
       }
 
+      // 以下用到 stamps.js（favSet、loadStamps）、card.js（render）與內嵌腳本，先等腳本載完
+      await _pageScriptsReady;
+
       // 載入收藏清單 + 踩點記錄
       const favIds = userData.favorites || [];
       favSet = new Set(favIds);
@@ -413,6 +425,7 @@ auth.onAuthStateChanged(async user => {
       if (_sfUnvisitedRow) _sfUnvisitedRow.style.display = 'none';
       if (_currentPage === 'favorites') switchPage('finder');
       closeProfileDropdown();
+      await _pageScriptsReady;   // 下面的 render()、applyDeepLinkOnce() 在 card.js／內嵌腳本
       await _ffReady;
       applyFeatureFlags();
 
