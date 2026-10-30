@@ -1915,6 +1915,121 @@
   .rv-date-input { width: 100%; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 8px; font-size: 14px; font-family: inherit; background: var(--paper); color: var(--ink); outline: none; box-sizing: border-box; transition: border-color 0.2s; }
   .rv-date-input:focus { border-color: var(--red); }
 
+  /* ── 獎章（js/badges.js）：任務頁橫幅、全螢幕面板、圓章外框 ── */
+  #badgeStrip {
+    margin: 10px 0 12px; padding: 10px 14px; border-radius: 14px;
+    background: linear-gradient(90deg, #fff7e6, #fff1ee); border: 1px solid #f0d9c0;
+    display: flex; align-items: center; gap: 12px; cursor: pointer;
+  }
+  #badgeStrip.ff-locked { opacity: 0.5; cursor: not-allowed; }
+  .bdg-strip-coins { display: flex; flex-shrink: 0; padding: 4px 6px 0 0; }
+  .bdg-strip-coins .bdg-coin { margin-right: -6px; }
+  .bdg-strip-text { flex: 1; min-width: 0; }
+  .bdg-strip-title { display: block; font-size: 14px; font-weight: 700; color: #3a2a20; }
+  .bdg-strip-sub { display: block; font-size: 12px; color: #8a7a70; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bdg-strip-arrow { font-size: 20px; color: #b03a2e; flex-shrink: 0; }
+  .bdg-lv { display: inline-block; font-size: 11px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #d4a017, #b8860b); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px; }
+  /* 圓章：外框依稀有度（t0 未取得＝灰階無框、t1 銅、t2 銀、t3 金、t4 白金＝多一圈細框、t5 鑽石＝再加皇冠） */
+  .bdg-coin { position: relative; display: inline-flex; flex-shrink: 0; border-radius: 50%; padding: 4px; box-sizing: border-box; }
+  .bdg-coin.sm { padding: 2px; }
+  .bdg-coin.lg { padding: 6px; }
+  .bdg-coin-core { position: relative; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: #fffaf3; display: flex; align-items: center; justify-content: center; }
+  .bdg-coin-core img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .bdg-coin-emoji { font-size: 28px; line-height: 1; }
+  .bdg-coin.sm .bdg-coin-emoji { font-size: 15px; }
+  .bdg-coin.lg .bdg-coin-emoji { font-size: 44px; }
+  .bdg-coin-text { font-size: 11px; font-weight: 700; color: #5a4636; line-height: 1.2; text-align: center; padding: 4px; word-break: break-all; }
+  .bdg-coin.sm .bdg-coin-text { font-size: 7px; padding: 1px; }
+  .bdg-coin.lg .bdg-coin-text { font-size: 15px; padding: 10px; }
+  .bdg-coin.t0 .bdg-coin-core { filter: grayscale(1); opacity: 0.5; border: 1.5px solid #d0d0d0; }
+  .bdg-coin.t1 { background: linear-gradient(135deg, #e7b07a, #a8672f 45%, #d99a5b 70%, #8c5426); }
+  .bdg-coin.t2 { background: linear-gradient(135deg, #ffffff, #a9adb3 45%, #e6e8eb 70%, #8f949a); }
+  .bdg-coin.t3 { background: linear-gradient(135deg, #fff3b0, #d4a017 45%, #ffe27a 70%, #b8860b); }
+  .bdg-coin.t4 { background: linear-gradient(135deg, #f7fbff, #9fb6cc 40%, #eef4fa 65%, #7f97ae); box-shadow: 0 0 0 2px var(--white), 0 0 0 3.5px #8fa6bd; }
+  .bdg-coin.t5 { background: linear-gradient(135deg, #f0fbff, #8fd3ff 35%, #ffffff 55%, #b28cff 80%, #8fd3ff); box-shadow: 0 0 0 2px var(--white), 0 0 0 3.5px #8fd3ff; }
+  .bdg-coin.sm.t4 { box-shadow: 0 0 0 1px var(--white), 0 0 0 2px #8fa6bd; }
+  .bdg-coin.sm.t5 { box-shadow: 0 0 0 1px var(--white), 0 0 0 2px #8fd3ff; }
+  .bdg-coin.t5::before { content: '👑'; position: absolute; top: -13px; left: 50%; transform: translateX(-50%); font-size: 16px; line-height: 1; z-index: 1; }
+  .bdg-coin.sm.t5::before { top: -8px; font-size: 10px; }
+  .bdg-coin.lg.t5::before { top: -20px; font-size: 24px; }
+  .bdg-tn { font-weight: 700; }
+  .bdg-tn.t1 { color: #a8672f; }
+  .bdg-tn.t2 { color: #7d8288; }
+  .bdg-tn.t3 { color: #b8860b; }
+  .bdg-tn.t4 { color: #6f88a0; }
+  .bdg-tn.t5 { color: #8b6cff; }
+  /* 面板：疊在底部 nav（1000）之上；詳細資訊再高一層；開著時 #stampToast（700）要拉到最上面 */
+  .bdg-panel { position: fixed; inset: 0; z-index: 1500; background: rgba(0,0,0,0.45); display: none; justify-content: center; }
+  .bdg-panel.open { display: flex; }
+  body.bdg-open #stampToast { z-index: 1700; }
+  .bdg-panel-inner {
+    width: 100%; max-width: 480px; height: 100%; background: var(--paper);
+    overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 28px); box-sizing: border-box;
+  }
+  .bdg-head {
+    position: sticky; top: 0; z-index: 2; background: var(--paper);
+    display: flex; align-items: center; gap: 6px;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 0 10px; border-bottom: 1px solid var(--line);
+  }
+  .bdg-back { background: none; border: none; font-size: 28px; line-height: 1; color: var(--red); cursor: pointer; padding: 0 8px 3px 0; font-family: inherit; }
+  .bdg-head-title { font-size: 16px; font-weight: 700; color: var(--ink); }
+  .bdg-profile { margin-top: 12px; padding: 12px; border-radius: 14px; background: linear-gradient(90deg, #fff7e6, #fff1ee); border: 1px solid #f0d9c0; }
+  .bdg-profile-top { display: flex; align-items: center; gap: 12px; }
+  .bdg-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: #f3e3d3; flex-shrink: 0; }
+  .bdg-profile-main { min-width: 0; }
+  .bdg-profile-name { font-size: 15px; font-weight: 700; color: #3a2a20; }
+  .bdg-profile-sub { font-size: 12px; color: #8a7a70; margin-top: 3px; }
+  .bdg-profile-sub b { color: #8a5a1a; }
+  .bdg-feat { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ecd5bd; }
+  .bdg-feat-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: #8a7a70; }
+  .bdg-feat-head a { color: var(--red); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .bdg-feat-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; min-height: 40px; }
+  .bdg-feat-item { cursor: pointer; display: inline-flex; }
+  .bdg-feat-empty { font-size: 12px; color: #a99a8c; }
+  .bdg-sec { margin: 20px 0 10px; font-size: 13px; font-weight: 700; color: #8a3b2e; }
+  .bdg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 16px 6px; }
+  .bdg-tile { display: flex; flex-direction: column; align-items: center; text-align: center; cursor: pointer; min-width: 0; }
+  .bdg-tile-name { font-size: 11.5px; font-weight: 700; color: var(--ink); margin-top: 6px; line-height: 1.25; word-break: break-word; }
+  .bdg-tile-prog { font-size: 10.5px; color: var(--stone); margin-top: 2px; }
+  .bdg-pend { color: var(--pause-txt); font-weight: 700; }
+  .bdg-missed { display: block; width: 100%; margin-top: 20px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--line); background: none; color: var(--stone); font-size: 13px; text-align: left; cursor: pointer; font-family: inherit; }
+  .bdg-missed + .bdg-grid { margin-top: 14px; }
+  .bdg-foot { margin-top: 24px; font-size: 11px; color: var(--stone); line-height: 1.6; text-align: center; }
+  .bdg-sheet-backdrop { position: fixed; inset: 0; z-index: 1600; background: rgba(0,0,0,0.4); display: none; align-items: flex-end; justify-content: center; }
+  .bdg-sheet-backdrop.open { display: flex; }
+  .bdg-sheet {
+    position: relative; width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto; box-sizing: border-box;
+    background: var(--white); border-radius: 18px 18px 0 0; text-align: center;
+    padding: 30px 20px calc(env(safe-area-inset-bottom, 0px) + 22px);
+  }
+  @media (min-width: 560px) { .bdg-sheet-backdrop { align-items: center; } .bdg-sheet { border-radius: 16px; } }
+  .bdg-sheet-close { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; color: var(--stone); cursor: pointer; font-family: inherit; }
+  .bdg-sheet-name { margin-top: 12px; font-size: 17px; font-weight: 800; color: var(--ink); }
+  .bdg-sheet-tier { margin-top: 4px; font-size: 13px; color: var(--stone); }
+  .bdg-sheet-line { margin-top: 10px; font-size: 13px; color: var(--ink); line-height: 1.6; }
+  .bdg-sheet-note { margin-top: 6px; font-size: 12px; color: var(--stone); line-height: 1.6; }
+  .bdg-ladder { margin: 14px auto 0; max-width: 300px; text-align: left; border-top: 1px solid var(--line); }
+  .bdg-ladder-row { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--stone); }
+  .bdg-ladder-row.got { color: var(--ink); }
+  .bdg-ladder-row > span:nth-child(1) { width: 36px; flex-shrink: 0; }
+  .bdg-ladder-row > span:nth-child(2) { flex: 1; }
+  .bdg-sheet-actions { margin-top: 18px; display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
+  .bdg-btn { padding: 8px 18px; border-radius: 999px; border: 1px solid #e8c9c2; background: #fff5f3; color: #b03a2e; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .bdg-btn.on { background: var(--red); border-color: var(--red); color: #fff; }
+  body.dark #badgeStrip, body.dark .bdg-profile { background: linear-gradient(90deg, #2a2217, #2b1d1a); border-color: #4a3826; }
+  body.dark .bdg-strip-title, body.dark .bdg-profile-name { color: var(--ink); }
+  body.dark .bdg-strip-sub, body.dark .bdg-profile-sub, body.dark .bdg-feat-head { color: var(--stone); }
+  body.dark .bdg-strip-arrow { color: var(--red); }
+  body.dark .bdg-profile-sub b { color: #e0b060; }
+  body.dark .bdg-feat { border-top-color: #4a3826; }
+  body.dark .bdg-sec { color: #e08a7a; }
+  body.dark .bdg-coin-core { background: #2a2520; }
+  body.dark .bdg-coin.t0 .bdg-coin-core { border-color: #4a443c; }
+  body.dark .bdg-coin-text { color: #e8d8c4; }
+  body.dark .bdg-btn { background: #2a1a14; border-color: #5a3028; color: #f08070; }
+  body.dark .bdg-btn.on { background: var(--red); border-color: var(--red); color: #fff; }
+
   /* ── Fullscreen Modals (Privacy / Onboarding) ── */
   .fullscreen-modal {
     position: fixed; inset: 0; z-index: 3000;
@@ -2299,6 +2414,7 @@
 <div id="pageChallenges" class="page-layer page-right">
   <div class="rf-page-card">
     <div class="rf-feed-title">🚩 挑戰任務</div>
+    <div id="badgeStrip" style="display:none"></div>
     <div class="rf-list-inner" id="challengesList">
       <p class="ch-empty">載入中…</p>
     </div>
@@ -2866,6 +2982,8 @@
 <script src="js/card.js"></script>
 <script src="js/challenges.js"></script>
 <script src="js/scan.js"></script>
+<script src="js/badge-core.js"></script>
+<script src="js/badges.js"></script>
 <script>
 // ── Config ─────────────────────────────────────────────────────────────────
 // 讀同一個 repo 下的 data.json（由 GitHub Actions 自動同步自 Google Sheets）
@@ -4317,6 +4435,8 @@ function switchPage(page) {
     challengesEl.classList.add('page-active');
     document.getElementById('bnavChallenges').classList.add('active');
     if (typeof loadChallengesPage === 'function' && !_chPageLoaded) loadChallengesPage();
+    // 獎章橫幅：在別頁踩點後切回來，數字要跟著更新（已載入過的任務頁不會再 renderChallenges）
+    if (typeof badgesRefresh === 'function') badgesRefresh();
   }
   // 跨清單的愛心狀態同步（收藏頁取消收藏後，搜尋頁那張卡要跟著變空心）
   if (typeof syncFavHearts === 'function') syncFavHearts();
@@ -4340,6 +4460,18 @@ document.getElementById('bnavChallenges').addEventListener('click', () => {
   if (!canUse('challengesNav')) { showAccessToast(); return; }
   switchPage('challenges');
 });
+
+// 深連結：?page=challenges 直接打開任務頁（獎章圖卡的 QR code、海報、IG 貼文用）。
+// js/auth.js 確定身分、套完 featureFlags 後呼叫；只跑一次，之後登入狀態再變也不會又跳頁。
+// 等店家資料載完才切：任務頁圖鑑格要靠 findShopById 查店名
+let _deepLinkDone = false;
+function applyDeepLinkOnce() {
+  if (_deepLinkDone) return;
+  _deepLinkDone = true;
+  if (new URLSearchParams(location.search).get('page') !== 'challenges') return;
+  if (!canUse('challengesNav')) return;
+  _onDataLoaded(() => switchPage('challenges'));
+}
 
 document.getElementById('bnavHome').addEventListener('click', () => {
   switchPage('home');

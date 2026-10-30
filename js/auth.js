@@ -92,6 +92,7 @@ var featureFlags = {
   scanLink:       { vis: 'viewer',   perm: 'viewer'   },
   scanChallengeVerify: { vis: 'admin', perm: 'admin' },
   birthdayNotice: { vis: 'admin',   perm: 'admin'   },  // 生日店家通知（煙火）；預設關（admin），後台改 all 開放
+  badges:         { vis: 'admin',   perm: 'admin'   },  // 獎章（任務頁橫幅＋面板，js/badges.js）；測完後台改 all 開放
 };
 
 const ROLE_LEVEL = { all: 0, viewer: 1, member: 2, director: 3, admin: 4 };
@@ -366,10 +367,13 @@ auth.onAuthStateChanged(async user => {
       const favIds = userData.favorites || [];
       favSet = new Set(favIds);
       await loadStamps(user.uid);
+      // 獎章要用踩點判斷「從業過」，所以排在 loadStamps 之後
+      if (typeof badgesSetUser === 'function') badgesSetUser(user.uid, userData);
       await _ffReady;
       applyFeatureFlags();
       render();
       checkUnreadBadge();
+      if (typeof applyDeepLinkOnce === 'function') applyDeepLinkOnce();
 
       // 登入後背景重抓「受登入狀態影響」的資料，不 reload、不跳頁（登出才 reload）。
       // 未登入時這些頁面是以「空進度／無留言框」渲染的，不重抓就會停在舊畫面：
@@ -403,6 +407,7 @@ auth.onAuthStateChanged(async user => {
       _localAvatarUid = null;
       favSet = new Set();
       stampMap = {}; reviewMap = {};
+      if (typeof badgesSetUser === 'function') badgesSetUser(null, null);
       showUnvisited = false;
       const _sfUnvisitedRow = document.getElementById('sfShowUnvisitedRow');
       if (_sfUnvisitedRow) _sfUnvisitedRow.style.display = 'none';
@@ -419,6 +424,7 @@ auth.onAuthStateChanged(async user => {
         document.getElementById('loadingScreen').style.display = 'none';
         document.getElementById('mainContent').classList.add('mc-show');
         render();
+        if (typeof applyDeepLinkOnce === 'function') applyDeepLinkOnce();
       } else {
         showBetaGate(GATE_MSG_NOT_LOGGED_IN, GATE_SHOW_LOGIN_BTN);
       }

@@ -189,6 +189,7 @@ async function loadChallengesPage(opts) {
 function renderChallenges() {
   const list = document.getElementById('challengesList');
   if (!list) return;
+  if (typeof badgesRefresh === 'function') badgesRefresh();   // 標題下方的獎章橫幅跟著進度更新（js/badges.js）
   if (_chScrollObserver) { _chScrollObserver.disconnect(); _chScrollObserver = null; }
   // reveal 過濾：discover（掃到才解鎖）僅在玩家於該活動有進度時顯示；announced 一律顯示
   const visible = _chChallenges.filter(ch => {
