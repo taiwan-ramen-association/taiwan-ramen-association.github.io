@@ -1989,7 +1989,7 @@
   .bdg-feat-empty { font-size: 12px; color: #a99a8c; }
   .bdg-sec { margin: 20px 0 10px; font-size: 13px; font-weight: 700; color: #8a3b2e; }
   .bdg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 16px 6px; }
-  .bdg-tile { display: flex; flex-direction: column; align-items: center; text-align: center; cursor: pointer; min-width: 0; }
+  .bdg-tile { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; cursor: pointer; min-width: 0; }
   .bdg-tile-name { font-size: 11.5px; font-weight: 700; color: var(--ink); margin-top: 6px; line-height: 1.25; word-break: break-word; }
   .bdg-tile-prog { font-size: 10.5px; color: var(--stone); margin-top: 2px; }
   .bdg-pend { color: var(--pause-txt); font-weight: 700; }
@@ -2029,6 +2029,29 @@
   body.dark .bdg-coin-text { color: #e8d8c4; }
   body.dark .bdg-btn { background: #2a1a14; border-color: #5a3028; color: #f08070; }
   body.dark .bdg-btn.on { background: var(--red); border-color: var(--red); color: #fff; }
+  /* NEW：剛拿到的獎章，打開面板那一次標出來 */
+  .bdg-new { position: absolute; top: -4px; left: calc(50% + 14px); z-index: 2; padding: 1px 5px; border-radius: 6px; background: var(--red); color: #fff; font-size: 9px; font-weight: 800; letter-spacing: 0.5px; line-height: 1.4; pointer-events: none; }
+  /* 慶祝視窗：蓋在面板（1500）、詳細資訊（1600）、照片檢視（2000）之上，在隱私／新手導覽（3000）之下 */
+  .bdg-pop { position: fixed; inset: 0; z-index: 2500; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+  .bdg-pop.open { display: flex; }
+  .bdg-pop-card {
+    width: 100%; max-width: 340px; max-height: 90vh; overflow-y: auto; box-sizing: border-box;
+    background: var(--white); border-radius: 18px; padding: 24px 20px 20px; text-align: center;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25); animation: bdgPopIn 0.35s cubic-bezier(.2,1.3,.4,1);
+  }
+  .bdg-pop-title { font-size: 18px; font-weight: 800; color: var(--ink); }
+  .bdg-pop-hero { margin-top: 22px; display: flex; justify-content: center; animation: bdgPopHero 0.9s ease 0.15s both; }
+  .bdg-pop-coins { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 8px; }
+  .bdg-pop-coins.g3 { max-width: 200px; margin-left: auto; margin-right: auto; }   /* 5～6 枚：每排 3 枚（不然窄螢幕會排成 5＋1） */
+  .bdg-pop-name { margin-top: 14px; font-size: 16px; font-weight: 800; color: #8a5a1a; }
+  .bdg-pop-sub { margin-top: 6px; font-size: 13px; color: var(--stone); line-height: 1.6; }
+  .bdg-pop-lv { margin-top: 10px; font-size: 13px; color: var(--stone); }
+  .bdg-pop-lv .bdg-lv { margin: 0 3px; font-size: 12px; }
+  .bdg-pop-actions { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+  @keyframes bdgPopIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+  @keyframes bdgPopHero { 0% { opacity: 0; transform: scale(0.5) rotate(-15deg); } 60% { opacity: 1; transform: scale(1.1) rotate(4deg); } 100% { transform: scale(1) rotate(0); } }
+  @media (prefers-reduced-motion: reduce) { .bdg-pop-card, .bdg-pop-hero { animation: none; } }
+  body.dark .bdg-pop-name { color: #e0b060; }
 
   /* ── Fullscreen Modals (Privacy / Onboarding) ── */
   .fullscreen-modal {
@@ -2741,6 +2764,7 @@
       <line x1="4" y1="22" x2="4" y2="15"/>
     </svg>
     <span class="bnav-label">任務</span>
+    <span class="bnav-badge" id="bnavChallengesBadge"></span>
   </button>
 </nav>
 

@@ -1,14 +1,15 @@
 // ── badges.js ────────────────────────────────────────────────────────────────
-// 獎章：任務頁標題下方的入口橫幅（#badgeStrip）、全螢幕獎章面板、點獎章看詳細＋設稱號／精選
+// 獎章：任務頁標題下方的入口橫幅（#badgeStrip）、全螢幕獎章面板、點獎章看詳細＋設稱號／精選、
+//       新獎章慶祝視窗＋底部「任務」紅點＋面板 NEW
 // 計算在 js/badge-core.js（與後台「重算等級」共用）；規格見 ramen-finder-notes/achievement-system.md §六
 // 依賴全域變數：
 //   db, auth, stampMap, ALL_DATA, NON_ACTIVE_DATA, currentDisplayName,
-//   _chChallenges, _chUserProgress, _chPendingTaskIds
+//   _chChallenges, _chUserProgress, _chPendingTaskIds, _chProgressUid, _dataLoaded
 // 依賴全域函式：
-//   badgeMergeConfig, badgeCompute, badgeTierName, badgeTitleText, badgeAutoFeatured,
-//   canView, canUse, escapeHtml, showStampToast, showAccessToast, openPrivacyModal
+//   badgeMergeConfig, badgeCompute, badgeTierName, badgeTitleText, badgeAutoFeatured, badgeNewSince, badgePointsAt,
+//   canView, canUse, escapeHtml, showStampToast, showAccessToast, openPrivacyModal, _onDataLoaded, _onBdAnimDone
 // 提供全域函式：
-//   badgesSetUser, badgesRefresh, badgesOpenPanel, badgesClosePanel
+//   badgesSetUser, badgesRefresh, badgesOpenPanel, badgesClosePanel, badgesOnAction
 
 // ── 狀態 ────────────────────────────────────────────────────────────────────
 let _bdgConfig     = null;    // 合併後的設定（meta/achievementConfig＋預設值）
@@ -22,6 +23,12 @@ let _bdgShopIdx    = null;    // shopId → data.json 那一列（ALL_DATA＋NON
 let _bdgShopIdxN   = -1;
 let _bdgMissedOpen = false;   // 面板「錯過的活動」展開中
 let _bdgSheetKey   = null;    // 詳細資訊正在看的獎章
+let _bdgNew        = new Set(); // 跳過慶祝視窗、還沒打開面板看的獎章 key（存這台裝置；任務鈕紅點＋面板 NEW）
+let _bdgNewShown   = null;    // 這次打開面板要標 NEW 的 key（面板關掉前保留，重畫也不會消失）
+let _bdgSeenReady  = false;   // 開站後的第一次比對已經等過壽星煙火、新手導覽
+let _bdgSeenWait   = false;   // 正在等上面那個時機
+let _bdgCompared   = false;   // 這次開網頁比對過了（之後跳的視窗都算自己操作觸發）
+let _bdgPopup      = null;    // 慶祝視窗開著時的內容 { kind:'new'|'summary', items:[{ b, from }] }
 
 const BDG_FEATURED_MAX = 6;
 
@@ -31,6 +38,8 @@ function badgesSetUser(uid, data) {
   if ((uid || null) !== _bdgUid) { _bdgCounts = null; _bdgCountsSeq++; }
   _bdgUid = uid || null;
   _bdgUserData = data || {};
+  _bdgNew = new Set(_bdgLoadNew());
+  _bdgRenderNavDot();
 }
 
 function _bdgLoadConfig() {
@@ -47,24 +56,25 @@ function _bdgLoadConfig() {
 // 評論數、菜單數只查到最高門檻為止（limit），超過也不會再升級；職人確認只有勾過「從業過」才查
 function _bdgLoadCounts() {
   const uid = _bdgUid, seq = ++_bdgCountsSeq, cfg = _bdgConfig;
+  let ok = true;   // 有一份讀取失敗就不比對新獎章（少算的會被記成沒拿到，之後又被當成新的跳出來）
   const maxOf = src => {
     const th = cfg.badges.filter(b => b.source === src).map(b => b.thresholds[b.thresholds.length - 1]);
     return th.length ? Math.max(...th) : 0;
   };
   const countOf = (col, n) => n
     ? db.collection(col).where('uid', '==', uid).limit(n).get().then(s => s.size)
-        .catch(e => { console.warn('[badges] ' + col + ' 計數失敗', e); return 0; })
+        .catch(e => { ok = false; console.warn('[badges] ' + col + ' 計數失敗', e); return 0; })
     : Promise.resolve(0);
   const hasWork = Object.values(stampMap || {}).some(v => Number(v) === 20);
   const crafts = hasWork
     ? db.collection('craftsmanConfirmations').where('uid', '==', uid).get()
         .then(s => { const m = {}; s.forEach(d => { const x = d.data(); if (x.shopId) m[x.shopId] = x.status; }); return m; })
-        .catch(e => { console.warn('[badges] 職人確認讀取失敗', e); return {}; })
+        .catch(e => { ok = false; console.warn('[badges] 職人確認讀取失敗', e); return {}; })
     : Promise.resolve({});
   return Promise.all([countOf('reviews', maxOf('reviews')), countOf('menus', maxOf('menus')), crafts])
     .then(([reviews, menus, cr]) => {
       if (seq !== _bdgCountsSeq || uid !== _bdgUid) return;   // 換帳號、或有更新的請求
-      _bdgCounts = { reviews, menus, crafts: cr };
+      _bdgCounts = { reviews, menus, crafts: cr, ok };
     });
 }
 
@@ -104,7 +114,7 @@ function _bdgCompute() {
 function badgesRefresh(opts) {
   const strip = document.getElementById('badgeStrip');
   if (!strip) return;
-  if (!canView('badges')) { strip.style.display = 'none'; badgesClosePanel(); return; }
+  if (!canView('badges')) { strip.style.display = 'none'; badgesClosePanel(); _bdgRenderNavDot(); return; }
   const reload = !!(opts && opts.reload);
   const ready = () => !!_bdgConfig && (!_bdgUid || !!_bdgCounts);
   if (ready()) _bdgRenderAll();
@@ -123,6 +133,8 @@ function _bdgRenderAll() {
     _bdgRenderPanel();
     if (_bdgSheetKey) _bdgOpenDetail(_bdgSheetKey);
   }
+  _bdgRenderNavDot();   // featureFlags 晚到時，登入當下藏起來的紅點要補回來
+  _bdgCheckNew();
 }
 
 // ── 稱號、精選 ───────────────────────────────────────────────────────────────
@@ -189,6 +201,219 @@ function _bdgToggleFeatured() {
   }
 }
 
+// ── 新獎章：慶祝視窗、任務鈕紅點、面板 NEW（規格 §六「新獎章通知」）──────────
+// 每次重算完跟 users.badgeSeen（已跳過視窗的級數）比；跳視窗時把目前級數寫回去，換裝置也不會重跳。
+// NEW／紅點只是提示，存這台裝置（localStorage），打開面板就清掉
+
+function _bdgNewStoreKey() { return 'bdgNew_' + _bdgUid; }
+
+function _bdgLoadNew() {
+  if (!_bdgUid) return [];
+  try {
+    const a = JSON.parse(localStorage.getItem(_bdgNewStoreKey()) || '[]');
+    return Array.isArray(a) ? a.map(String) : [];
+  } catch (e) { return []; }
+}
+
+function _bdgSaveNew() {
+  if (!_bdgUid) return;
+  try {
+    if (_bdgNew.size) localStorage.setItem(_bdgNewStoreKey(), JSON.stringify([..._bdgNew]));
+    else localStorage.removeItem(_bdgNewStoreKey());
+  } catch (e) {}
+}
+
+function _bdgRenderNavDot() {
+  const btn = document.getElementById('bnavChallenges');
+  if (btn) btn.classList.toggle('has-badge', !!_bdgUid && _bdgNew.size > 0 && canView('badges') && canUse('badges'));
+}
+
+function _bdgEarnedList() {
+  return _bdgResult ? _bdgResult.list.filter(b => b.tier > 0 && !b.hidden) : [];
+}
+
+// 資料到齊才比：設定、評論／菜單數、這個帳號的活動進度都讀成功，店家資料也載完（足跡縣市、台北踩點要查店）。
+// 少算的獎章會被記成沒拿到，之後又被當成新的跳出來
+function _bdgCanCompare() {
+  return !!_bdgUid && !!_bdgResult && !!(_bdgCounts && _bdgCounts.ok)
+    && typeof _chProgressUid !== 'undefined' && _chProgressUid === _bdgUid
+    && typeof _dataLoaded !== 'undefined' && _dataLoaded
+    && canView('badges') && canUse('badges');
+}
+
+// 開站的第一次比對排在壽星煙火和新手導覽之後（新手導覽開著就等它關掉）
+function _bdgWaitIdle() {
+  if (_bdgSeenWait) return;
+  _bdgSeenWait = true;
+  const done = () => { _bdgSeenWait = false; _bdgSeenReady = true; _bdgCheckNew(); };
+  const afterOnboarding = () => setTimeout(() => {   // 新手導覽是同一輪 callback 才開的，先讓它開
+    const ob = document.getElementById('onboardingModal');
+    if (!ob || !ob.classList.contains('open')) { done(); return; }
+    const mo = new MutationObserver(() => {
+      if (ob.classList.contains('open')) return;
+      mo.disconnect();
+      done();
+    });
+    mo.observe(ob, { attributes: true, attributeFilter: ['class'] });
+  }, 300);
+  if (typeof _onDataLoaded === 'function' && typeof _onBdAnimDone === 'function') _onDataLoaded(() => _onBdAnimDone(afterOnboarding));
+  else afterOnboarding();
+}
+
+function _bdgCheckNew() {
+  if (!_bdgCanCompare()) return;
+  if (!_bdgSeenReady) { _bdgWaitIdle(); return; }
+  const trigger = _bdgCompared ? 'action' : 'load';
+  _bdgCompared = true;
+  const raw = _bdgUserData.badgeSeen;
+  const first = !(raw && typeof raw === 'object' && !Array.isArray(raw));   // 沒有紀錄＝第一次用（上線當天）
+  const { items, seen } = badgeNewSince(_bdgResult.list, first ? {} : raw);
+
+  // NEW 只留目前還拿著的（門檻調高掉到 0 級的拿掉）
+  const held = new Set(_bdgEarnedList().map(b => b.key));
+  const before = _bdgNew.size;
+  _bdgNew.forEach(k => { if (!held.has(k)) _bdgNew.delete(k); });
+  if (_bdgNew.size !== before) { _bdgSaveNew(); _bdgRenderNavDot(); }
+
+  if (!first && !items.length) return;
+  _bdgWriteSeen(seen);   // 第一次而且 0 枚也記一筆空的，之後拿到第一枚才會跳「獲得新獎章」
+  if (first) {
+    if (items.length) _bdgShowPopup('summary', [], trigger);   // 只跳一次總結，不一枚一枚跳、也不標 NEW
+    return;
+  }
+  if (_bdgPanelOpen()) {   // 面板開著：直接在面板上標 NEW
+    _bdgNewShown = _bdgNewShown || new Set();
+    items.forEach(x => _bdgNewShown.add(x.b.key));
+    _bdgRenderPanel();
+  } else {
+    items.forEach(x => _bdgNew.add(x.b.key));
+    _bdgSaveNew();
+    _bdgRenderNavDot();
+  }
+  _bdgShowPopup('new', items, trigger);
+}
+
+function _bdgWriteSeen(seen) {
+  _bdgUserData.badgeSeen = seen;   // 先改本地：寫入失敗也不會在這次又跳
+  db.collection('users').doc(_bdgUid).update({ badgeSeen: seen })
+    .catch(e => console.warn('[badges] badgeSeen 寫入失敗', e));
+}
+
+// 自己操作達標當場跳（規格 §六）：踩點（stamps.js）、評論（reviews.js）、上傳菜單（menus.js）成功後呼叫。
+// 評論、菜單要重查張數；踩點已經在 stampMap 裡，直接重算
+function badgesOnAction(kind) {
+  if (!_bdgUid || !canView('badges')) return;
+  badgesRefresh({ reload: kind === 'review' || kind === 'menu' });
+}
+
+function _bdgPopupOpen() {
+  const p = document.getElementById('badgePopup');
+  return !!(p && p.classList.contains('open'));
+}
+
+function _bdgEnsurePopup() {
+  if (document.getElementById('badgePopup')) return;
+  const el = document.createElement('div');
+  el.id = 'badgePopup';
+  el.className = 'bdg-pop';
+  el.innerHTML = '<div class="bdg-pop-card" role="dialog" aria-modal="true" aria-labelledby="badgePopupTitle"></div>';
+  document.body.appendChild(el);
+  el.addEventListener('click', e => {
+    if (e.target === el) { _bdgClosePopup(); return; }   // 點視窗外面的暗區
+    const act = e.target.closest('[data-act]');
+    if (!act) return;
+    if (act.dataset.act === 'pop-open') { _bdgClosePopup(); badgesOpenPanel('popup'); }
+    else if (act.dataset.act === 'pop-close') _bdgClosePopup();
+  });
+}
+
+// kind：'new'（items＝新拿到或升級的）／'summary'（第一次用：你已經有 N 枚）。
+// 視窗還開著又拿到新的就併進同一個視窗（同一枚取新的級數，from 取較低的）
+function _bdgShowPopup(kind, items, trigger) {
+  _bdgEnsurePopup();
+  const wasOpen = _bdgPopupOpen() && !!_bdgPopup;
+  if (kind === 'summary' || (wasOpen && _bdgPopup.kind === 'summary')) {
+    _bdgPopup = { kind: 'summary', items: [] };
+  } else {
+    const byKey = new Map(wasOpen ? _bdgPopup.items.map(x => [x.b.key, x]) : []);
+    items.forEach(x => {
+      const o = byKey.get(x.b.key);
+      byKey.set(x.b.key, o ? { b: x.b, from: Math.min(o.from, x.from) } : x);
+    });
+    _bdgPopup = { kind: 'new', items: [...byKey.values()] };
+  }
+  const pop = document.getElementById('badgePopup');
+  pop.querySelector('.bdg-pop-card').innerHTML = _bdgPopupHtml(_bdgPopup);
+  if (wasOpen) return;
+  pop.classList.add('open');
+  if (typeof gtag !== 'undefined') {
+    gtag('event', 'badge_popup_show', {
+      kind: _bdgPopup.kind,
+      count: _bdgPopup.kind === 'summary' ? _bdgEarnedList().length : _bdgPopup.items.length,
+      trigger,
+    });
+  }
+}
+
+function _bdgClosePopup() {
+  const p = document.getElementById('badgePopup');
+  if (p) p.classList.remove('open');
+  _bdgPopup = null;
+}
+
+// 視窗上那一行：這一級是怎麼拿到的
+const BDG_EARN_TEXT = {
+  stamps:    n => `踩點 ${n} 間`,
+  cities:    n => `足跡 ${n} 個縣市`,
+  events:    n => `參加 ${n} 檔活動`,
+  menus:     n => `上傳 ${n} 張菜單`,
+  reviews:   n => `寫了 ${n} 篇評論`,
+  craftsman: () => '標記「從業過」的店家',
+};
+
+function _bdgEarnLine(b) {
+  const th = b.thresholds[b.tier - 1];
+  if (b.kind === 'craft') return '經協會確認';
+  if (b.kind === 'event') return b.thresholds.length > 1 ? `完成 ${th} ${b.unit}` : '活動參加獎章';
+  const f = BDG_EARN_TEXT[b.source];
+  return f ? f(th) : `達成 ${th} ${b.unit || ''}`;
+}
+
+function _bdgPopupHtml(p) {
+  const cfg = _bdgConfig, lv = _bdgResult.level;
+  const coinsRow = arr => `<div class="bdg-pop-coins${arr.length > 4 ? ' g3' : ''}">${arr.join('')}</div>`;
+  const btns = `<div class="bdg-pop-actions">` +
+    `<button type="button" class="bdg-btn on" data-act="pop-open">查看獎章</button>` +
+    `<button type="button" class="bdg-btn" data-act="pop-close">關閉</button></div>`;
+  if (p.kind === 'summary') {
+    const earned = _bdgEarnedList();
+    const coins = badgeAutoFeatured(earned, BDG_FEATURED_MAX).map(b => _bdgCoin(b, 52));
+    return `<div class="bdg-pop-title" id="badgePopupTitle">🎖️ 你已經有 ${earned.length} 枚獎章</div>` +
+      coinsRow(coins) +
+      `<div class="bdg-pop-lv">會員等級<span class="bdg-lv">Lv.${lv}</span></div>` +
+      `<div class="bdg-pop-sub">之後拿到新獎章或升級，會在這裡通知你</div>` + btns;
+  }
+  // 稀有度高的排前面，同級時活動優先（同精選）
+  const items = p.items.slice().sort((x, y) => (y.b.tier - x.b.tier) || ((y.b.activity ? 1 : 0) - (x.b.activity ? 1 : 0)));
+  const gain = items.reduce((s, x) => s + x.b.points - badgePointsAt(x.b, x.from, cfg), 0);
+  const lvLine = `<div class="bdg-pop-lv">` + (gain > 0
+    ? `<span class="bdg-lv">Lv.${lv - gain}</span> → <span class="bdg-lv">Lv.${lv}</span>`
+    : `<span class="bdg-lv">Lv.${lv}</span>`) + `</div>`;
+  if (items.length === 1) {
+    const { b, from } = items[0];
+    return `<div class="bdg-pop-title" id="badgePopupTitle">${from > 0 ? '⬆️ 獎章升級' : '🎉 獲得新獎章'}</div>` +
+      `<div class="bdg-pop-hero">${_bdgCoin(b, 96)}</div>` +
+      `<div class="bdg-pop-name">${escapeHtml(badgeTitleText(b, b.tier, cfg))}</div>` +
+      `<div class="bdg-pop-sub">${escapeHtml(_bdgEarnLine(b))}</div>` + lvLine + btns;
+  }
+  const shown = items.slice(0, BDG_FEATURED_MAX);
+  const more = items.length - shown.length;
+  return `<div class="bdg-pop-title" id="badgePopupTitle">🎉 獲得 ${items.length} 枚獎章</div>` +
+    coinsRow(shown.map(x => _bdgCoin(x.b, 56))) +
+    `<div class="bdg-pop-sub">${escapeHtml(shown.map(x => badgeTitleText(x.b, x.b.tier, cfg)).join('、'))}${more > 0 ? `，還有 ${more} 枚` : ''}</div>` +
+    lvLine + btns;
+}
+
 // ── 畫面零件 ────────────────────────────────────────────────────────────────
 const _bdgT = t => Math.max(0, Math.min(5, t | 0));   // 外框樣式只有 t0～t5
 
@@ -224,7 +449,8 @@ function _bdgTile(b) {
   } else {
     prog = `${_bdgTierTag(b.tier)} ${b.value}/${b.thresholds[b.tier]}`;
   }
-  return `<div class="bdg-tile" data-key="${escapeHtml(b.key)}">${_bdgCoin(b, 64)}` +
+  const isNew = !!(_bdgNewShown && _bdgNewShown.has(b.key));
+  return `<div class="bdg-tile" data-key="${escapeHtml(b.key)}">${isNew ? '<span class="bdg-new">NEW</span>' : ''}${_bdgCoin(b, 64)}` +
     `<div class="bdg-tile-name">${escapeHtml(b.name)}</div><div class="bdg-tile-prog">${prog}</div></div>`;
 }
 
@@ -289,13 +515,19 @@ function _bdgEnsurePanel() {
   el.addEventListener('click', _bdgOnPanelClick);
 }
 
-function badgesOpenPanel() {
+// source：從哪裡打開（strip 橫幅／popup 慶祝視窗），GA4 停損看「每週打開面板人數」
+function badgesOpenPanel(source) {
   if (!_bdgResult) return;
   _bdgEnsurePanel();
+  const wasOpen = _bdgPanelOpen();
+  // NEW 在這次打開時標出來（關掉前都保留）；紅點和這台裝置的紀錄現在就清掉
+  _bdgNewShown = new Set([...((wasOpen && _bdgNewShown) || []), ..._bdgNew]);
+  if (_bdgNew.size) { _bdgNew.clear(); _bdgSaveNew(); _bdgRenderNavDot(); }
   document.getElementById('badgePanel').classList.add('open');
   document.body.classList.add('bdg-open');   // 讓 #stampToast 浮在面板上面
   _bdgRenderPanel();
   badgesRefresh({ reload: true });            // 重查評論／菜單數：剛寫完評論回來就看得到
+  if (!wasOpen && typeof gtag !== 'undefined') gtag('event', 'badge_panel_open', { source: source || 'strip' });
 }
 
 function badgesClosePanel() {
@@ -304,6 +536,7 @@ function badgesClosePanel() {
   _bdgCloseDetail();
   p.classList.remove('open');
   document.body.classList.remove('bdg-open');
+  _bdgNewShown = null;
 }
 
 function _bdgRenderPanel() {
@@ -446,7 +679,9 @@ function _bdgOnPanelClick(e) {
 }
 
 document.addEventListener('keydown', e => {
-  if (e.key !== 'Escape' || !_bdgPanelOpen()) return;
+  if (e.key !== 'Escape') return;
+  if (_bdgPopupOpen()) { _bdgClosePopup(); return; }
+  if (!_bdgPanelOpen()) return;
   if (_bdgSheetKey) _bdgCloseDetail();
   else badgesClosePanel();
 });

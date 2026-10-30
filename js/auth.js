@@ -315,6 +315,8 @@ auth.onAuthStateChanged(async user => {
         } catch (e) {
           console.error('[首次登入] 寫入基本欄位失敗：', e);
         }
+        // GA4：新會員（獎章停損要看「分享圖卡帶進幾位新會員」，achievement-system.md §十）
+        if (typeof gtag === 'function') gtag('event', 'sign_up', { method: 'google' });
         // Step 2：分配 memberNo（Transaction 確保不重複）
         try {
           const counterRef = db.collection('meta').doc('counters');

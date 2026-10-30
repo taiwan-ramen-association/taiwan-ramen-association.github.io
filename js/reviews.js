@@ -462,6 +462,7 @@ document.getElementById('rvSubmitBtn').addEventListener('click', async () => {
 
     showStampToast('✅ 評論已送出！');
     if (typeof gtag !== 'undefined') gtag('event', 'review_submit', { shop_id: _rvShopId, shop_name: _rvShopName, rating: _rvRating });
+    if (typeof badgesOnAction === 'function') badgesOnAction('review');   // 第一篇評論當場跳獎章慶祝視窗（js/badges.js）
     closeReviewModal();
 
     // 重置評論（下次切換時重新載入）

@@ -6,7 +6,7 @@
 //   BADGE_DEFAULT_CONFIG
 // 提供全域函式：
 //   badgeMergeConfig, badgeChallengeConfig, badgeCompute,
-//   badgeTierName, badgeTitleText, badgeAutoFeatured
+//   badgeTierName, badgeTitleText, badgeAutoFeatured, badgeNewSince, badgePointsAt
 
 // 預設設定：Firestore meta/achievementConfig 不存在、或缺某個欄位時用這份
 var BADGE_DEFAULT_CONFIG = {
@@ -232,4 +232,24 @@ function badgeAutoFeatured(list, n) {
     .sort((x, y) => (y.b.tier - x.b.tier) || ((y.b.activity ? 1 : 0) - (x.b.activity ? 1 : 0)) || (x.i - y.i))
     .slice(0, n || 6)
     .map(x => x.b);
+}
+
+// 慶祝視窗用：跟「已跳過」紀錄（users.badgeSeen｛key: 級數｝）比，找出級數比紀錄高的獎章（含升級）。
+// 隱藏的彩蛋活動、沒拿到的不算；紀錄只增不減，門檻調高掉級、之後升回原級不會再跳。
+// 回傳 { items: [{ b, from }]（清單順序；from＝紀錄裡的級數）, seen: 更新後的紀錄 }
+function badgeNewSince(list, seen) {
+  const prev = (seen && typeof seen === 'object') ? seen : {};
+  const next = { ...prev };
+  const items = [];
+  (list || []).forEach(b => {
+    if (!b || b.hidden || !(b.tier > 0)) return;
+    const from = Number(prev[b.key]) || 0;
+    if (b.tier > from) { items.push({ b, from }); next[b.key] = b.tier; }
+  });
+  return { items, seen: next };
+}
+
+// 某枚獎章在指定級數時的點數（慶祝視窗算 Lv 從多少升上來）
+function badgePointsAt(b, tier, cfg) {
+  return _badgePoints(Math.max(0, tier | 0), cfg, !!(b && b.activity));
 }

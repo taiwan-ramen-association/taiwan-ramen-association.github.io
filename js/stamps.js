@@ -186,6 +186,7 @@ document.getElementById('smConfirmBtn').addEventListener('click', async () => {
       : STATUS_LABELS[_stampStatus];
     showStampToast(`✓ 踩點：${lbl}`);
     if (typeof gtag !== 'undefined') gtag('event', 'stamp_shop', { shop_id: shopId, shop_name: _stampShopName });
+    if (typeof badgesOnAction === 'function') badgesOnAction('stamp');   // 踩點達標當場跳獎章慶祝視窗（js/badges.js）
   } catch (e) { showStampToast('踩點失敗：' + e.message); }
 });
 

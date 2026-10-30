@@ -15,6 +15,7 @@
 var _chChallenges       = [];     // 進行中的挑戰列表
 var _chUserProgress     = {};     // {challengeId: {completedTaskIds: [...]}}
 var _chPageLoaded       = false;  // 頁面是否已載入
+var _chProgressUid      = null;   // _chUserProgress 屬於哪個帳號（每一份進度都讀成功才填；未登入／有讀取失敗＝null）。獎章比對新獎章用（js/badges.js）
 let _chCurrentChallenge = null;
 let _chCurrentFile      = null;
 let _chCurrentShop      = null;
@@ -99,6 +100,7 @@ async function loadChallengesPage(opts) {
   const progress = {};
   const pending  = new Set();
   const rejected = new Set();
+  let complete = true;   // 進度（含掃描、尋寶聯集）每一份都讀成功
 
   try {
     // 載入 active + ended（結束的活動不消失，靠排序沉到最下面）；draft 仍不對前台顯示
@@ -118,6 +120,7 @@ async function loadChallengesPage(opts) {
           progress[c.id] = doc.exists ? doc.data() : { completedTaskIds: [] };
         } catch (e) {
           progress[c.id] = { completedTaskIds: [] };
+          complete = false;
         }
       }));
 
@@ -133,7 +136,7 @@ async function loadChallengesPage(opts) {
           if (!prog.completedTaskIds) prog.completedTaskIds = [];
           if (!prog.completedTaskIds.includes(ck.taskId)) prog.completedTaskIds.push(ck.taskId);
         });
-      } catch (e) { console.warn('[challenges] checkins 聯集失敗（不影響審查進度）', e); }
+      } catch (e) { complete = false; console.warn('[challenges] checkins 聯集失敗（不影響審查進度）', e); }
 
       // 附加：客人自助尋寶（questCheckins）union 進 completedTaskIds（情境2）
       try {
@@ -146,7 +149,7 @@ async function loadChallengesPage(opts) {
           if (!prog.completedTaskIds) prog.completedTaskIds = [];
           if (!prog.completedTaskIds.includes(q.taskId)) prog.completedTaskIds.push(q.taskId);
         });
-      } catch (e) { console.warn('[challenges] questCheckins 聯集失敗', e); }
+      } catch (e) { complete = false; console.warn('[challenges] questCheckins 聯集失敗', e); }
 
       // 附加：載入本人 submission → 標記「審查中」(pending) / 「已駁回」(rejected) 的 task
       try {
@@ -169,6 +172,7 @@ async function loadChallengesPage(opts) {
     if (seq !== _chLoadSeq) return;   // 已被更新的請求蓋過 → 整包丟棄，不寫狀態也不渲染
     _chChallenges      = challenges;
     _chUserProgress    = progress;
+    _chProgressUid     = (user && complete) ? user.uid : null;
     _chPendingTaskIds  = pending;
     _chRejectedTaskIds = rejected;
     if (!keepView) _chVisibleCount = CH_PAGE_INIT; // 每次進頁重置分頁；背景重抓則維持使用者已展開的則數
