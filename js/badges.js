@@ -1,12 +1,12 @@
 // ── badges.js ────────────────────────────────────────────────────────────────
 // 獎章：任務頁標題下方的入口橫幅（#badgeStrip）、全螢幕獎章面板、點獎章看詳細＋設稱號／精選、
-//       新獎章慶祝視窗＋底部「任務」紅點＋面板 NEW
-// 計算在 js/badge-core.js（與後台「重算等級」共用）；規格見 ramen-finder-notes/achievement-system.md §六
+//       新獎章慶祝視窗＋底部「任務」紅點＋面板 NEW、分享圖卡預覽（#badgeShare）
+// 計算在 js/badge-core.js（與後台「重算等級」共用）、圖卡在 js/badge-card.js；規格見 ramen-finder-notes/achievement-system.md §六、§七
 // 依賴全域變數：
-//   db, auth, stampMap, ALL_DATA, NON_ACTIVE_DATA, currentDisplayName,
+//   db, auth, stampMap, ALL_DATA, NON_ACTIVE_DATA, currentDisplayName, BADGE_CARD_THEMES,
 //   _chChallenges, _chUserProgress, _chPendingTaskIds, _chProgressUid, _dataLoaded
 // 依賴全域函式：
-//   badgeMergeConfig, badgeCompute, badgeTierName, badgeTitleText, badgeAutoFeatured, badgeNewSince, badgePointsAt,
+//   badgeMergeConfig, badgeCompute, badgeTierName, badgeTitleText, badgeAutoFeatured, badgeNewSince, badgePointsAt, badgeCardRender,
 //   canView, canUse, escapeHtml, showStampToast, showAccessToast, openPrivacyModal, _onDataLoaded, _onBdAnimDone
 // 提供全域函式：
 //   badgesSetUser, badgesRefresh, badgesOpenPanel, badgesClosePanel, badgesOnAction
@@ -29,13 +29,16 @@ let _bdgSeenReady  = false;   // 開站後的第一次比對已經等過壽星�
 let _bdgSeenWait   = false;   // 正在等上面那個時機
 let _bdgCompared   = false;   // 這次開網頁比對過了（之後跳的視窗都算自己操作觸發）
 let _bdgPopup      = null;    // 慶祝視窗開著時的內容 { kind:'new'|'summary', items:[{ b, from }] }
+let _bdgShare      = null;    // 分享圖卡預覽開著時：{ source, fresh, theme, seq, url, file, mode }
 
 const BDG_FEATURED_MAX = 6;
+const BDG_CARD_FILE    = 'taiwan-ramen-badges.png';
+const BDG_THEME_KEY    = 'bdgCardTheme';   // 圖卡配色存這台裝置（上次選的）
 
 // ── 資料 ────────────────────────────────────────────────────────────────────
 // 登入後由 auth.js 呼叫（踩點載入之後）；登出傳 null
 function badgesSetUser(uid, data) {
-  if ((uid || null) !== _bdgUid) { _bdgCounts = null; _bdgCountsSeq++; }
+  if ((uid || null) !== _bdgUid) { _bdgCounts = null; _bdgCountsSeq++; _bdgCloseShare(); }
   _bdgUid = uid || null;
   _bdgUserData = data || {};
   _bdgNew = new Set(_bdgLoadNew());
@@ -114,7 +117,7 @@ function _bdgCompute() {
 function badgesRefresh(opts) {
   const strip = document.getElementById('badgeStrip');
   if (!strip) return;
-  if (!canView('badges')) { strip.style.display = 'none'; badgesClosePanel(); _bdgRenderNavDot(); return; }
+  if (!canView('badges')) { strip.style.display = 'none'; badgesClosePanel(); _bdgCloseShare(); _bdgRenderNavDot(); return; }
   const reload = !!(opts && opts.reload);
   const ready = () => !!_bdgConfig && (!_bdgUid || !!_bdgCounts);
   if (ready()) _bdgRenderAll();
@@ -322,7 +325,13 @@ function _bdgEnsurePopup() {
     if (e.target === el) { _bdgClosePopup(); return; }   // 點視窗外面的暗區
     const act = e.target.closest('[data-act]');
     if (!act) return;
-    if (act.dataset.act === 'pop-open') { _bdgClosePopup(); badgesOpenPanel('popup'); }
+    if (act.dataset.act === 'pop-share') {
+      // 剛拿到的排在圖卡最前面（_bdgClosePopup 會清掉 _bdgPopup，先取出來）
+      const fresh = _bdgPopup && _bdgPopup.kind === 'new' ? _bdgSortNew(_bdgPopup.items).map(x => x.b.key) : [];
+      _bdgClosePopup();
+      _bdgOpenShare('popup', fresh);
+    }
+    else if (act.dataset.act === 'pop-open') { _bdgClosePopup(); badgesOpenPanel('popup'); }
     else if (act.dataset.act === 'pop-close') _bdgClosePopup();
   });
 }
@@ -379,11 +388,17 @@ function _bdgEarnLine(b) {
   return f ? f(th) : `達成 ${th} ${b.unit || ''}`;
 }
 
+// 稀有度高的排前面，同級時活動優先（同精選）
+function _bdgSortNew(items) {
+  return items.slice().sort((x, y) => (y.b.tier - x.b.tier) || ((y.b.activity ? 1 : 0) - (x.b.activity ? 1 : 0)));
+}
+
 function _bdgPopupHtml(p) {
   const cfg = _bdgConfig, lv = _bdgResult.level;
   const coinsRow = arr => `<div class="bdg-pop-coins${arr.length > 4 ? ' g3' : ''}">${arr.join('')}</div>`;
   const btns = `<div class="bdg-pop-actions">` +
-    `<button type="button" class="bdg-btn on" data-act="pop-open">查看獎章</button>` +
+    `<button type="button" class="bdg-btn on" data-act="pop-share">分享圖卡</button>` +
+    `<button type="button" class="bdg-btn" data-act="pop-open">查看獎章</button>` +
     `<button type="button" class="bdg-btn" data-act="pop-close">關閉</button></div>`;
   if (p.kind === 'summary') {
     const earned = _bdgEarnedList();
@@ -393,8 +408,7 @@ function _bdgPopupHtml(p) {
       `<div class="bdg-pop-lv">會員等級<span class="bdg-lv">Lv.${lv}</span></div>` +
       `<div class="bdg-pop-sub">之後拿到新獎章或升級，會在這裡通知你</div>` + btns;
   }
-  // 稀有度高的排前面，同級時活動優先（同精選）
-  const items = p.items.slice().sort((x, y) => (y.b.tier - x.b.tier) || ((y.b.activity ? 1 : 0) - (x.b.activity ? 1 : 0)));
+  const items = _bdgSortNew(p.items);
   const gain = items.reduce((s, x) => s + x.b.points - badgePointsAt(x.b, x.from, cfg), 0);
   const lvLine = `<div class="bdg-pop-lv">` + (gain > 0
     ? `<span class="bdg-lv">Lv.${lv - gain}</span> → <span class="bdg-lv">Lv.${lv}</span>`
@@ -572,6 +586,7 @@ function _bdgRenderPanel() {
       <div class="bdg-feat">
         <div class="bdg-feat-head"><span>精選 ${BDG_FEATURED_MAX} 枚（分享圖卡用）</span>${feat.custom ? '<a data-act="feat-reset">恢復自動挑選</a>' : '<span>自動挑選</span>'}</div>
         <div class="bdg-feat-row">${featHtml}</div>
+        ${feat.items.length ? '<button type="button" class="bdg-btn on bdg-feat-share" data-act="share">分享圖卡</button>' : ''}
       </div>
     </div>
     ${sec('🚩 進行中的活動', activeEv)}
@@ -671,6 +686,7 @@ function _bdgOnPanelClick(e) {
       case 'feat-reset':  _bdgSaveUser({ badgeFeatured: [] }, '已恢復自動挑選'); break;
       case 'title':       _bdgToggleTitle(); break;
       case 'feat':        _bdgToggleFeatured(); break;
+      case 'share':       _bdgOpenShare('panel'); break;
     }
     return;
   }
@@ -678,8 +694,221 @@ function _bdgOnPanelClick(e) {
   if (tile) _bdgOpenDetail(tile.dataset.key);
 }
 
+// ── 分享圖卡（規格 §七）──────────────────────────────────────────────────────
+// 先產生、顯示預覽，再按分享：iOS 的 navigator.share 要在點擊當下呼叫，不能等圖畫完才叫。
+// 手機能帶圖分享 → 叫出分享選單（IG 在裡面）；不能（部分 App 內建瀏覽器）→ 長按圖片儲存；電腦 → 下載
+function _bdgShareOpen() {
+  const el = document.getElementById('badgeShare');
+  return !!(el && el.classList.contains('open'));
+}
+
+function _bdgEnsureShare() {
+  if (document.getElementById('badgeShare')) return;
+  const sws = BADGE_CARD_THEMES.map(t =>
+    `<button type="button" class="bdg-share-sw" data-act="share-theme" data-theme="${escapeHtml(t.id)}" aria-pressed="false"` +
+    ` aria-label="${escapeHtml(t.name)}" title="${escapeHtml(t.name)}" style="background:linear-gradient(135deg,${t.bg[0]},${t.bg[1]})"></button>`).join('');
+  const el = document.createElement('div');
+  el.id = 'badgeShare';
+  el.className = 'bdg-share';
+  el.innerHTML = `
+    <div class="bdg-share-card" role="dialog" aria-modal="true" aria-labelledby="badgeShareTitle">
+      <button type="button" class="bdg-sheet-close" data-act="share-close" aria-label="關閉">✕</button>
+      <div class="bdg-share-title" id="badgeShareTitle">分享圖卡</div>
+      <div class="bdg-share-pv" id="badgeSharePv"><img id="badgeShareImg" alt="獎章圖卡預覽" hidden><span class="bdg-share-msg" id="badgeShareMsg"></span></div>
+      <div class="bdg-share-sws" role="group" aria-label="圖卡配色">${sws}</div>
+      <div class="bdg-share-theme" id="badgeShareTheme"></div>
+      <div class="bdg-share-note" id="badgeShareNote"></div>
+      <div class="bdg-share-act" id="badgeShareAct"></div>
+    </div>`;
+  document.body.appendChild(el);
+  el.addEventListener('click', e => {
+    if (e.target === el) { _bdgCloseShare(); return; }   // 點視窗外面的暗區
+    const act = e.target.closest('[data-act]');
+    if (!act) return;
+    switch (act.dataset.act) {
+      case 'share-close':    _bdgCloseShare(); break;
+      case 'share-theme':    _bdgShareTheme(act.dataset.theme); break;
+      case 'share-retry':    _bdgRenderShare(); break;
+      case 'share-go':       _bdgDoShare(); break;
+      case 'share-download': _bdgDoDownload(); break;
+    }
+  });
+}
+
+// 圖卡內容：從慶祝視窗分享時，剛拿到的排最前面，其餘照精選，最多 6 枚。名字只用暱稱（沒設就不印）
+function _bdgCardData(fresh) {
+  const cfg = _bdgConfig;
+  const byKey = new Map(_bdgEarnedList().map(b => [b.key, b]));
+  const keys = new Set([...(fresh || []), ..._bdgFeatured().items.map(b => b.key)]);
+  const badges = [...keys].map(k => byKey.get(k)).filter(Boolean).slice(0, BDG_FEATURED_MAX);
+  const title = _bdgTitleOf();
+  return {
+    name:   String(_bdgUserData.nickname || '').trim(),
+    avatar: _bdgUserData.avatarUrl || '',
+    level:  _bdgResult.level,
+    title:  title ? title.text : '',
+    stats:  _bdgResult.stats,
+    badges: badges.map(b => ({
+      name: b.name, tier: b.tier, image: b.image, icon: b.icon, text: b.text,
+      // 只有一級的不印級名；該級另外取名就用級名，否則銅、銀…
+      tierLabel: b.thresholds.length > 1 ? ((b.tierNames || [])[b.tier - 1] || badgeTierName(cfg, b.tier)) : '',
+    })),
+  };
+}
+
+function _bdgLoadTheme() {
+  let id = '';
+  try { id = localStorage.getItem(BDG_THEME_KEY) || ''; } catch (e) {}
+  return BADGE_CARD_THEMES.some(t => t.id === id) ? id : BADGE_CARD_THEMES[0].id;
+}
+
+function _bdgShareMode(file) {
+  if (!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches)) return 'download';
+  try {
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) return 'share';
+  } catch (e) {}
+  return 'longpress';
+}
+
+// source：從哪裡打開（panel 面板／popup 慶祝視窗）；fresh：排在最前面的獎章 key（剛拿到的）
+function _bdgOpenShare(source, fresh) {
+  if (!_bdgResult || !_bdgEarnedList().length) return;
+  if (typeof badgeCardRender !== 'function' || typeof BADGE_CARD_THEMES === 'undefined') {
+    showStampToast('圖卡功能沒有載入，請重新整理後再試');
+    return;
+  }
+  _bdgCloseShare();
+  _bdgEnsureShare();
+  // 分享方式先用空檔案判斷（canShare 看的是檔案類型），圖畫好後再用實際檔案確認一次
+  const probe = new File([], BDG_CARD_FILE, { type: 'image/png' });
+  _bdgShare = { source, fresh: fresh || [], theme: _bdgLoadTheme(), seq: 0, url: '', file: null, mode: _bdgShareMode(probe) };
+  document.getElementById('badgeShareNote').innerHTML = String(_bdgUserData.nickname || '').trim() ? ''
+    : '還沒設定暱稱，圖卡上不會顯示名字。想放名字，請到<a href="profile.html">「我的個人頁」</a>設定暱稱。';
+  document.getElementById('badgeShare').classList.add('open');
+  _bdgRenderShare();
+}
+
+async function _bdgRenderShare() {
+  const s = _bdgShare;
+  if (!s) return;
+  const my = ++s.seq;
+  const stale = () => _bdgShare !== s || s.seq !== my;   // 已經關掉、或又換了配色
+  _bdgShareUi('busy');
+  try {
+    const blob = await badgeCardRender(_bdgCardData(s.fresh), s.theme);
+    if (stale()) return;
+    const file = new File([blob], BDG_CARD_FILE, { type: 'image/png' });
+    if (s.mode === 'share' && _bdgShareMode(file) !== 'share') s.mode = 'longpress';
+    // 長按儲存用 data URL：有些 App 內建瀏覽器存不了 blob 網址的圖
+    const url = s.mode === 'longpress' ? await _bdgDataUrl(blob) : URL.createObjectURL(blob);
+    if (stale()) { _bdgRevoke(url); return; }
+    _bdgRevoke(s.url);
+    Object.assign(s, { url, file });
+    _bdgShareUi('ready');
+  } catch (e) {
+    if (stale()) return;
+    console.error('[badges] 圖卡產生失敗', e);
+    _bdgRevoke(s.url);
+    Object.assign(s, { url: '', file: null });
+    _bdgShareUi('error');
+  }
+}
+
+// state：busy（產生中，舊圖淡出、按鈕先停用）／ready／error
+function _bdgShareUi(state) {
+  const s = _bdgShare;
+  if (!s) return;
+  const theme = BADGE_CARD_THEMES.find(t => t.id === s.theme);
+  document.querySelectorAll('#badgeShare .bdg-share-sw').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.theme === s.theme)));
+  document.getElementById('badgeShareTheme').textContent = theme ? theme.name : '';
+  document.getElementById('badgeSharePv').classList.toggle('busy', state === 'busy');
+  const img = document.getElementById('badgeShareImg');
+  if (s.url) { if (img.getAttribute('src') !== s.url) img.src = s.url; img.hidden = false; }
+  else { img.removeAttribute('src'); img.hidden = true; }
+  document.getElementById('badgeShareMsg').textContent =
+    state === 'busy' ? '圖卡產生中…' : state === 'error' ? '圖卡沒有產生成功' : '';
+  const act = document.getElementById('badgeShareAct');
+  if (state === 'error') {
+    act.innerHTML = '<button type="button" class="bdg-btn on" data-act="share-retry">重新產生</button>';
+  } else if (s.mode === 'longpress') {
+    act.innerHTML = '<div class="bdg-share-tip">長按圖片儲存，再到 IG 限時動態選這張圖</div>';
+  } else {
+    const share = s.mode === 'share';
+    act.innerHTML = `<button type="button" class="bdg-btn on" data-act="${share ? 'share-go' : 'share-download'}"${state === 'busy' ? ' disabled' : ''}>` +
+      `${share ? '分享' : '下載圖片'}</button>`;
+  }
+}
+
+function _bdgShareTheme(id) {
+  const s = _bdgShare;
+  if (!s || s.theme === id || !BADGE_CARD_THEMES.some(t => t.id === id)) return;
+  s.theme = id;
+  try { localStorage.setItem(BDG_THEME_KEY, id); } catch (e) {}
+  _bdgRenderShare();
+}
+
+async function _bdgDoShare() {
+  const s = _bdgShare;
+  if (!s || !s.file || s.sharing) return;
+  s.sharing = true;
+  try {
+    await navigator.share({ files: [s.file] });
+    _bdgShareTrack('share', s);
+  } catch (e) {
+    if (!e || e.name !== 'AbortError') {   // AbortError＝自己取消，不用處理
+      console.warn('[badges] 分享失敗，改成長按儲存', e);
+      if (_bdgShare === s) { s.mode = 'longpress'; _bdgRenderShare(); }
+    }
+  }
+  s.sharing = false;
+}
+
+function _bdgDoDownload() {
+  const s = _bdgShare;
+  if (!s || !s.file) return;
+  const url = URL.createObjectURL(s.file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = BDG_CARD_FILE;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  _bdgShareTrack('download', s);
+}
+
+function _bdgCloseShare() {
+  const s = _bdgShare;
+  if (!s) return;
+  _bdgShare = null;
+  if (s.mode === 'longpress' && s.file) _bdgShareTrack('longpress', s);   // 看不到有沒有真的存，有給可以長按的圖卡就算
+  _bdgRevoke(s.url);
+  document.getElementById('badgeShare').classList.remove('open');
+  const img = document.getElementById('badgeShareImg');
+  img.removeAttribute('src');
+  img.hidden = true;
+}
+
+function _bdgShareTrack(method, s) {
+  if (typeof gtag !== 'undefined') gtag('event', 'badge_share', { method, source: s.source, theme: s.theme });
+}
+
+function _bdgRevoke(url) {
+  if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
+}
+
+function _bdgDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
+  if (_bdgShareOpen()) { _bdgCloseShare(); return; }
   if (_bdgPopupOpen()) { _bdgClosePopup(); return; }
   if (!_bdgPanelOpen()) return;
   if (_bdgSheetKey) _bdgCloseDetail();

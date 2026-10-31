@@ -2047,11 +2047,46 @@
   .bdg-pop-sub { margin-top: 6px; font-size: 13px; color: var(--stone); line-height: 1.6; }
   .bdg-pop-lv { margin-top: 10px; font-size: 13px; color: var(--stone); }
   .bdg-pop-lv .bdg-lv { margin: 0 3px; font-size: 12px; }
-  .bdg-pop-actions { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+  .bdg-pop-actions { margin-top: 20px; display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+  .bdg-pop-actions .bdg-btn { padding: 8px 14px; }
   @keyframes bdgPopIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
   @keyframes bdgPopHero { 0% { opacity: 0; transform: scale(0.5) rotate(-15deg); } 60% { opacity: 1; transform: scale(1.1) rotate(4deg); } 100% { transform: scale(1) rotate(0); } }
   @media (prefers-reduced-motion: reduce) { .bdg-pop-card, .bdg-pop-hero { animation: none; } }
   body.dark .bdg-pop-name { color: #e0b060; }
+  /* 分享圖卡：面板精選下方的入口；預覽視窗蓋在慶祝視窗（2500）之上、隱私／新手導覽（3000）之下。
+     圖卡本身是固定配色，視窗跟深色模式；預覽高度跟著螢幕高度縮（矮手機也放得下按鈕） */
+  .bdg-feat-share { display: block; width: 100%; margin-top: 12px; padding: 10px; font-size: 14px; }
+  .bdg-btn:disabled { opacity: 0.5; cursor: default; }
+  .bdg-share { position: fixed; inset: 0; z-index: 2600; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; padding: 12px; box-sizing: border-box; }
+  .bdg-share.open { display: flex; }
+  .bdg-share-card {
+    position: relative; width: 100%; max-width: 360px; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
+    background: var(--white); border-radius: 18px; padding: 16px 20px 18px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  }
+  .bdg-share-title { font-size: 16px; font-weight: 800; color: var(--ink); }
+  .bdg-share-pv {
+    position: relative; margin: 12px auto 0; aspect-ratio: 9 / 16; border-radius: 12px; overflow: hidden; background: #f3ece2;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.08);   /* 暖白、墨黑圖卡和視窗底色太接近，描一圈看得出邊 */
+    height: clamp(240px, calc(100vh - 290px), 420px); height: clamp(240px, calc(100dvh - 290px), 420px);
+  }
+  .bdg-share-pv img { display: block; width: 100%; height: 100%; }
+  .bdg-share-pv img[hidden] { display: none; }
+  .bdg-share-pv.busy img { opacity: 0.4; }
+  .bdg-share-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 0 12px; font-size: 13px; color: var(--stone); pointer-events: none; }
+  .bdg-share-sws { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+  .bdg-share-sw { width: 32px; height: 32px; padding: 0; border: none; border-radius: 50%; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.14); }
+  .bdg-share-sw[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.14), 0 0 0 3px var(--white), 0 0 0 5px var(--ink); }
+  .bdg-share-sw:focus-visible { outline: 2px solid var(--red); outline-offset: 5px; }
+  .bdg-share-theme { margin-top: 8px; min-height: 18px; font-size: 12px; color: var(--stone); }
+  .bdg-share-note { margin-top: 8px; font-size: 12px; color: var(--stone); line-height: 1.6; }
+  .bdg-share-note:empty { display: none; }
+  .bdg-share-note a { color: var(--red); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+  .bdg-share-act { margin-top: 12px; }
+  .bdg-share-act .bdg-btn { width: 100%; padding: 10px; font-size: 14px; }
+  .bdg-share-tip { font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1.6; }
+  body.dark .bdg-share-pv { background: #2a2520; box-shadow: 0 0 0 1px rgba(255,255,255,0.12); }
+  body.dark .bdg-share-sw { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22); }
+  body.dark .bdg-share-sw[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22), 0 0 0 3px var(--white), 0 0 0 5px var(--ink); }
 
   /* ── Fullscreen Modals (Privacy / Onboarding) ── */
   .fullscreen-modal {
@@ -3007,6 +3042,7 @@
 <script src="js/challenges.js"></script>
 <script src="js/scan.js"></script>
 <script src="js/badge-core.js"></script>
+<script src="js/badge-card.js"></script>
 <script src="js/badges.js"></script>
 <script>
 // ── Config ─────────────────────────────────────────────────────────────────
