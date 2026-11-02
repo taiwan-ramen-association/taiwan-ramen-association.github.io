@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /lab/
+Disallow: /files/2026summer-winners.pdf
 
 Sitemap: https://www.taiwanramen.org/sitemap.xml
