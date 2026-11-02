@@ -24,4 +24,4 @@ Firebase（Firestore、Auth、Storage、FCM）、Leaflet.js、Vanilla JS
 - 排隊回報
 
 ## 開發中
-- 挑戰任務系統（2026-05 完成 v1，目前 admin-only 測試中，詳見 MANUAL「§十」）
+- 挑戰任務系統（2026-05 上線，2026-07 圖鑑式改版；`challengesNav` 已開放所有人，持續開發中，詳見 MANUAL「§十」）
