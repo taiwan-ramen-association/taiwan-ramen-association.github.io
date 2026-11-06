@@ -141,7 +141,8 @@ function _bdgRenderAll() {
 }
 
 // ── 稱號、精選 ───────────────────────────────────────────────────────────────
-// badgeTitle＝'<badgeKey>:<級數>'（key 本身可能含冒號，例 ch:2026summer，所以從最後一個冒號切）
+// badgeTitle＝'<badgeKey>:<級數>'（key 本身可能含冒號，例 ch:2026summer，所以從最後一個冒號切）。
+// 級數＝會員掛的那一級，可以比目前低（拿過的每一級都能掛，見 _bdgSetTitleTier）；升級不會自動換
 function _bdgTitleOf() {
   const raw = String(_bdgUserData.badgeTitle || '');
   const i = raw.lastIndexOf(':');
@@ -181,12 +182,22 @@ function _bdgSheetBadge() {
   return (_bdgResult && _bdgResult.list.find(x => x.key === _bdgSheetKey)) || null;
 }
 
+// 詳細資訊下方的按鈕：這枚沒掛＝掛目前最高級；已經掛著（不論哪一級）＝取消
 function _bdgToggleTitle() {
   const b = _bdgSheetBadge();
   if (!b || b.tier < 1) return;
   const cur = _bdgTitleOf();
   if (cur && cur.b.key === b.key) _bdgSaveUser({ badgeTitle: '' }, '已取消稱號');
   else _bdgSaveUser({ badgeTitle: b.key + ':' + b.tier }, '稱號：' + badgeTitleText(b, b.tier, _bdgConfig));
+}
+
+// 級別表點已拿到的那一級：改掛那一級；點正在用的那一級＝取消
+function _bdgSetTitleTier(t) {
+  const b = _bdgSheetBadge();
+  if (!b || !(t >= 1 && t <= b.tier)) return;
+  const cur = _bdgTitleOf();
+  if (cur && cur.b.key === b.key && cur.tier === t) _bdgSaveUser({ badgeTitle: '' }, '已取消稱號');
+  else _bdgSaveUser({ badgeTitle: b.key + ':' + t }, '稱號：' + badgeTitleText(b, t, _bdgConfig));
 }
 
 function _bdgToggleFeatured() {
@@ -634,16 +645,22 @@ function _bdgDetailHtml(b) {
   if (b.kind === 'craft') notes.push('經協會確認');
   if (b.tier > 0) notes.push(`點數 +${b.points}` + (b.activity ? `（活動獎章 ×${cfg.activityMultiplier}）` : ''));
 
+  // 級別表：已拿到的級是按鈕，點了改掛那一級的稱號（_bdgSetTitleTier）；正在用的那一級標「使用中」
+  const cur = b.tier > 0 ? _bdgTitleOf() : null;
+  const titleTier = cur && cur.b.key === b.key ? cur.tier : 0;   // 這枚掛著第幾級；0＝沒掛這枚
   const ladder = maxTier > 1 ? `<div class="bdg-ladder">${b.thresholds.map((th, i) => {
-    const t = i + 1, name = (b.tierNames || [])[i];
-    return `<div class="bdg-ladder-row${b.tier >= t ? ' got' : ''}"><span>${_bdgTierTag(t)}</span>` +
-      `<span>${th}${escapeHtml(u)}${name ? `｜「${escapeHtml(name)}」` : ''}</span><span>${b.tier >= t ? '✓' : ''}</span></div>`;
-  }).join('')}</div>` : '';
+    const t = i + 1, name = (b.tierNames || [])[i], got = b.tier >= t, on = t === titleTier;
+    const cells = `<span>${_bdgTierTag(t)}</span>` +
+      `<span>${th}${escapeHtml(u)}${name ? `｜「${escapeHtml(name)}」` : ''}</span><span>${on ? '使用中' : got ? '✓' : ''}</span>`;
+    return got
+      ? `<button type="button" class="bdg-ladder-row got${on ? ' on' : ''}" data-act="title-tier" data-tier="${t}">${cells}</button>`
+      : `<div class="bdg-ladder-row">${cells}</div>`;
+  }).join('')}</div>` +
+    (b.tier >= 2 ? '<div class="bdg-ladder-hint">點已拿到的級別，可以改掛那一級的稱號</div>' : '') : '';
 
   let actions = '';
   if (b.tier > 0) {
-    const cur = _bdgTitleOf();
-    const isTitle = !!(cur && cur.b.key === b.key);
+    const isTitle = titleTier > 0;
     const inFeat = _bdgFeatured().items.some(x => x.key === b.key);
     actions = `<div class="bdg-sheet-actions">` +
       `<button type="button" class="bdg-btn${isTitle ? ' on' : ''}" data-act="title">${isTitle ? '取消稱號' : '設為稱號'}</button>` +
@@ -685,6 +702,7 @@ function _bdgOnPanelClick(e) {
       case 'missed':      _bdgMissedOpen = !_bdgMissedOpen; _bdgRenderPanel(); break;
       case 'feat-reset':  _bdgSaveUser({ badgeFeatured: [] }, '已恢復自動挑選'); break;
       case 'title':       _bdgToggleTitle(); break;
+      case 'title-tier':  _bdgSetTitleTier(parseInt(act.dataset.tier, 10)); break;
       case 'feat':        _bdgToggleFeatured(); break;
       case 'share':       _bdgOpenShare('panel'); break;
     }

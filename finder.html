@@ -2014,6 +2014,11 @@
   .bdg-ladder-row.got { color: var(--ink); }
   .bdg-ladder-row > span:nth-child(1) { width: 36px; flex-shrink: 0; }
   .bdg-ladder-row > span:nth-child(2) { flex: 1; }
+  /* 已拿到的級是按鈕（點了改掛那一級的稱號）；正在用的那一級底色淡紅、標「使用中」 */
+  button.bdg-ladder-row { width: 100%; box-sizing: border-box; margin: 0; background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; font-family: inherit; line-height: inherit; text-align: left; cursor: pointer; }
+  .bdg-ladder-row.on { background: rgba(176, 58, 46, 0.08); }
+  .bdg-ladder-row.on > span:nth-child(3) { color: var(--red); font-weight: 700; }
+  .bdg-ladder-hint { margin-top: 6px; font-size: 11.5px; color: var(--stone); }
   .bdg-sheet-actions { margin-top: 18px; display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
   .bdg-btn { padding: 8px 18px; border-radius: 999px; border: 1px solid #e8c9c2; background: #fff5f3; color: #b03a2e; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
   .bdg-btn.on { background: var(--red); border-color: var(--red); color: #fff; }
