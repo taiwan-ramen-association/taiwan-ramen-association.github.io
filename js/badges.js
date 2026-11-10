@@ -383,7 +383,7 @@ function _bdgClosePopup() {
 
 // 視窗上那一行：這一級是怎麼拿到的
 const BDG_EARN_TEXT = {
-  stamps:    n => `踩點 ${n} 間`,
+  stamps:    (n, b) => `踩點 ${n} ${b.unit || '間'}`,   // 單位同詳細資訊，用設定的 unit（例：時代的見證「家歇業店」）
   cities:    n => `足跡 ${n} 個縣市`,
   events:    n => `參加 ${n} 檔活動`,
   menus:     n => `上傳 ${n} 張菜單`,
@@ -396,7 +396,7 @@ function _bdgEarnLine(b) {
   if (b.kind === 'craft') return '經協會確認';
   if (b.kind === 'event') return b.thresholds.length > 1 ? `完成 ${th} ${b.unit}` : '活動參加獎章';
   const f = BDG_EARN_TEXT[b.source];
-  return f ? f(th) : `達成 ${th} ${b.unit || ''}`;
+  return f ? f(th, b) : `達成 ${th} ${b.unit || ''}`;
 }
 
 // 稀有度高的排前面，同級時活動優先（同精選）

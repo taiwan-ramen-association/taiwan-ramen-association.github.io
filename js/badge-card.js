@@ -175,6 +175,18 @@ function _bcWrap(ctx, text, maxW, maxLines) {
   return lines;
 }
 
+// 折行＋縮字：maxLines 行內放得下就用原字級；放不下每次縮 2px，最小 min，到最小還放不下才讓 _bcWrap 加刪節號
+// 回傳 { size, lines }（ctx.font 已設成 size）
+function _bcFitLines(ctx, text, maxW, maxLines, weight, family, size, min) {
+  const flat = s => String(s || '').replace(/\s+/g, '');
+  const want = flat(text);
+  for (let s = size; ; s = Math.max(min, s - 2)) {
+    ctx.font = _bcFont(weight, s, family);
+    const lines = _bcWrap(ctx, text, maxW, maxLines);
+    if (s <= min || flat(lines.join('')) === want) return { size: s, lines };
+  }
+}
+
 // 圓章：外框依級數（同 .bdg-coin），中間放圖（活動封面／店徽）、店名文字或 emoji
 function _bcCoin(ctx, b, img, cx, cy, d, th) {
   const r = d / 2, t = Math.max(1, Math.min(5, b.tier | 0));
@@ -382,11 +394,15 @@ async function badgeCardRender(data, themeId) {
         _bcCoin(ctx, b, imgs[k], cx, cy, D, th);
         ctx.font = _bcFont(700, NAME_FS, _BC_SANS); ctx.fillStyle = th.text;
         let ly = cy + D / 2 + 14 + NAME_LH / 2;
-        _bcWrap(ctx, b.name, colW - 28, 2).forEach(ln => { ctx.fillText(ln, cx, ly); ly += NAME_LH; });
+        const nameLines = _bcWrap(ctx, b.name, colW - 28, 2);
+        nameLines.forEach(ln => { ctx.fillText(ln, cx, ly); ly += NAME_LH; });
         if (b.tierLabel) {
-          ctx.font = _bcFont(700, TIER_FS, _BC_SANS);
+          // 級名（梗名可能很長，例：一心二聖三多四維五福六合七賢八德九如十全）：獎章名只佔一行時，
+          // 可以用下面空著的那一行折成兩行；還放不下再縮小字（最小 20px），最後才加刪節號
+          const { lines } = _bcFitLines(ctx, b.tierLabel, colW - 28, nameLines.length < 2 ? 2 : 1, 700, _BC_SANS, TIER_FS, 20);
           ctx.fillStyle = (th.dark ? _BC_TIER_DARK : _BC_TIER_LIGHT)[Math.min(5, Math.max(1, b.tier | 0))];
-          ctx.fillText(b.tierLabel, cx, ly - NAME_LH / 2 + TIER_LH / 2);
+          let ty = ly - NAME_LH / 2 + TIER_LH / 2;
+          lines.forEach(ln => { ctx.fillText(ln, cx, ty); ty += TIER_LH; });
         }
       }
     });
