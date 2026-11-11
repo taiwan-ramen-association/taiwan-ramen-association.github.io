@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- ▼ 測試站專用（上線時刪掉這一段）：不讓搜尋引擎收錄。GA4 測試站不載，上線時照正式版加回 -->
+  <meta name="robots" content="noindex, nofollow">
+  <!-- ▲ 測試站專用 -->
+  <title>其他 | 台灣拉麵協會</title>
+  <link rel="canonical" href="https://www.taiwanramen.org/other.html">
+  <meta property="og:site_name" content="台灣拉麵協會">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/site.css">
+  <style>
+    .page-main { max-width: 1120px; }
+    .other-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .other-card { position: relative; display: block; padding: 28px 24px 56px; background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); transition: border-color .15s; }
+    @media (hover: hover) { .other-card:hover { border-color: var(--ink); } }
+    .other-card-tag { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+    .other-card-title { font-family: var(--serif); font-size: 20px; font-weight: 900; letter-spacing: .03em; margin-bottom: 8px; }
+    .other-card-desc { font-size: 14px; line-height: 1.9; color: var(--muted); }
+    .other-card .icon { position: absolute; right: 24px; bottom: 24px; color: var(--accent-text); }
+  </style>
+  <script src="assets/js/site-header.js" defer></script>
+  <script src="assets/js/icon-motion.js" defer></script>
+</head>
+<body>
+<!-- 頁首：這裡是靜態備援（logo＋電腦版找拉麵）。完整選單由 assets/js/site-header.js 換上，要改選單請改那支檔案 -->
+<header class="site-header" data-site-header>
+  <a href="./" class="logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
+  <div class="header-right"><a href="/finder.html" class="btn btn-primary btn-sm">找拉麵</a></div>
+</header>
+
+<div class="page-body">
+  <main class="page-main">
+    <h1 class="page-title">其他</h1>
+    <div class="other-grid">
+      <!-- 聊天卡牌：cards.html 不在這次改版範圍，連正式頁 -->
+      <a class="other-card" href="/cards.html" target="_blank" rel="noopener">
+        <p class="other-card-tag">互動遊戲</p>
+        <h2 class="other-card-title">聊天卡牌</h2>
+        <p class="other-card-desc">破冰對話卡牌遊戲。<br>四種難度、100 張題目，<br>適合 2–5 人聚會使用。</p>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="arrow-right"><g><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></g></svg>
+      </a>
+    </div>
+  </main>
+</div>
+
+<!-- 頁尾：由 assets/js/site-header.js 產生 -->
+<div data-site-footer></div>
+</body>
+</html>

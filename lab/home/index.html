@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- ▼ 測試站專用（上線時刪掉這一段）：不讓搜尋引擎收錄。GA4、AdSense 測試站不載，上線時照正式版加回 -->
+  <meta name="robots" content="noindex, nofollow">
+  <!-- ▲ 測試站專用 -->
+  <title>台灣拉麵協會 | Taiwan Ramen Association</title>
+  <link rel="canonical" href="https://www.taiwanramen.org/">
+  <meta property="og:site_name" content="台灣拉麵協會">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="台灣拉麵協會 | Taiwan Ramen Association">
+  <meta property="og:description" content="台灣拉麵協會於 2025 年 8 月正式成立，凝聚台灣對拉麵文化的熱愛，推動店家交流、國際串連與拉麵文化推廣。">
+  <meta property="og:url" content="https://www.taiwanramen.org/">
+  <meta property="og:image" content="https://www.taiwanramen.org/assets/icons/06.jpeg">
+  <!-- 告訴 Google 網站名稱，否則會沿用 github.io 時期推測的「GitHub」；logo 用黑色直式 01.png（白底上完整） -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://www.taiwanramen.org/#website",
+        "url": "https://www.taiwanramen.org/",
+        "name": "台灣拉麵協會",
+        "alternateName": "Taiwan Ramen Association",
+        "inLanguage": "zh-TW",
+        "publisher": { "@id": "https://www.taiwanramen.org/#organization" }
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://www.taiwanramen.org/#organization",
+        "name": "台灣拉麵協會",
+        "alternateName": "Taiwan Ramen Association",
+        "url": "https://www.taiwanramen.org/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://www.taiwanramen.org/assets/icons/01.png"
+        },
+        "foundingDate": "2025-08-09",
+        "email": "taiwan.ramen.association@gmail.com",
+        "address": {
+          "@type": "PostalAddress",
+          "addressCountry": "TW",
+          "addressLocality": "臺中市北屯區",
+          "streetAddress": "太順路286號4樓之6"
+        },
+        "sameAs": [
+          "https://www.instagram.com/twramen.assoc/",
+          "https://www.threads.com/@twramen.assoc",
+          "https://facebook.com/taiwanramenassociation"
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/site.css">
+  <style>
+    /* ── 首頁專用（共用的按鈕、頁首、頁尾在 site.css） ── */
+    .sec { padding: 40px 20px; }
+    .band { background: var(--band); }
+    .sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+    .sec-title { font-family: var(--serif); font-weight: 900; font-size: 24px; line-height: 1.35; letter-spacing: .03em; }
+    .link-more { flex: none; color: var(--accent-text); font-size: 14px; font-weight: 500; white-space: nowrap;
+      text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 4px; transition: text-decoration-color .15s; }
+    @media (hover: hover) { .link-more:hover { text-decoration-color: currentColor; } }
+
+    /* 橫向滑動列（手機）→ 格線（電腦） */
+    /* scroll-padding 要跟左右 padding 一樣：沒有它，吸附點會對齊捲動區邊緣，載入時第一張卡就被捲到貼齊螢幕左緣 */
+    .shelf { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 20px; margin: 0 -20px; padding: 2px 20px 6px; scrollbar-width: none; }
+    .shelf::-webkit-scrollbar { display: none; }
+    .shelf > * { flex: 0 0 62%; scroll-snap-align: start; }
+
+    /* ① 找拉麵 */
+    .hero { position: relative; padding: 32px 20px 36px; overflow: hidden; border-bottom: 1px solid var(--line); }
+    .hero-mark { position: absolute; right: -36px; top: 8px; width: 200px; height: 200px; color: var(--accent-text); opacity: .07; stroke-width: 1.2; pointer-events: none; }
+    .hero-inner { position: relative; max-width: 640px; }
+    .hero h1 { font-family: var(--serif); font-weight: 900; font-size: 34px; line-height: 1.3; letter-spacing: .04em; }
+    .hero-sub { margin-top: 10px; font-size: 15px; line-height: 1.8; color: var(--muted); }
+    .search { display: flex; align-items: center; gap: 8px; margin-top: 22px; padding: 0 6px 0 14px; height: 54px;
+      background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius); box-shadow: 0 2px 10px rgba(0,0,0,.04); }
+    .search:focus-within { border-color: var(--ink); }
+    .search > .icon { color: var(--muted); }
+    .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: 400 16px var(--sans); color: var(--ink); }
+    .search input::-webkit-search-cancel-button { display: none; }
+    .search .btn { height: 40px; padding: 0 16px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .chip { display: inline-flex; align-items: center; height: 34px; padding: 0 14px; border-radius: 999px; background: var(--surface);
+      border: 1px solid var(--line); font-size: 13px; color: var(--ink); transition: border-color .15s, color .15s; }
+    .chip::before { content: '#'; color: var(--stone); margin-right: 2px; }
+    @media (hover: hover) { .chip:hover { border-color: var(--accent-text); color: var(--accent-text); } }
+    .hero-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 18px; min-height: 23px; font-size: 13px; color: var(--muted); }
+    .hero-stats[data-state="wait"] { visibility: hidden; }
+    .hero-stats b { color: var(--ink); font-weight: 700; font-size: 15px; margin: 0 2px; }
+    .hero-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+    .hero-aside { display: none; }
+
+    /* 圖片卡（精選、懶人包共用） */
+    .tile { position: relative; display: block; border-radius: var(--radius); overflow: hidden; aspect-ratio: 4 / 3; background: var(--line); }
+    .tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .tile.has-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,.72) 100%); }
+    .tile-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 12px 14px; color: var(--ink); }
+    .tile.has-img .tile-body { color: var(--white); }
+    .tile-body h3 { font-family: var(--serif); font-weight: 700; font-size: 17px; line-height: 1.35; }
+    .tile-body p { font-size: 12px; opacity: .9; margin-top: 2px; }
+    .tile-pill { position: absolute; top: 10px; left: 10px; z-index: 1; height: 24px; display: inline-flex; align-items: center; padding: 0 9px;
+      border-radius: 6px; background: var(--white); color: var(--accent-text); font-size: 12px; font-weight: 700; }
+    .tile.is-wait { background: var(--band); }
+
+    /* ② 最新動態 */
+    .follow-row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+    /* ③ 新開幕與即將開幕 */
+    .shop-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); min-height: 168px; transition: border-color .15s; }
+    @media (hover: hover) { a.shop-card:hover { border-color: var(--ink); } }
+    .shop-card.is-wait { background: var(--band); border-color: var(--band); }
+    .open-chip { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 6px;
+      background: var(--accent-soft); color: var(--accent-text); font-size: 12px; font-weight: 700; }
+    .open-chip.upcoming { background: var(--prep-bg); color: var(--prep-txt); }
+    .open-chip .icon { width: 13px; height: 13px; }
+    .shop-name { font-size: 15px; font-weight: 700; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .shop-loc { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--muted); }
+    .shop-loc .icon { width: 14px; height: 14px; }
+    .shop-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+    .shop-note { font-size: 12px; color: var(--muted); }
+    .shop-more { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--accent-text);
+      font-weight: 700; font-size: 14px; background: var(--accent-soft); border: 1px dashed var(--accent-text); border-radius: var(--radius);
+      min-height: 168px; text-align: center; padding: 14px; }
+    .shop-more .icon { width: 28px; height: 28px; }
+
+    /* ④ 主題懶人包 */
+    .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .tiles .tile:first-child { grid-column: 1 / -1; aspect-ratio: 16 / 9; }
+
+    /* ⑤ 協會公告 */
+    .notice-list { list-style: none; border-top: 1px solid var(--line); }
+    .notice-list a, .notice-list .notice-row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .notice-date { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .notice-title { font-size: 14px; line-height: 1.6; }
+    .notice-title .tag { margin-right: 6px; height: 20px; font-size: 11px; }
+    .notice-list .icon { color: var(--stone); width: 16px; height: 16px; }
+    .notice-msg { padding: 14px 0; font-size: 14px; color: var(--muted); border-bottom: 1px solid var(--line); }
+
+    /* ⑥ 關於協會、合作夥伴 */
+    .about { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; }
+    .about-text { font-size: 15px; line-height: 1.9; color: var(--muted); margin-top: 12px; }
+    .about-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .partner-strip { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; margin: 14px -20px 12px; padding: 8px 20px 6px; min-height: 98px; }
+    .partner-strip::-webkit-scrollbar { display: none; }
+    .partner { position: relative; flex: 0 0 84px; height: 84px; display: flex; align-items: center; justify-content: center; padding: 10px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .partner img { max-height: 58px; width: auto; object-fit: contain; }
+    .partner.member { border-color: var(--accent); }
+    .partner.member::after { content: '會員'; position: absolute; top: -8px; right: -4px; font-size: 10px; font-weight: 700; color: var(--on-accent);
+      background: var(--accent); border-radius: 4px; padding: 1px 5px; }
+
+    @media (min-width: 760px) {
+      .sec, .hero { padding-left: max(40px, calc((100% - 1120px) / 2)); padding-right: max(40px, calc((100% - 1120px) / 2)); }
+      .sec { padding-top: 64px; padding-bottom: 64px; }
+      .sec-title { font-size: 30px; }
+      .hero { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 56px; align-items: center; padding-top: 72px; padding-bottom: 64px; }
+      .hero.no-aside { grid-template-columns: minmax(0, 1fr); }
+      .hero h1 { font-size: 48px; }
+      .hero-mark { display: none; }
+      .hero-actions { display: flex; }
+      .hero-aside { display: block; }
+      .hero.no-aside .hero-aside { display: none; }
+      .hero-aside .tile { aspect-ratio: 4 / 5; }
+      .shelf { display: grid; overflow: visible; margin: 0; padding: 0; }
+      .shelf > * { flex: none; }
+      .shop-shelf { grid-template-columns: repeat(4, 1fr); gap: 14px; }
+      .tiles { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+      .tiles .tile, .tiles .tile:first-child { grid-column: auto; aspect-ratio: 16 / 9; }
+      .tiles .is-featured { display: none; }
+      #collections.only-featured { display: none; } /* 沒有懶人包、只有精選：電腦版精選已在主視覺右側 */
+      .about { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 48px; align-items: start; }
+      .partner-strip { flex-wrap: wrap; overflow: visible; margin: 14px 0 12px; padding: 8px 0 0; }
+    }
+  </style>
+  <script src="assets/js/site-header.js" defer></script>
+  <script src="assets/js/icon-motion.js" defer></script>
+  <script src="assets/js/home.js" defer></script>
+</head>
+<body>
+<!-- 靜態圖示（不會動的）。形狀：PulsoIcon（ISC，源自 Lucide），授權全文見 assets/icons/LICENSE.txt -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-noodles" viewBox="0 0 24 24"><path d="M4 13a1 1 0 0 0-.99 1.133A8 8 0 0 0 12 21a8 8 0 0 0 8.99-6.867A1 1 0 0 0 20 13z"/><path d="m11 6 11-3"/><path d="m11 9 11-2"/><path d="M9 13c0-1.5-1-2-1-3.5S9 7 9 6"/><path d="M12.5 13c0-1.5-1-2-1-3.5s.5-2 .5-2.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></symbol>
+  <symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></symbol>
+</svg>
+
+<!-- 頁首：這裡是靜態備援（logo＋電腦版找拉麵）。完整選單由 assets/js/site-header.js 換上，要改選單請改那支檔案 -->
+<header class="site-header" data-site-header>
+  <a href="./" class="logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
+  <div class="header-right"><a href="/finder.html" class="btn btn-primary btn-sm">找拉麵</a></div>
+</header>
+
+<main class="page-body">
+
+  <!-- ① 找拉麵 -->
+  <section class="hero" id="hero" data-ev="home_hero_click">
+    <svg class="icon hero-mark" aria-hidden="true"><use href="#i-noodles"/></svg>
+    <div class="hero-inner">
+      <h1>今天，吃哪一碗？</h1>
+      <p class="hero-sub">全台營業中的拉麵店，依地區、派系、營業時間找。</p>
+      <!-- 沒有 JS 也能用：直接送出到 finder.html?q=… -->
+      <form class="search" id="heroSearch" action="/finder.html" method="get" role="search">
+        <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+        <input type="search" name="q" placeholder="搜尋店名、地區、派系…" aria-label="搜尋拉麵店" enterkeyhint="search" autocomplete="off">
+        <button type="submit" class="btn btn-primary">搜尋</button>
+      </form>
+      <!-- 快捷標籤：店家資料載入後，派系換成店數前四名、縣市換成店數前三名 -->
+      <div class="chips" id="heroChips">
+        <a class="chip" href="/finder.html?q=豚骨">豚骨</a><a class="chip" href="/finder.html?q=雞白湯">雞白湯</a><a class="chip" href="/finder.html?q=雞清湯">雞清湯</a><a class="chip" href="/finder.html?q=魚介">魚介</a><a class="chip" href="/finder.html?q=新開幕">新開幕</a><a class="chip" href="/finder.html?q=臺北市">臺北市</a><a class="chip" href="/finder.html?q=臺中市">臺中市</a><a class="chip" href="/finder.html?q=新北市">新北市</a>
+      </div>
+      <p class="hero-stats" id="heroStats" data-state="wait"><span><b data-stat="active">0</b>間營業中</span><span><b data-stat="cities">0</b>個縣市</span><span>近 3 個月新開<b data-stat="new">0</b>間</span></p>
+      <div class="hero-actions">
+        <a href="/finder.html" class="btn btn-primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="search"><g><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></g></svg>打開拉麵搜尋器</a>
+        <a href="/finder.html?page=challenges" class="btn btn-secondary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="flag"><g><path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/></g></svg>挑戰任務</a>
+      </div>
+    </div>
+    <!-- 電腦版右側：後台「首頁精選」（meta/homeFeatured）。沒設精選就收成單欄 -->
+    <div class="hero-aside" id="heroAside"><div class="tile is-wait" aria-hidden="true"></div></div>
+  </section>
+
+  <!-- ② 最新動態：IG 自動同步接好之前，先只放追蹤按鈕 -->
+  <section class="sec" id="posts" data-ev="home_posts_click">
+    <div class="sec-head"><h2 class="sec-title">最新動態</h2></div>
+    <div class="follow-row">
+      <a href="https://www.instagram.com/twramen.assoc/" target="_blank" rel="noopener" class="btn btn-secondary btn-sm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="brand-instagram"><g><rect x="2" y="2" width="20" height="20" rx="5"/></g><g><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/></g><g><path d="M17.5 6.5h.01"/></g></svg>追蹤 IG</a>
+      <a href="https://facebook.com/taiwanramenassociation" target="_blank" rel="noopener" class="btn btn-secondary btn-sm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="brand-facebook"><g><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></g></svg>追蹤粉專</a>
+      <a href="https://www.threads.com/@twramen.assoc" target="_blank" rel="noopener" class="btn btn-secondary btn-sm"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="brand-threads"><g><path d="M17.5 7C16.3 5 14.4 4 12 4 7.6 4 5 7.5 5 12s2.6 8 7 8c3.6 0 6.5-2.3 6.5-5.5 0-2.8-2-4.5-5-4.5-2.2 0-3.8 1-3.8 2.6 0 1.4 1.1 2.4 2.6 2.4 2.4 0 3.5-2 3.4-5.5"/></g></svg>追蹤 Threads</a>
+    </div>
+  </section>
+
+  <!-- ③ 新開幕與即將開幕：data.json 現算（新開幕＝近 3 個月，和 finder 同一個定義） -->
+  <section class="sec" id="newopen" data-ev="home_newopen_click">
+    <div class="sec-head"><h2 class="sec-title">新開幕與即將開幕</h2><a class="link-more" id="newopenAll" href="/finder.html?q=新開幕">看全部</a></div>
+    <div class="shelf shop-shelf" id="newopenList" aria-busy="true">
+      <div class="shop-card is-wait" aria-hidden="true"></div><div class="shop-card is-wait" aria-hidden="true"></div><div class="shop-card is-wait" aria-hidden="true"></div><div class="shop-card is-wait" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <!-- ④ 主題懶人包：後台 meta/homeCollections（只放顯示中的）；手機版另放首頁精選 -->
+  <section class="sec band" id="collections" data-ev="home_collections_click" hidden>
+    <div class="sec-head"><h2 class="sec-title">主題懶人包</h2></div>
+    <div class="tiles" id="collectionTiles"></div>
+  </section>
+
+  <!-- ⑤ 協會公告：news.json 最新 3 則（填了 homeUntil 且已過期的跳過） -->
+  <section class="sec" id="notice" data-ev="home_notice_click">
+    <div class="sec-head"><h2 class="sec-title">協會公告</h2><a class="link-more" href="news.html">全部公告</a></div>
+    <ul class="notice-list" id="noticeList"><li class="notice-msg">載入中…</li></ul>
+  </section>
+
+  <!-- ⑥ 關於協會、合作夥伴 -->
+  <section class="sec band" id="about" data-ev="home_about_click">
+    <div class="about">
+      <div>
+        <h2 class="sec-title">關於協會</h2>
+        <p class="about-text">台灣拉麵協會於 2025 年 8 月成立，2026 年 7 月完成社團法人登記。我們整理全台拉麵店資料、舉辦店家聯名與檔期活動，連結愛好者、店家與職人。</p>
+        <div class="about-actions">
+          <a href="membership.html" class="btn btn-primary">加入會員</a>
+          <a href="about.html" class="btn btn-secondary">認識協會</a>
+        </div>
+      </div>
+      <div>
+        <h2 class="sec-title">合作夥伴</h2>
+        <div class="partner-strip" id="partnerStrip"></div>
+        <a class="link-more" href="partners.html">查看全部合作夥伴</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- 頁尾：由 assets/js/site-header.js 產生 -->
+<div data-site-footer></div>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- ▼ 測試站專用（上線時刪掉這一段）：不讓搜尋引擎收錄。GA4、AdSense 測試站不載，上線時照正式版加回 -->
+  <meta name="robots" content="noindex, nofollow">
+  <!-- ▲ 測試站專用 -->
+  <title>最新消息 | 台灣拉麵協會</title>
+  <link rel="canonical" href="https://www.taiwanramen.org/news.html">
+  <meta property="og:site_name" content="台灣拉麵協會">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/site.css">
+  <style>
+    .page-main { max-width: 800px; }
+    .news-list { list-style: none; border-top: 1px solid var(--line); }
+    .news-item { display: grid; grid-template-columns: 170px 1fr auto; gap: 8px 20px; align-items: center; padding: 20px 0; border-bottom: 1px solid var(--line); }
+    .news-meta { display: flex; align-items: center; gap: 10px; }
+    .news-date { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .news-title { font-size: 15px; line-height: 1.6; transition: color .15s; }
+    .news-item .icon { color: var(--stone); width: 16px; height: 16px; }
+    @media (hover: hover) { a.news-item:hover .news-title { color: var(--accent-text); } }
+    @media (max-width: 600px) {
+      .news-item { grid-template-columns: 1fr auto; padding: 16px 0; }
+      .news-meta { grid-column: 1; }
+      .news-title { grid-column: 1; }
+      .news-item .icon { grid-column: 2; grid-row: 1 / span 2; }
+    }
+  </style>
+  <script src="assets/js/site-header.js" defer></script>
+  <script src="assets/js/icon-motion.js" defer></script>
+</head>
+<body>
+<!-- 頁首：這裡是靜態備援（logo＋電腦版找拉麵）。完整選單由 assets/js/site-header.js 換上，要改選單請改那支檔案 -->
+<header class="site-header" data-site-header>
+  <a href="./" class="logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
+  <div class="header-right"><a href="/finder.html" class="btn btn-primary btn-sm">找拉麵</a></div>
+</header>
+
+<div class="page-body">
+  <main class="page-main">
+    <h1 class="page-title">最新消息</h1>
+    <p class="status" id="status">載入中…</p>
+    <ul class="news-list" id="list" hidden></ul>
+  </main>
+</div>
+
+<!-- 頁尾：由 assets/js/site-header.js 產生 -->
+<div data-site-footer></div>
+
+<script>
+  // 列表右側箭頭：電腦滑鼠移入時動（icon-motion.js）；形狀 PulsoIcon（ISC），授權見 assets/icons/LICENSE.txt
+  var CHEVRON = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="chevron-right"><g><path d="m9 18 6-6-6-6"/></g></svg>';
+
+  fetch('/data/news.json?t=' + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      document.getElementById('status').remove();
+      var list = document.getElementById('list');
+      data.forEach(function (item) {
+        var li = document.createElement('li');
+        var row = document.createElement(item.url ? 'a' : 'div');
+        row.className = 'news-item';
+        if (item.url) { row.href = item.url; row.target = '_blank'; row.rel = 'noopener'; }
+        var meta = document.createElement('span');
+        meta.className = 'news-meta';
+        var date = document.createElement('span');
+        date.className = 'news-date';
+        date.textContent = item.date;
+        meta.appendChild(date);
+        if (item.tag) {
+          var tag = document.createElement('span');
+          tag.className = 'tag tag-accent';
+          tag.textContent = item.tag;
+          meta.appendChild(tag);
+        }
+        var title = document.createElement('span');
+        title.className = 'news-title';
+        title.textContent = item.title;
+        row.appendChild(meta);
+        row.appendChild(title);
+        if (item.url) row.insertAdjacentHTML('beforeend', CHEVRON);
+        li.appendChild(row);
+        list.appendChild(li);
+      });
+      list.hidden = false;
+    })
+    .catch(function () {
+      document.getElementById('status').textContent = '載入失敗，請稍後再試。';
+    });
+</script>
+</body>
+</html>

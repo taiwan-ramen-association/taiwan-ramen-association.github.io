@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <!-- GA4 測試站不載，上線時照正式版加回（下面的 page_not_found 事件要靠它） -->
+  <title>找不到頁面 | 台灣拉麵協會</title>
+  <meta property="og:site_name" content="台灣拉麵協會">
+  <!-- 404 會在任意深度的路徑被觸發（/a/b/c），所有資源與連結一律用絕對路徑，
+       用相對路徑會解析成 /a/b/assets/... 而全部載入失敗。
+       ▼ 測試站：路徑開頭是 /lab/home/，上線時全部改成 / -->
+  <link rel="icon" href="/lab/home/assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/lab/home/assets/css/site.css">
+  <style>
+    .page-main { padding-top: 72px; }
+    .lead { font-size: 15px; line-height: 2; color: var(--muted); margin-bottom: 8px; }
+    .path { font-size: 14px; color: var(--accent-text); word-break: break-all; }
+    .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 40px; }
+  </style>
+  <script src="/lab/home/assets/js/site-header.js" defer></script>
+  <script src="/lab/home/assets/js/icon-motion.js" defer></script>
+</head>
+<body>
+<!-- 頁首：這裡是靜態備援（logo＋電腦版找拉麵）。完整選單由 site-header.js 換上，要改選單請改那支檔案 -->
+<header class="site-header" data-site-header>
+  <a href="/lab/home/" class="logo" aria-label="台灣拉麵協會 首頁"><img src="/lab/home/assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
+  <div class="header-right"><a href="/finder.html" class="btn btn-primary btn-sm">找拉麵</a></div>
+</header>
+
+<div class="page-body">
+  <main class="page-main">
+    <h1 class="page-title">找不到這個頁面</h1>
+    <p class="lead">你要找的頁面不存在，可能是網址打錯了，或這個頁面已經搬走。</p>
+    <p class="lead path" id="badPath"></p>
+    <div class="links">
+      <a href="/lab/home/" class="btn btn-primary">回到首頁</a>
+      <a href="/finder.html" class="btn btn-secondary">找拉麵店</a>
+    </div>
+  </main>
+</div>
+
+<!-- 頁尾：由 site-header.js 產生 -->
+<div data-site-footer></div>
+
+<script>
+  // 顯示使用者實際打錯的網址（伺服器回 404 時不會改寫網址列）
+  document.getElementById('badPath').textContent = location.pathname + location.search;
+  // GA4：記錄撞到 404 的路徑，用來發現壞掉的外部連結
+  if (typeof gtag !== 'undefined') {
+    gtag('event', 'page_not_found', { bad_path: location.pathname + location.search });
+  }
+</script>
+</body>
+</html>

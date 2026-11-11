@@ -1,0 +1,117 @@
+/* ═══════════════════════════════════════════════════════════════════
+   site.css — 首頁與協會 9 頁共用的樣式（2026-11 改版）
+   ・頁首選單與頁尾的 HTML 由 assets/js/site-header.js 產生，樣式在這裡。
+   ・舊的 assets/css/style.css 不改：sw.js 會把它存在開過搜尋器的人的手機裡，
+     改了那些人會一直看到舊版；profile、scan、cards 三頁還在用它。
+   ・顏色一律用下面的名稱（各頁內嵌樣式也用 --red、--ink 這幾個舊名稱，所以都保留）。
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* 主色：紅底白字（11/11 定案）。--red 是舊名稱，和 --accent 同色 */
+  --accent: #C8272D; --accent-hover: #A01E23; --on-accent: #FFFFFF; --accent-text: #C8272D; --accent-soft: #F7EAEA;
+  --red: #C8272D;
+  --ink: #1A1A1A; --paper: #FAFAF8; --surface: #FFFFFF; --white: #FFFFFF;
+  --stone: #8B7355; --line: #E0DAD0; --muted: #6B6560; --band: #F3EFE8;
+  --prep-bg: #EDF3FF; --prep-txt: #3A5BBF;
+  --focus: #1A1A1A;
+  --footer-bg: #1A1A1A; --footer-ink: rgba(255,255,255,.72); --footer-head: #FFFFFF;
+  --footer-line: rgba(255,255,255,.12); --footer-dim: rgba(255,255,255,.5); --footer-ring: rgba(255,255,255,.22);
+  --radius: 12px; --radius-sm: 8px;
+  --sans: 'Noto Sans TC', sans-serif; --serif: 'Noto Serif TC', serif;
+  --header-h: 56px;
+}
+@media (min-width: 760px) { :root { --header-h: 64px; } }
+
+/* ── 基本 ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow-x: clip; scroll-behavior: smooth; }
+body { overflow-x: clip; font-family: var(--sans); font-weight: 400; line-height: 1.5; background: var(--paper); color: var(--ink); }
+a { color: inherit; text-decoration: none; }
+img { display: block; max-width: 100%; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.icon { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* 內容區至少一個畫面高，頁尾不會浮在短頁面的中間 */
+.page-body { min-height: calc(100vh - var(--header-h)); }
+
+/* ── 按鈕 ── */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px;
+  border-radius: var(--radius-sm); border: 1px solid transparent; font: 500 14px/1 var(--sans);
+  cursor: pointer; white-space: nowrap; transition: background-color .15s, border-color .15s, color .15s; }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.btn-sm { height: 36px; padding: 0 14px; font-size: 13px; }
+.tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px;
+  background: var(--paper); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.tag-accent { color: var(--accent-text); border-color: var(--accent-text); background: var(--surface); }
+
+/* 滑過的顏色只給滑鼠：手機點一下不會卡在滑過的顏色（iOS 的 sticky hover） */
+@media (hover: hover) {
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary:hover { border-color: var(--ink); }
+  .nav-links a:hover { color: var(--ink); }
+  .site-footer a:hover { color: var(--footer-head); }
+  .social a:hover { border-color: var(--footer-head); }
+}
+
+/* ── 頁首（9 頁＋首頁共用；靜態備援也用同一組 class） ── */
+.site-header { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  height: var(--header-h); padding: 0 12px 0 20px; background: rgba(250,250,248,.96); border-bottom: 1px solid var(--line); }
+.logo { display: block; flex: none; }
+.logo img { display: block; height: 32px; width: auto; }
+.nav-links { display: none; gap: 28px; font-size: 14px; color: var(--muted); }
+.nav-links a { padding: 6px 0; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
+.nav-links a[aria-current="page"] { color: var(--ink); font-weight: 500; border-bottom-color: var(--accent); }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.header-right .btn { display: none; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0; background: none;
+  color: var(--ink); border-radius: var(--radius-sm); cursor: pointer; }
+.icon-btn .icon { width: 22px; height: 22px; }
+/* 手機選單：掛在頁首下方（頁首是 sticky，捲到哪裡打開都看得到） */
+.m-menu { position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100vh - var(--header-h)); overflow-y: auto;
+  background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: 0 12px 24px rgba(0,0,0,.08); }
+.m-menu[hidden] { display: none; }
+.m-menu a { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 20px; border-top: 1px solid var(--line); font-size: 15px; }
+.m-menu a:first-child { border-top: 0; }
+.m-menu a .icon { color: var(--muted); }
+.m-menu a[aria-current="page"] { background: var(--accent-soft); font-weight: 500; }
+
+/* ── 頁尾 ── */
+.site-footer { background: var(--footer-bg); color: var(--footer-ink); padding: 40px 20px 28px; font-size: 14px; }
+.f-inner { max-width: 1120px; margin: 0 auto; }
+.f-grid { display: grid; gap: 28px; }
+.f-brand img { display: block; height: 40px; width: auto; }
+.social { display: flex; gap: 10px; margin-top: 16px; }
+.social a { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--footer-ring); color: var(--footer-head); transition: border-color .15s; }
+.f-col h2 { font-size: 13px; font-weight: 700; color: var(--footer-head); margin-bottom: 12px; }
+.f-col a, .f-col p { display: flex; align-items: flex-start; gap: 6px; padding: 5px 0; color: var(--footer-ink); line-height: 1.6; transition: color .15s; }
+.f-col a[aria-current="page"] { color: var(--footer-head); }
+.f-col .icon { width: 16px; height: 16px; margin-top: 3px; }
+.f-bottom { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--footer-line); font-size: 12px; color: var(--footer-dim); line-height: 1.8; }
+
+/* ── 協會各頁共用的內容版面 ── */
+.page-main { max-width: 860px; margin: 0 auto; padding: 40px 20px 56px; }
+.page-title { font-family: var(--serif); font-weight: 900; font-size: 32px; line-height: 1.3; letter-spacing: .04em; margin-bottom: 32px; }
+.page-intro { font-size: 15px; line-height: 2; color: var(--muted); max-width: 640px; }
+.status { font-size: 14px; color: var(--muted); padding: 40px 0; }
+
+@media (min-width: 760px) {
+  /* 寬螢幕內容最寬 1120px，左右留白一起變大（背景色仍然滿版） */
+  .site-header { padding: 0 max(40px, calc((100% - 1120px) / 2)); }
+  .logo img { height: 36px; }
+  .nav-links { display: flex; }
+  .header-right .btn { display: inline-flex; }
+  .header-right .icon-btn, .m-menu { display: none; }
+  .site-footer { padding: 56px 40px 32px; }
+  .f-grid { grid-template-columns: 1.4fr 1fr 1.4fr 1fr; gap: 40px; }
+  .page-main { padding: 72px 40px 80px; }
+  .page-title { font-size: 44px; margin-bottom: 44px; }
+}
+
+/* 系統開了「減少動態」：不平滑捲動、不做轉場（圖示動畫由 icon-motion.js 自己判斷不播） */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
