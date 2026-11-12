@@ -29,7 +29,12 @@ function formatDayStr(shop) {
 }
 
 function getFiltered() {
-  const query = document.getElementById('searchInput').value.trim().toLowerCase();
+  // 「台」「臺」不分（2026-11-11）：資料多寫「臺北市」，使用者常打「台北」→ 比對前兩邊都換成「臺」
+  //（下面的 hay、自動完成 updateAc 也一樣）。特殊關鍵字（新開幕、會員…）都不含「台」，不受影響
+  const query = document.getElementById('searchInput').value.trim().toLowerCase().replace(/台/g, '臺');
+  // 多個詞（空白分隔，含全形空白）：每個詞都要出現在店名＋地址＋派系＋類型＋醬底裡（2026-11-12）。
+  // 「台中 沾麵」原本整串比對＝0 間。特殊關鍵字（新開幕、new open…）照舊整串比對，不受影響
+  const terms = query.split(/\s+/);
 
   const nonActiveQuery = query === '非營業' || query === '非現存';
   const source = (showNonActive || nonActiveQuery) ? [...ALL_DATA, ...NON_ACTIVE_DATA] : ALL_DATA;
@@ -89,8 +94,8 @@ function getFiltered() {
       } else if (birthdayQuery) {
         if (!isThisMonth(shop)) return false;
       } else {
-        const hay = [shop['店名'],shop['地址'],shop['派系'],shop['類型'],shop['醬底']].join(' ').toLowerCase();
-        if (!hay.includes(query)) return false;
+        const hay = [shop['店名'],shop['地址'],shop['派系'],shop['類型'],shop['醬底']].join(' ').toLowerCase().replace(/台/g, '臺');
+        if (!terms.every(t => hay.includes(t))) return false;
       }
     }
     return true;
@@ -418,11 +423,11 @@ function toggleNowOpen() {
   }
 
   function updateAc() {
-    const q = inp.value.trim().toLowerCase();
+    const q = inp.value.trim().toLowerCase().replace(/台/g, '臺');   // 台／臺不分，同 getFiltered
     acActive = -1;
     if (q.length < 1 || typeof ALL_DATA === 'undefined' || !ALL_DATA.length) { ac.style.display = 'none'; return; }
     const matches = ALL_DATA.filter(s =>
-      (s['店名'] || '').toLowerCase().includes(q)
+      (s['店名'] || '').toLowerCase().replace(/台/g, '臺').includes(q)
     ).slice(0, 8);
     if (!matches.length) { ac.style.display = 'none'; return; }
     ac.innerHTML = matches.map(s => `

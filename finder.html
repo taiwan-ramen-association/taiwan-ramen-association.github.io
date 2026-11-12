@@ -33,6 +33,23 @@
   gtag('config', 'G-D5PB53XF7P');
 </script>
 <script>if(localStorage.getItem('darkMode')==='1')document.documentElement.classList.add('dark-early');</script>
+<script>
+// 深連結（3b，2026-11-11）：網址帶 shop／collection／q／page 參數時，先讓 html 加上 dl-wait，
+// 畫面一出來就是全畫面遮罩 #dlMask（不會先閃首頁）；參數放 window._dlParams。程式在本檔「深連結」段
+(function () {
+  try {
+    var p = new URLSearchParams(location.search);
+    var get = function (k) { return (p.get(k) || '').trim().slice(0, 60); };
+    // ?id= 是個人頁（js/profile.js）連過來的格式，當成 ?shop=（2026-11-12）
+    var d = { shop: get('shop') || get('id'), collection: get('collection'), q: get('q'), page: get('page') };
+    if (['finder', 'favorites', 'reviews', 'challenges'].indexOf(d.page) === -1) d.page = '';
+    if (d.shop || d.collection || d.q || d.page) {
+      window._dlParams = d;
+      document.documentElement.classList.add('dl-wait');
+    }
+  } catch (e) {}
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <link rel="icon" href="assets/icons/03.png">
 <link rel="manifest" href="manifest.json">
@@ -263,6 +280,25 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── LOADING / ERROR ── */
+  /* 深連結遮罩（3b，2026-11-11）：網址帶參數進來時蓋住全畫面跑進度條，樣式比照 domination.html 的載入進度。
+     z-index 在載入畫面（1400）之上、beta 門禁（1500）之下；提示（#stampToast 700）要等遮罩淡出才跳 */
+  #dlMask {
+    display: none; position: fixed; inset: 0; z-index: 1450;
+    align-items: center; justify-content: center; padding: 20px;
+    background: var(--paper); transition: opacity .3s ease;
+  }
+  html.dl-wait #dlMask { display: flex; }
+  #dlMask.dl-out { opacity: 0; pointer-events: none; }
+  /* 深色模式：body.dark 套上之前只有 html.dark-early，先在遮罩上放深色值（同 body.dark） */
+  html.dark-early #dlMask { --red: #e04848; --ink: #e8e2d8; --paper: #141210; --stone: #9a8d7e; --line: #2e2820; }
+  .dl-wrap  { width: 100%; max-width: 300px; text-align: center; }
+  .dl-icon  { font-size: 32px; margin-bottom: 10px; }
+  .dl-label { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 14px; }
+  .dl-text  { font-size: 13px; color: var(--stone); margin-bottom: 10px; min-height: 18px; }
+  .dl-track { width: 100%; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-bottom: 5px; }
+  .dl-fill  { height: 100%; width: 0%; background: var(--red); border-radius: 3px; transition: width .2s ease; }
+  .dl-pct   { font-size: 11px; color: var(--stone); }
+
   .loading-screen {
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -2314,6 +2350,27 @@
   </style>
 </head>
 <body class="reviews-hidden challenges-hidden">
+<!-- 深連結遮罩（3b）：只有網址帶參數時顯示（html.dl-wait，由 <head> 的小腳本決定）；進度與收起在本檔「深連結」段 -->
+<div id="dlMask">
+  <div class="dl-wrap" role="status" aria-live="polite">
+    <div class="dl-icon" aria-hidden="true">🍜</div>
+    <div class="dl-label" id="dlLabel">正在打開拉麵搜尋器…</div>
+    <div class="dl-text" id="dlText">載入中…</div>
+    <div class="dl-track" aria-hidden="true"><div class="dl-fill" id="dlFill"></div></div>
+    <div class="dl-pct" id="dlPct" aria-hidden="true">0%</div>
+  </div>
+</div>
+<script>
+// 標題依連結類型（page 已在 <head> 檢查過只會是這四個之一）
+(function () {
+  var d = window._dlParams, el = document.getElementById('dlLabel');
+  if (!d || !el) return;
+  el.textContent = d.shop ? '正在打開店家…'
+    : d.collection ? '正在打開懶人包…'
+    : d.q ? '正在搜尋「' + d.q + '」…'
+    : { finder: '正在打開搜尋頁…', favorites: '正在打開收藏…', reviews: '正在打開貼文…', challenges: '正在打開任務頁…' }[d.page];
+})();
+</script>
 
 <header>
   <h1>台灣拉麵協會－拉麵搜尋器</h1>
@@ -3073,6 +3130,9 @@ let showUnvisited    = false;
 // 主題懶人包：目前套用中的集合。null＝未套用；套用時為
 // { id, title, idSet:Set<shopId> }——用 Set 而非陣列，getFiltered 每筆都要查一次。
 let activeCollection = null;
+// loadHomeCollections() 的 Promise，給 ?collection= 深連結等懶人包資料（loadData 裡設定）。
+// 宣告放在這裡（loadData() 呼叫之前）：放到懶人包那段的話，那行 = null 會在 loadData 之後才執行、把 Promise 蓋掉
+var _homeCollReady = null;
 const BD_SKIP_KEY    = 'tw-ramen-bd-skip';
 
 function serverNow() { return new Date(Date.now() + serverTimeOffset); }
@@ -3119,7 +3179,7 @@ async function loadData() {
   loadQueueSettings();  // 非同步背景載入，不阻塞主流程
   loadHomeFeatured();   // 今日精選策展資料（meta/homeFeatured），背景載入
   loadHomeBanner();     // 首頁 banner 活動（meta/homeBanner），背景載入
-  loadHomeCollections();// 主題懶人包（meta/homeCollections），背景載入
+  _homeCollReady = loadHomeCollections();// 主題懶人包（meta/homeCollections），背景載入；Promise 留給 ?collection= 深連結
   loadHomeChallenge();  // active 挑戰（challenges，公開讀取），供首頁挑戰圖卡
   // loadFeatureFlags() 已在 auth.js 底部於頁面解析時立即觸發（_ffReady）
 
@@ -3202,6 +3262,8 @@ async function loadData() {
     _resolveDataLoaded();
   } catch(e) {
     console.error(e);
+    // 深連結：收起遮罩，露出下面的錯誤畫面；不放棄——按「重新載入」成功後照樣帶過去（2026-11-12）
+    if (typeof _dlCloseMask === 'function') _dlCloseMask();
     document.getElementById('loadingScreen').style.display = 'none';
     const mc1 = document.getElementById('mainContent');
     mc1.classList.remove('mc-show', 'page-active');
@@ -4526,17 +4588,136 @@ document.getElementById('bnavChallenges').addEventListener('click', () => {
   switchPage('challenges');
 });
 
-// 深連結：?page=challenges 直接打開任務頁（獎章圖卡的 QR code、海報、IG 貼文用）。
-// js/auth.js 確定身分、套完 featureFlags 後呼叫；只跑一次，之後登入狀態再變也不會又跳頁。
-// 等店家資料載完才切：任務頁圖鑑格要靠 findShopById 查店名
-let _deepLinkDone = false;
-function applyDeepLinkOnce() {
-  if (_deepLinkDone) return;
-  _deepLinkDone = true;
-  if (new URLSearchParams(location.search).get('page') !== 'challenges') return;
-  if (!canUse('challengesNav')) return;
-  _onDataLoaded(() => switchPage('challenges'));
+// ── 深連結（3b，2026-11-11）──────────────────────────────────────────────────
+// 網址參數：?shop=店家ID ／ ?collection=懶人包ID ／ ?q=關鍵字 ／ ?page=finder|favorites|reviews|challenges
+//   ?id=店家ID 當成 ?shop=（個人頁 js/profile.js 的評論店名、踩點卡、地圖「查看詳情」都是這個格式；2026-11-12）
+//   新首頁的店家卡、懶人包、搜尋框、熱門關鍵字都連這裡；任務圖卡 QR code 是 ?page=challenges&utm_source=badge_card。
+//   其他參數一律忽略；同時帶好幾個只用一個：shop ＞ collection ＞ q ＞ page。網址不改（不做切分頁改網址）。
+// 參數由 <head> 的小腳本解析好放在 window._dlParams（有參數才有），html 同時加上 dl-wait → 顯示全畫面遮罩 #dlMask。
+// 時機：只等 featureFlags（_ffReady）＋店家資料（_onDataLoaded）就套用，不等 js/auth.js 那串登入——
+//   登入流程任何一步失敗，深連結照樣會跑。要權限的分頁（收藏等）若當下權限不足，可能只是身分還沒確定，
+//   等 auth.js 的登入流程跑完（已登入、未登入、出錯三條路最後都會呼叫 applyDeepLinkOnce）再判斷一次。
+// 遮罩：套用完才收起 → 不會先閃首頁，使用者也點不到別的分頁（不搶操作）。超過 10 秒還沒好就先收起並提示，
+//   之後若使用者已自己切到別的分頁，就不再套用。進度條比照 domination.html：分段（功能開關 30%、店家資料 80%）
+//   ＋兩段之間慢慢往上爬，數字是估的。全部包 try/catch：出錯只會「沒跳過去」，不影響 loadData。
+// data.json 載入失敗：只收遮罩、露出錯誤畫面，不放棄——錯誤畫面的「重新載入」只重跑 loadData（不重開頁），
+//   成功後照樣帶過去（2026-11-12）。
+// 狀態一律用 var：loadData() 比這段先呼叫，失敗時會呼叫 _dlCloseMask()，用 let 會撞到 TDZ。
+var _dl            = window._dlParams || null;
+var _dlFinished    = false;   // 已套用或放棄
+var _dlMaskOpen    = !!_dl;
+var _dlAuthDone    = false;   // auth.js 的登入流程跑完了
+var _dlPendingPage = null;    // 權限不足、等登入結果再判斷一次的分頁
+var _dlProg = 0, _dlCap = 0, _dlCreep = null, _dlTimer = null;
+var _DL_TIMEOUT_MS = 10000;
+var _DL_PAGES = {             // 權限判斷同底部 nav 的按鈕（bnavFavorites／bnavPosts／bnavChallenges）
+  finder:     () => true,
+  favorites:  () => !!auth.currentUser && canUse('favorites'),
+  reviews:    () => canUse('postsNav'),
+  challenges: () => canUse('challengesNav'),
+};
+
+function _dlSetProgress(pct, text) {
+  _dlProg = Math.min(100, Math.max(_dlProg, pct));
+  const fill = document.getElementById('dlFill'), num = document.getElementById('dlPct');
+  if (fill) fill.style.width = _dlProg + '%';
+  if (num)  num.textContent = Math.round(_dlProg) + '%';
+  if (text) { const t = document.getElementById('dlText'); if (t) t.textContent = text; }
 }
+// 進到下一段：先跳到 pct，之後由 _dlCreep 慢慢往 cap 爬（不會超過 cap）
+function _dlStage(pct, cap, text) { _dlSetProgress(pct, text); _dlCap = Math.max(_dlCap, cap); }
+function _dlCloseMask() {
+  if (!_dlMaskOpen) return;
+  _dlMaskOpen = false;
+  clearInterval(_dlCreep);
+  clearTimeout(_dlTimer);
+  const m = document.getElementById('dlMask');
+  if (m) m.classList.add('dl-out');
+  setTimeout(() => {
+    document.documentElement.classList.remove('dl-wait');
+    if (m) m.classList.remove('dl-out');
+  }, 300);
+}
+// 提示的 z-index（700）在遮罩之下 → 等遮罩淡出（300ms）才跳
+function _dlToast(msg) { setTimeout(() => showStampToast(msg), 320); }
+function _dlFinish(msg) {
+  if (_dlFinished) return;
+  _dlFinished = true;
+  _dlSetProgress(100, '完成！');
+  _dlCloseMask();
+  if (msg) _dlToast(msg);
+}
+// _dlStart 出錯時呼叫：放棄深連結、收起遮罩（data.json 載入失敗不放棄，見本段開頭）
+function _dlAbort() { _dlFinished = true; _dlCloseMask(); }
+// 包一層：已結束就不跑；遮罩逾時收起後使用者已自己切到別的分頁 → 放棄；出錯 → 收起遮罩
+function _dlSafe(fn) {
+  return () => {
+    try {
+      if (_dlFinished) return;
+      if (!_dlMaskOpen && _currentPage !== 'home') { _dlFinished = true; return; }
+      fn();
+    } catch (e) { console.warn('[深連結]', e); _dlFinish(); }
+  };
+}
+function _dlApply() {
+  const d = _dl;
+  if (d.shop) {
+    const s = ALL_DATA.find(x => x['ID'] === d.shop);
+    if (s) { homeOpenShop(s); _dlFinish(); return; }   // 同搜尋器首頁點店家卡：店名填進搜尋框、切到搜尋頁
+    const n = NON_ACTIVE_DATA.find(x => x['ID'] === d.shop);
+    _dlFinish(!n ? '找不到這家店' : isUpcoming(n) ? '這家店還沒開幕' : '這家店目前沒有營業');
+    return;
+  }
+  if (d.collection) {
+    _dlStage(85, 95, '載入懶人包…');
+    Promise.resolve(_homeCollReady).catch(() => {}).then(_dlSafe(() => {
+      // 隱藏（visible:false）的不開：可能還是草稿；0 間的也不開（openCollection 會直接 return）
+      const c = (homeCollections || []).find(x => x && x.visible !== false && (x.id || x.title) === d.collection);
+      if (c && _collectionShops(c).length) { openCollection(d.collection); _dlFinish(); }
+      else _dlFinish('這個懶人包已經下架');
+    }));
+    return;
+  }
+  if (d.q) { _homeSearchTo(d.q); _dlFinish(); return; }   // 新開幕／會員／本月壽星等特殊字，搜尋框本來就認
+  _dlOpenPage(d.page);
+}
+function _dlOpenPage(pg) {
+  const can = Object.prototype.hasOwnProperty.call(_DL_PAGES, pg) ? _DL_PAGES[pg] : null;
+  if (!can) { _dlFinish(); return; }
+  if (can()) { switchPage(pg); _dlFinish(); return; }
+  if (!_dlAuthDone) { _dlPendingPage = pg; _dlStage(85, 95, '確認登入狀態…'); return; }
+  _dlFinish(auth.currentUser ? '此功能目前暫不開放' : '請先登入以使用此功能');   // 文字同 showAccessToast
+}
+// js/auth.js 的登入流程跑完時呼叫（已登入、未登入、出錯三條路都會）＝身分確定了。
+// 名字沿用舊版（以前深連結要等到這裡才套用）；現在只用來重試「等登入結果」的分頁。
+function applyDeepLinkOnce() {
+  _dlAuthDone = true;
+  if (!_dlPendingPage || _dlFinished) return;
+  const pg = _dlPendingPage;
+  _dlPendingPage = null;
+  _onDataLoaded(_dlSafe(() => _dlOpenPage(pg)));
+}
+function _dlStart() {
+  if (!_dl) return;
+  try {
+    _dlStage(10, 30, '載入功能設定…');
+    _dlCreep = setInterval(() => {
+      const inc = (_dlCap - _dlProg) * 0.04;
+      if (inc > 0.05) _dlSetProgress(_dlProg + inc);
+    }, 180);
+    _dlTimer = setTimeout(() => {
+      if (_dlFinished) return;
+      _dlCloseMask();
+      _dlToast('還在載入，好了會自動帶你過去');
+    }, _DL_TIMEOUT_MS);
+    Promise.resolve(_ffReady).catch(() => {}).then(() => {
+      if (_dlFinished) return;
+      _dlStage(30, 80, '載入店家資料…');
+      _onDataLoaded(_dlSafe(_dlApply));
+    });
+  } catch (e) { console.warn('[深連結]', e); _dlAbort(); }
+}
+_dlStart();
 
 document.getElementById('bnavHome').addEventListener('click', () => {
   switchPage('home');

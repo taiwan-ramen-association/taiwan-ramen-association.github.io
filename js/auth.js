@@ -448,6 +448,9 @@ auth.onAuthStateChanged(async user => {
     console.error('[auth] 處理失敗:', err.message, err.stack || '');
     loginBtn.style.display   = 'flex';
     userAvatar.style.display = 'none';
+    // 深連結（2026-11-11）：登入流程出錯也算「身分確定了」，等登入結果的分頁（收藏等）
+    // 不必等到 10 秒逾時；腳本可能還沒載完，所以等 _pageScriptsReady（見 finder.html「深連結」段）
+    _pageScriptsReady.then(() => { if (typeof applyDeepLinkOnce === 'function') applyDeepLinkOnce(); });
   }
 });
 
