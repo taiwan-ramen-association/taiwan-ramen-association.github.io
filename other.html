@@ -11,135 +11,52 @@
     gtag('config', 'G-D5PB53XF7P');
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="assets/icons/03.png">
   <title>其他 | 台灣拉麵協會</title>
   <link rel="canonical" href="https://www.taiwanramen.org/other.html">
   <meta property="og:site_name" content="台灣拉麵協會">
-  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/site.css">
   <style>
-    .other-hero {
-      padding: 80px 10vw 48px;
-      border-bottom: 1px solid var(--line);
-    }
-    .other-eyebrow {
-      font-size: 11px;
-      letter-spacing: 4px;
-      color: var(--muted);
-      margin-bottom: 12px;
-    }
-    .other-title {
-      font-family: 'Noto Serif TC', serif;
-      font-size: 32px;
-      font-weight: 900;
-      letter-spacing: 6px;
-      color: var(--ink);
-    }
-
-    .other-grid {
-      padding: 64px 10vw 100px;
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 24px;
-    }
-
-    .other-card {
-      display: block;
-      text-decoration: none;
-      border: 1.5px solid var(--line);
-      border-radius: 4px;
-      padding: 32px 28px;
-      background: var(--white);
-      transition: border-color .2s, box-shadow .2s, transform .2s;
-      position: relative;
-      overflow: hidden;
-    }
-    .other-card:hover {
-      border-color: var(--ink);
-      box-shadow: 0 4px 20px rgba(0,0,0,.08);
-      transform: translateY(-2px);
-    }
-    .other-card-tag {
-      font-size: 10px;
-      letter-spacing: 3px;
-      color: var(--muted);
-      margin-bottom: 14px;
-    }
-    .other-card-title {
-      font-family: 'Noto Serif TC', serif;
-      font-size: 20px;
-      font-weight: 900;
-      letter-spacing: 3px;
-      color: var(--ink);
-      margin-bottom: 10px;
-    }
-    .other-card-desc {
-      font-size: 13px;
-      line-height: 2;
-      letter-spacing: 1px;
-      color: var(--muted);
-    }
-    .other-card-arrow {
-      position: absolute;
-      bottom: 28px;
-      right: 28px;
-      font-size: 18px;
-      color: var(--line);
-      transition: color .2s, transform .2s;
-    }
-    .other-card:hover .other-card-arrow {
-      color: var(--ink);
-      transform: translate(3px, -3px);
-    }
-
-    .other-card-accent {
-      position: absolute;
-      top: 0; left: 0;
-      width: 3px;
-      height: 100%;
-      background: var(--ink);
-      opacity: 0;
-      transition: opacity .2s;
-    }
-    .other-card:hover .other-card-accent { opacity: 1; }
-
-    @media (max-width: 600px) {
-      .other-hero { padding: 72px 24px 40px; }
-      .other-grid { padding: 40px 24px 80px; }
-      .other-title { font-size: 24px; }
-    }
+    .page-main { max-width: 1120px; }
+    .other-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .other-card { position: relative; display: block; padding: 28px 24px 56px; background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); transition: border-color .15s; }
+    @media (hover: hover) { .other-card:hover { border-color: var(--ink); } }
+    .other-card-tag { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+    .other-card-title { font-family: var(--serif); font-size: 20px; font-weight: 900; letter-spacing: .03em; margin-bottom: 8px; }
+    .other-card-desc { font-size: 14px; line-height: 1.9; color: var(--muted); }
+    .other-card .icon { position: absolute; right: 24px; bottom: 24px; color: var(--accent-text); }
   </style>
+  <script src="assets/js/site-header.js" defer></script>
+  <script src="assets/js/icon-motion.js" defer></script>
 </head>
 <body>
+<!-- 頁首：這裡是靜態備援（logo＋電腦版找拉麵）。完整選單由 assets/js/site-header.js 換上，要改選單請改那支檔案 -->
+<header class="site-header" data-site-header>
+  <a href="./" class="logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
+  <div class="header-right"><a href="/finder.html" class="btn btn-primary btn-sm">找拉麵</a></div>
+</header>
 
-<nav>
-  <a class="nav-logo" href="index.html">台灣拉麵協會 <span>|</span> TRA</a>
-  <a class="nav-back" href="index.html">← 返回首頁</a>
-</nav>
-
-<div class="other-hero">
-  <div class="other-eyebrow">OTHER</div>
-  <div class="other-title">其他</div>
-</div>
-
-<div class="other-grid">
-
-  <!-- 聊天卡牌 -->
-  <a class="other-card" href="cards.html" target="_blank" rel="noopener">
-    <div class="other-card-accent"></div>
-    <div class="other-card-tag">INTERACTIVE · GAME</div>
-    <div class="other-card-title">聊天卡牌</div>
-    <div class="other-card-desc">
-      破冰對話卡牌遊戲。<br>
-      四種難度、100 張題目，<br>
-      適合 2–5 人聚會使用。
+<div class="page-body">
+  <main class="page-main">
+    <h1 class="page-title">其他</h1>
+    <div class="other-grid">
+      <!-- 聊天卡牌：cards.html 不在這次改版範圍，連正式頁 -->
+      <a class="other-card" href="/cards.html" target="_blank" rel="noopener">
+        <p class="other-card-tag">互動遊戲</p>
+        <h2 class="other-card-title">聊天卡牌</h2>
+        <p class="other-card-desc">破冰對話卡牌遊戲。<br>四種難度、100 張題目，<br>適合 2–5 人聚會使用。</p>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="arrow-right"><g><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></g></svg>
+      </a>
     </div>
-    <div class="other-card-arrow">↗</div>
-  </a>
-
+  </main>
 </div>
 
+<!-- 頁尾：由 assets/js/site-header.js 產生 -->
+<div data-site-footer></div>
 </body>
 </html>

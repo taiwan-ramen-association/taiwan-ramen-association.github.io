@@ -11,106 +11,87 @@
     gtag('config', 'G-D5PB53XF7P');
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="assets/icons/03.png">
+  <!-- AdSense 帳戶 2026-11 因閒置停用，所以不載廣告程式。這行 meta 是 Google 驗證網站用的，保留；
+       重新啟用後在這行下面加回：<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6476285123291834" crossorigin="anonymous"></script>
+       （待辦與步驟見 notes MANUAL §十七「AdSense 帳戶已停用」） -->
   <meta name="google-adsense-account" content="ca-pub-6476285123291834">
   <title>會議紀錄 | 台灣拉麵協會</title>
   <link rel="canonical" href="https://www.taiwanramen.org/meetings.html">
   <meta property="og:site_name" content="台灣拉麵協會">
-  <link rel="icon" href="/favicon.ico" sizes="any">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6476285123291834" crossorigin="anonymous"></script>
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/site.css">
   <style>
-    body { min-height: 100vh; }
-    main { max-width: 800px; margin: 0 auto; padding: 80px 24px; }
-    .page-title { font-family: 'Noto Serif TC', serif; font-size: clamp(28px, 4vw, 40px); font-weight: 900; letter-spacing: 0.06em; margin-bottom: 56px; }
-
-    /* LIST */
-    .meetings-list { list-style: none; }
-    .meeting-item {
-      display: grid;
-      grid-template-columns: 120px 1fr auto;
-      align-items: center;
-      gap: 32px;
-      padding: 24px 0;
-      border-bottom: 1px solid var(--line);
-      text-decoration: none;
-      color: inherit;
-      transition: opacity 0.2s;
-    }
-    .meeting-item:first-child { border-top: 1px solid var(--line); }
-    .meeting-item:hover { opacity: 0.6; }
-    .meeting-date {
-      font-size: 12px;
-      letter-spacing: 1px;
-      color: var(--muted);
-    }
-    .meeting-title {
-      font-size: 14px;
-      letter-spacing: 1px;
-      line-height: 1.6;
-    }
-    .meeting-icon {
-      font-size: 16px;
-      color: var(--muted);
-    }
-
-    /* LOADING / EMPTY */
-    #status {
-      font-size: 13px;
-      color: var(--muted);
-      letter-spacing: 1px;
-      padding: 40px 0;
-    }
-
+    .page-main { max-width: 800px; }
+    .meetings-list { list-style: none; border-top: 1px solid var(--line); }
+    .meeting-item { display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: 24px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+    .meeting-date { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .meeting-title { font-size: 15px; line-height: 1.6; transition: color .15s; }
+    .meeting-item .icon { color: var(--stone); width: 16px; height: 16px; }
+    @media (hover: hover) { .meeting-item:hover .meeting-title { color: var(--accent-text); } }
     @media (max-width: 600px) {
-      main { padding: 60px 20px; }
       .meeting-item { grid-template-columns: 1fr auto; gap: 16px; }
       .meeting-date { display: none; }
-      .meeting-title { font-size: 13px; }
     }
   </style>
+  <script src="assets/js/site-header.js" defer></script>
+  <script src="assets/js/icon-motion.js" defer></script>
 </head>
 <body>
+<!-- 頁首：這裡是靜態備援（logo＋電腦版找拉麵）。完整選單由 assets/js/site-header.js 換上，要改選單請改那支檔案 -->
+<header class="site-header" data-site-header>
+  <a href="./" class="logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
+  <div class="header-right"><a href="/finder.html" class="btn btn-primary btn-sm">找拉麵</a></div>
+</header>
 
-  <nav>
-    <a href="index.html" class="nav-logo">台灣<span>拉麵</span>協會</a>
-    <a href="index.html" class="nav-back">← 返回首頁</a>
-  </nav>
-
-  <main>
-    <p class="page-label">MINUTES</p>
+<div class="page-body">
+  <main class="page-main">
     <h1 class="page-title">會議紀錄</h1>
-    <p id="status">載入中…</p>
-    <ul class="meetings-list" id="list"></ul>
+    <p class="status" id="status">載入中…</p>
+    <ul class="meetings-list" id="list" hidden></ul>
   </main>
+</div>
 
-  <script>
-    fetch('data/meetings.json?t=' + Date.now())
-      .then(r => r.json())
-      .then(data => {
-        const status = document.getElementById('status');
-        const list   = document.getElementById('list');
-        status.remove();
-        if (!data.length) {
-          list.insertAdjacentHTML('afterend', '<p id="status">尚無會議紀錄。</p>');
-          return;
-        }
-        data.forEach(m => {
-          const li = document.createElement('li');
-          li.innerHTML = `
-            <a class="meeting-item" href="${m.url}" target="_blank" rel="noopener">
-              <span class="meeting-date">${m.date}</span>
-              <span class="meeting-title">${m.title}</span>
-              <span class="meeting-icon">↗</span>
-            </a>`;
-          list.appendChild(li);
-        });
-      })
-      .catch(() => {
-        document.getElementById('status').textContent = '載入失敗，請稍後再試。';
+<!-- 頁尾：由 assets/js/site-header.js 產生 -->
+<div data-site-footer></div>
+
+<script>
+  // 右側箭頭：電腦滑鼠移入時動（icon-motion.js）；形狀 PulsoIcon（ISC），授權見 assets/icons/PulsoIcon-LICENSE.txt
+  var CHEVRON = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="chevron-right"><g><path d="m9 18 6-6-6-6"/></g></svg>';
+  fetch('/data/meetings.json?t=' + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var status = document.getElementById('status');
+      var list = document.getElementById('list');
+      if (!data.length) { status.textContent = '尚無會議紀錄。'; return; }
+      status.remove();
+      data.forEach(function (m) {
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.className = 'meeting-item';
+        a.href = m.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        var d = document.createElement('span');
+        d.className = 'meeting-date';
+        d.textContent = m.date;
+        var t = document.createElement('span');
+        t.className = 'meeting-title';
+        t.textContent = m.title;
+        a.appendChild(d);
+        a.appendChild(t);
+        a.insertAdjacentHTML('beforeend', CHEVRON);
+        li.appendChild(a);
+        list.appendChild(li);
       });
-  </script>
+      list.hidden = false;
+    })
+    .catch(function () {
+      document.getElementById('status').textContent = '載入失敗，請稍後再試。';
+    });
+</script>
 </body>
 </html>

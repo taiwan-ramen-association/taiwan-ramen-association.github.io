@@ -11,120 +11,142 @@
     gtag('config', 'G-D5PB53XF7P');
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="assets/icons/03.png">
+  <!-- AdSense 帳戶 2026-11 因閒置停用，所以不載廣告程式。這行 meta 是 Google 驗證網站用的，保留；
+       重新啟用後在這行下面加回：<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6476285123291834" crossorigin="anonymous"></script>
+       （待辦與步驟見 notes MANUAL §十七「AdSense 帳戶已停用」） -->
   <meta name="google-adsense-account" content="ca-pub-6476285123291834">
   <title>關於協會 | 台灣拉麵協會</title>
   <link rel="canonical" href="https://www.taiwanramen.org/about.html">
   <meta property="og:site_name" content="台灣拉麵協會">
-  <link rel="icon" href="/favicon.ico" sizes="any">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6476285123291834" crossorigin="anonymous"></script>
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/site.css">
   <style>
-    main { max-width: 860px; margin: 0 auto; padding: 80px 24px 120px; }
-    .page-title { font-family: 'Noto Serif TC', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 900; letter-spacing: 0.06em; margin-bottom: 72px; }
+    .a-sec { padding: 32px 0; border-top: 1px solid var(--line); }
+    .a-sec:first-child { border-top: 0; padding-top: 0; }
+    .a-title { font-family: var(--serif); font-weight: 900; font-size: 24px; line-height: 1.35; letter-spacing: .03em; }
+    .a-sec p { font-size: 15px; line-height: 2; color: var(--muted); margin-top: 12px; }
+    .charter-btn { margin-top: 8px; }
 
-    .section { margin-bottom: 72px; padding-bottom: 72px; border-bottom: 1px solid var(--line); }
-    .section:last-of-type { border-bottom: none; }
-    .section-num { font-size: 10px; letter-spacing: 4px; color: var(--red); margin-bottom: 12px; }
-    .section-title { font-family: 'Noto Serif TC', serif; font-size: clamp(20px, 2.5vw, 28px); font-weight: 900; letter-spacing: 0.06em; margin-bottom: 28px; }
-    .section p { font-size: 14px; line-height: 2.2; color: var(--muted); margin-bottom: 16px; }
-    .section p:last-child { margin-bottom: 0; }
+    .contact { max-width: 860px; margin: 0 auto; padding: 0 20px 56px; }
+    .contact-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .contact-head { padding: 24px 20px 8px; }
+    .contact-head h2 { font-family: var(--serif); font-weight: 900; font-size: 24px; letter-spacing: .03em; }
+    .contact-cells { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .cell { display: flex; flex-direction: column; gap: 4px; padding: 14px 20px; border-top: 1px solid var(--line); min-width: 0; }
+    .cell-label { font-size: 13px; font-weight: 500; color: var(--muted); }
+    .cell-value { font-size: 15px; font-weight: 500; line-height: 1.6; overflow-wrap: anywhere; }
+    a.cell-value { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; transition: text-decoration-color .15s; }
+    @media (hover: hover) { a.cell-value:hover { text-decoration-color: var(--ink); } }
+    .social-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 
-    .contact-section { background: var(--ink); color: var(--white); padding: 56px; margin-top: 72px; }
-    .contact-section .section-num { color: rgba(200,39,45,0.8); }
-    .contact-section .section-title { color: var(--white); margin-bottom: 36px; }
-    .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-    .contact-item { margin-bottom: 20px; }
-    .contact-label { font-size: 10px; letter-spacing: 3px; color: rgba(255,255,255,0.4); margin-bottom: 6px; }
-    .contact-value { font-size: 14px; color: rgba(255,255,255,0.85); line-height: 1.6; }
-    .contact-value a { color: rgba(255,255,255,0.85); text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.2); transition: border-color 0.2s; }
-    .contact-value a:hover { border-color: var(--red); color: var(--white); }
-    .social-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-    .social-list li a { font-size: 13px; color: rgba(255,255,255,0.7); text-decoration: none; display: flex; align-items: center; gap: 10px; transition: color 0.2s; }
-    .social-list li a:hover { color: var(--white); }
-    .social-tag { font-size: 9px; letter-spacing: 2px; border: 1px solid rgba(255,255,255,0.2); padding: 2px 8px; }
-
-    .charter-link {
-      display: inline-flex; align-items: center; gap: 12px;
-      font-size: 12px; letter-spacing: 3px; color: var(--ink);
-      text-decoration: none; border-bottom: 1px solid var(--ink);
-      padding-bottom: 4px; margin-top: 40px; transition: color 0.2s, border-color 0.2s;
-    }
-    .charter-link:hover { color: var(--red); border-color: var(--red); }
-
-    @media (max-width: 600px) {
-      main { padding: 60px 20px 80px; }
-      .contact-section { padding: 40px 24px; }
-      .contact-grid { grid-template-columns: 1fr; gap: 24px; }
+    @media (min-width: 760px) {
+      .a-sec { padding: 44px 0; }
+      .a-title { font-size: 28px; }
+      .contact { padding: 0 40px 80px; }
+      .contact-head { padding: 32px 36px 12px; }
+      .contact-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .cell { padding: 18px 36px; }
+      .cell:nth-child(odd) { border-right: 1px solid var(--line); }
     }
   </style>
+  <script src="assets/js/site-header.js" defer></script>
+  <script src="assets/js/icon-motion.js" defer></script>
 </head>
 <body>
-  <nav>
-    <a href="index.html" class="nav-logo">台灣<span>拉麵</span>協會</a>
-    <a href="index.html" class="nav-back">← 返回首頁</a>
-  </nav>
+<!-- 頁首：這裡是靜態備援（logo＋電腦版找拉麵）。完整選單由 assets/js/site-header.js 換上，要改選單請改那支檔案 -->
+<header class="site-header" data-site-header>
+  <a href="./" class="logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
+  <div class="header-right"><a href="/finder.html" class="btn btn-primary btn-sm">找拉麵</a></div>
+</header>
 
-  <main>
-    <p class="page-label">ABOUT</p>
+<div class="page-body">
+  <main class="page-main">
     <h1 class="page-title">關於協會</h1>
     <div id="sections"></div>
-    <a href="charter.html" class="charter-link">查看協會章程 →</a>
+    <a href="charter.html" class="btn btn-secondary charter-btn">查看協會章程</a>
   </main>
 
-  <div class="contact-section" id="contact-block" style="max-width:860px;margin:0 auto;display:none;">
-    <p class="section-num">CONTACT</p>
-    <h2 class="contact-section section-title" style="font-family:'Noto Serif TC',serif;font-size:clamp(20px,2.5vw,28px);font-weight:900;letter-spacing:0.06em;color:white;margin-bottom:36px;">聯絡我們</h2>
-    <div class="contact-grid" id="contact-grid"></div>
-  </div>
+  <section class="contact" id="contact-block" hidden>
+    <div class="contact-card">
+      <div class="contact-head"><h2>聯絡我們</h2></div>
+      <div class="contact-cells" id="contact-cells"></div>
+    </div>
+  </section>
+</div>
 
-  <script>
-    fetch('data/about.json?t=' + Date.now())
-      .then(r => r.json())
-      .then(data => {
-        const container = document.getElementById('sections');
-        const nums = ['一', '二', '三', '四', '五'];
-        data.sections.forEach((sec, i) => {
-          const div = document.createElement('div');
-          div.className = 'section';
-          div.innerHTML = `<p class="section-num">${nums[i]}、${sec.title.toUpperCase()}</p>
-            <h2 class="section-title">${sec.title}</h2>
-            ${sec.paragraphs.map(p => `<p>${p}</p>`).join('')}`;
-          container.appendChild(div);
+<!-- 頁尾：由 assets/js/site-header.js 產生 -->
+<div data-site-footer></div>
+
+<script>
+  // 社群按鈕的圖示會在電腦滑鼠移入時動（icon-motion.js）；形狀 PulsoIcon（ISC），授權見 assets/icons/PulsoIcon-LICENSE.txt
+  var SOCIAL_ICONS = {
+    Instagram: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="brand-instagram"><g><rect x="2" y="2" width="20" height="20" rx="5"/></g><g><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/></g><g><path d="M17.5 6.5h.01"/></g></svg>',
+    Threads: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="brand-threads"><g><path d="M17.5 7C16.3 5 14.4 4 12 4 7.6 4 5 7.5 5 12s2.6 8 7 8c3.6 0 6.5-2.3 6.5-5.5 0-2.8-2-4.5-5-4.5-2.2 0-3.8 1-3.8 2.6 0 1.4 1.1 2.4 2.6 2.4 2.4 0 3.5-2 3.4-5.5"/></g></svg>',
+    Facebook: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" data-anim="brand-facebook"><g><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></g></svg>'
+  };
+
+  function cell(label, valueNode) {
+    var c = document.createElement('div');
+    c.className = 'cell';
+    var l = document.createElement('span');
+    l.className = 'cell-label';
+    l.textContent = label;
+    c.appendChild(l);
+    c.appendChild(valueNode);
+    return c;
+  }
+  function textValue(tag, text, href) {
+    var n = document.createElement(tag);
+    n.className = 'cell-value';
+    n.textContent = text;
+    if (href) n.href = href;
+    return n;
+  }
+
+  fetch('/data/about.json?t=' + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var container = document.getElementById('sections');
+      data.sections.forEach(function (sec) {
+        var div = document.createElement('section');
+        div.className = 'a-sec';
+        var h = document.createElement('h2');
+        h.className = 'a-title';
+        h.textContent = sec.title;
+        div.appendChild(h);
+        sec.paragraphs.forEach(function (p) {
+          var el = document.createElement('p');
+          el.innerHTML = p; // 內文來自 repo 的 data/about.json（可能含連結），照舊用 innerHTML
+          div.appendChild(el);
         });
-
-        // Contact block
-        const c = data.contact;
-        document.getElementById('contact-block').style.display = 'block';
-        const grid = document.getElementById('contact-grid');
-        grid.innerHTML = `
-          <div>
-            <div class="contact-item">
-              <div class="contact-label">ADDRESS</div>
-              <div class="contact-value">${c.address}</div>
-            </div>
-            <div class="contact-item">
-              <div class="contact-label">PHONE</div>
-              <div class="contact-value"><a href="tel:${c.phone}">${c.phone}</a></div>
-            </div>
-            <div class="contact-item">
-              <div class="contact-label">EMAIL</div>
-              <div class="contact-value"><a href="mailto:${c.email}">${c.email}</a></div>
-            </div>
-          </div>
-          <div>
-            <div class="contact-label" style="margin-bottom:14px;">SOCIAL</div>
-            <ul class="social-list">
-              ${c.social.map(s => `
-                <li><a href="${s.url}" target="_blank" rel="noopener">
-                  <span class="social-tag">${s.platform.toUpperCase()}</span>
-                  ${s.handle}
-                </a></li>`).join('')}
-            </ul>
-          </div>`;
+        container.appendChild(div);
       });
-  </script>
+
+      var c = data.contact;
+      var cells = document.getElementById('contact-cells');
+      cells.appendChild(cell('地址', textValue('span', c.address)));
+      cells.appendChild(cell('電話', textValue('a', c.phone, 'tel:' + c.phone)));
+      cells.appendChild(cell('電子郵件', textValue('a', c.email, 'mailto:' + c.email)));
+      var links = document.createElement('div');
+      links.className = 'social-links';
+      c.social.forEach(function (s) {
+        var a = document.createElement('a');
+        a.className = 'btn btn-secondary btn-sm';
+        a.href = s.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.innerHTML = SOCIAL_ICONS[s.platform] || '';
+        a.appendChild(document.createTextNode(s.platform));
+        a.setAttribute('aria-label', s.platform + ' ' + s.handle);
+        links.appendChild(a);
+      });
+      cells.appendChild(cell('社群', links));
+      document.getElementById('contact-block').hidden = false;
+    });
+</script>
 </body>
 </html>

@@ -11,149 +11,126 @@
     gtag('config', 'G-D5PB53XF7P');
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="assets/icons/03.png">
+  <!-- AdSense 帳戶 2026-11 因閒置停用，所以不載廣告程式。這行 meta 是 Google 驗證網站用的，保留；
+       重新啟用後在這行下面加回：<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6476285123291834" crossorigin="anonymous"></script>
+       （待辦與步驟見 notes MANUAL §十七「AdSense 帳戶已停用」） -->
   <meta name="google-adsense-account" content="ca-pub-6476285123291834">
   <title>加入會員 | 台灣拉麵協會</title>
   <link rel="canonical" href="https://www.taiwanramen.org/membership.html">
   <meta property="og:site_name" content="台灣拉麵協會">
-  <link rel="icon" href="/favicon.ico" sizes="any">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6476285123291834" crossorigin="anonymous"></script>
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/site.css">
   <style>
-    main { max-width: 960px; margin: 0 auto; padding: 80px 24px 120px; }
-    .page-title { font-family: 'Noto Serif TC', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 900; letter-spacing: 0.06em; margin-bottom: 16px; }
-    .page-intro { font-size: 14px; line-height: 2.2; color: var(--muted); max-width: 640px; margin-bottom: 64px; }
+    .page-main { max-width: 960px; }
+    .page-title { margin-bottom: 16px; }
+    .page-intro { margin-bottom: 32px; }
 
-    /* Future feature notice */
-    .feature-notice {
-      display: flex; align-items: flex-start; gap: 16px;
-      background: var(--white); border: 1px solid var(--line);
-      border-left: 3px solid var(--red);
-      padding: 20px 24px; margin-bottom: 64px;
-      font-size: 13px; line-height: 1.8; color: var(--muted);
-    }
-    .feature-notice-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .feature-notice { display: flex; align-items: flex-start; gap: 12px; background: var(--surface); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 16px 18px; margin-bottom: 40px; font-size: 14px; line-height: 1.8; color: var(--muted); }
+    .feature-notice .icon { color: var(--accent-text); margin-top: 3px; }
 
-    /* Tier grid */
-    .tier-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1px;
-      background: var(--line);
-      margin-bottom: 64px;
-    }
-    .tier-card { background: var(--paper); padding: 40px 32px; }
-    .tier-card.featured { background: var(--ink); color: var(--white); }
-    .tier-tag { font-size: 9px; letter-spacing: 4px; color: var(--muted); margin-bottom: 12px; }
-    .tier-card.featured .tier-tag { color: rgba(255,255,255,0.4); }
-    .tier-name { font-family: 'Noto Serif TC', serif; font-size: 24px; font-weight: 900; letter-spacing: 2px; margin-bottom: 8px; }
-    .tier-fee { margin-bottom: 20px; }
-    .tier-fee-amount { font-size: 13px; color: var(--red); letter-spacing: 1px; }
-    .tier-card.featured .tier-fee-amount { color: rgba(200,39,45,0.85); }
-    .tier-desc { font-size: 12.5px; line-height: 1.9; color: var(--muted); margin-bottom: 24px; border-top: 1px solid var(--line); padding-top: 20px; }
-    .tier-card.featured .tier-desc { color: rgba(255,255,255,0.5); border-top-color: rgba(255,255,255,0.1); }
-    .tier-features { list-style: none; margin-bottom: 32px; }
-    .tier-features li { font-size: 12.5px; padding: 9px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
-    .tier-card.featured .tier-features li { border-bottom-color: rgba(255,255,255,0.1); color: rgba(255,255,255,0.75); }
-    .tier-features li::before { content: '✓ '; color: var(--red); }
-    .tier-card.featured .tier-features li::before { color: rgba(200,39,45,0.8); }
+    .tier-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 40px; }
+    .tier-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 24px; display: flex; flex-direction: column; }
+    .tier-card.featured { background: var(--ink); border-color: var(--ink); color: var(--white); }
+    .tier-name { font-family: var(--serif); font-size: 24px; font-weight: 900; letter-spacing: .03em; margin-bottom: 6px; }
+    .tier-fee { margin-bottom: 16px; font-size: 14px; font-weight: 500; color: var(--accent-text); }
+    .tier-card.featured .tier-fee { color: #F1A7AA; }
+    .tier-desc { font-size: 14px; line-height: 1.9; color: var(--muted); margin-bottom: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+    .tier-card.featured .tier-desc { color: rgba(255,255,255,.62); border-top-color: rgba(255,255,255,.14); }
+    .tier-features { list-style: none; margin-bottom: 20px; }
+    .tier-features li { font-size: 14px; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+    .tier-card.featured .tier-features li { border-bottom-color: rgba(255,255,255,.14); color: rgba(255,255,255,.8); }
+    .tier-features li::before { content: '✓ '; color: var(--accent-text); }
+    .tier-card.featured .tier-features li::before { color: #F1A7AA; }
+    .tier-card .btn { align-self: flex-start; margin-top: auto; }
+    .tier-card.featured .btn-secondary { background: transparent; color: var(--white); border-color: rgba(255,255,255,.4); }
+    @media (hover: hover) { .tier-card.featured .btn-secondary:hover { border-color: var(--white); } }
 
-    .btn-apply-form {
-      display: inline-block; font-size: 11px; letter-spacing: 2px;
-      color: var(--red); border: 1px solid var(--red);
-      padding: 10px 20px; text-decoration: none; margin-top: 8px;
-      transition: all 0.2s;
-    }
-    .btn-apply-form:hover { background: var(--red); color: var(--white); }
-    .tier-card.featured .btn-apply-form {
-      color: var(--white); border-color: rgba(255,255,255,0.4);
-    }
-    .tier-card.featured .btn-apply-form:hover {
-      background: var(--red); border-color: var(--red);
-    }
+    .apply-section { max-width: 960px; margin: 0 auto 56px; padding: 0 20px; }
+    .apply-box { background: var(--ink); color: var(--white); border-radius: var(--radius); padding: 32px 24px; }
+    .apply-title { font-family: var(--serif); font-size: 22px; font-weight: 900; letter-spacing: .03em; margin-bottom: 12px; }
+    .apply-note { font-size: 14px; line-height: 1.9; color: rgba(255,255,255,.62); max-width: 560px; margin-bottom: 24px; }
 
-    /* Apply section */
-    .apply-section { background: var(--ink); color: var(--white); padding: 56px; }
-    .apply-title { font-family: 'Noto Serif TC', serif; font-size: 22px; font-weight: 900; letter-spacing: 3px; margin-bottom: 16px; }
-    .apply-note { font-size: 13px; line-height: 2; color: rgba(255,255,255,0.5); max-width: 560px; margin-bottom: 32px; }
-    .btn-apply {
-      display: inline-block; font-size: 12px; letter-spacing: 3px;
-      color: var(--white); border: 1px solid rgba(255,255,255,0.4);
-      padding: 14px 36px; text-decoration: none; transition: all 0.2s;
-    }
-    .btn-apply:hover { background: var(--red); border-color: var(--red); }
-
-    @media (max-width: 700px) {
-      main { padding: 60px 20px 80px; }
-      .tier-grid { grid-template-columns: 1fr; }
-      .apply-section { padding: 40px 24px; }
+    @media (max-width: 700px) { .tier-grid { grid-template-columns: 1fr; } }
+    @media (min-width: 760px) {
+      .apply-section { padding: 0 40px; margin-bottom: 80px; }
+      .apply-box { padding: 48px; }
     }
   </style>
+  <script src="assets/js/site-header.js" defer></script>
+  <script src="assets/js/icon-motion.js" defer></script>
 </head>
 <body>
-  <nav>
-    <a href="index.html" class="nav-logo">台灣<span>拉麵</span>協會</a>
-    <a href="index.html" class="nav-back">← 返回首頁</a>
-  </nav>
+<!-- 頁首：這裡是靜態備援（logo＋電腦版找拉麵）。完整選單由 assets/js/site-header.js 換上，要改選單請改那支檔案 -->
+<header class="site-header" data-site-header>
+  <a href="./" class="logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
+  <div class="header-right"><a href="/finder.html" class="btn btn-primary btn-sm">找拉麵</a></div>
+</header>
 
-  <main>
-    <p class="page-label">MEMBERSHIP</p>
+<div class="page-body">
+  <main class="page-main">
     <h1 class="page-title">加入會員</h1>
     <p class="page-intro" id="page-intro"></p>
 
     <div class="feature-notice">
-      <span class="feature-notice-icon">🔒</span>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       <span>會員將享有數位平台專屬功能，包括即時店家資訊、排隊人數等進階服務（開發中，敬請期待）。非會員可免費使用基本拉麵搜尋器。</span>
     </div>
 
     <div class="tier-grid" id="tier-grid"></div>
   </main>
 
-  <div class="apply-section" style="max-width:960px;margin:0 auto;">
-    <div class="apply-title">申請入會</div>
-    <p class="apply-note" id="apply-note"></p>
-    <a href="mailto:taiwan.ramen.association@gmail.com" class="btn-apply">來信申請 →</a>
-  </div>
+  <section class="apply-section">
+    <div class="apply-box">
+      <h2 class="apply-title">申請入會</h2>
+      <p class="apply-note" id="apply-note"></p>
+      <a href="mailto:taiwan.ramen.association@gmail.com" class="btn btn-primary">來信申請</a>
+    </div>
+  </section>
+</div>
 
-  <script>
-    fetch('data/membership.json?t=' + Date.now())
-      .then(r => r.json())
-      .then(data => {
-        document.getElementById('page-intro').textContent = data.intro;
-        document.getElementById('apply-note').textContent = data.apply_note;
+<!-- 頁尾：由 assets/js/site-header.js 產生 -->
+<div data-site-footer></div>
 
-        const grid = document.getElementById('tier-grid');
-        data.tiers.forEach(tier => {
-          const card = document.createElement('div');
-          card.className = 'tier-card' + (tier.featured ? ' featured' : '');
-
-          let feeHtml = '';
-          if (tier.entry_fee !== null) {
-            feeHtml = `<div class="tier-fee">
-              <span class="tier-fee-amount">入會費 NT$${tier.entry_fee.toLocaleString()} ／ 常年費 NT$${tier.annual_fee.toLocaleString()}</span>
-            </div>`;
-          } else {
-            feeHtml = `<div class="tier-fee"><span class="tier-fee-amount">免繳會費</span></div>`;
-          }
-
-          const applyBtn = tier.apply_url
-            ? `<a class="btn-apply-form" href="${tier.apply_url}" target="_blank" rel="noopener">入會申請書 ↗</a>`
-            : '';
-
-          card.innerHTML = `
-            <div class="tier-tag">${tier.tag}</div>
-            <div class="tier-name">${tier.name}</div>
-            ${feeHtml}
-            <div class="tier-desc">${tier.description}</div>
-            <ul class="tier-features">
-              ${tier.features.map(f => `<li>${f}</li>`).join('')}
-            </ul>
-            ${applyBtn}`;
-          grid.appendChild(card);
-        });
+<script>
+  function node(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  fetch('/data/membership.json?t=' + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      document.getElementById('page-intro').textContent = data.intro;
+      document.getElementById('apply-note').textContent = data.apply_note;
+      var grid = document.getElementById('tier-grid');
+      data.tiers.forEach(function (tier) {
+        var card = node('div', 'tier-card' + (tier.featured ? ' featured' : ''));
+        card.appendChild(node('h2', 'tier-name', tier.name));
+        card.appendChild(node('p', 'tier-fee', tier.entry_fee !== null
+          ? '入會費 NT$' + tier.entry_fee.toLocaleString() + ' ／ 常年費 NT$' + tier.annual_fee.toLocaleString()
+          : '免繳會費'));
+        var desc = node('div', 'tier-desc');
+        desc.innerHTML = tier.description; // 來自 repo 的 data/membership.json，照舊
+        card.appendChild(desc);
+        var ul = node('ul', 'tier-features');
+        tier.features.forEach(function (f) { ul.appendChild(node('li', null, f)); });
+        card.appendChild(ul);
+        if (tier.apply_url) {
+          var a = node('a', 'btn btn-secondary btn-sm', '入會申請書');
+          a.href = tier.apply_url;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          card.appendChild(a);
+        }
+        grid.appendChild(card);
       });
-  </script>
+    });
+</script>
 </body>
 </html>

@@ -11,168 +11,126 @@
     gtag('config', 'G-D5PB53XF7P');
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="assets/icons/03.png">
+  <!-- AdSense 帳戶 2026-11 因閒置停用，所以不載廣告程式。這行 meta 是 Google 驗證網站用的，保留；
+       重新啟用後在這行下面加回：<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6476285123291834" crossorigin="anonymous"></script>
+       （待辦與步驟見 notes MANUAL §十七「AdSense 帳戶已停用」） -->
   <meta name="google-adsense-account" content="ca-pub-6476285123291834">
   <title>合作夥伴 | 台灣拉麵協會</title>
   <link rel="canonical" href="https://www.taiwanramen.org/partners.html">
   <meta property="og:site_name" content="台灣拉麵協會">
-  <link rel="icon" href="/favicon.ico" sizes="any">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6476285123291834" crossorigin="anonymous"></script>
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/site.css">
   <style>
-    main { max-width: 960px; margin: 0 auto; padding: 80px 24px 120px; }
-    .page-title { font-family: 'Noto Serif TC', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 900; letter-spacing: 0.06em; margin-bottom: 64px; }
+    .page-main { max-width: 960px; }
+    .partners-section { margin-bottom: 48px; }
+    .partners-section-header { display: flex; align-items: baseline; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 12px; margin-bottom: 16px; }
+    .partners-section-header.is-member { border-bottom-color: var(--accent); }
+    .partners-section-num { font-size: 13px; font-weight: 700; color: var(--accent-text); font-variant-numeric: tabular-nums; }
+    .partners-section-title { font-family: var(--serif); font-size: 20px; font-weight: 900; letter-spacing: .03em; }
+    .partners-section-desc { font-size: 14px; color: var(--muted); line-height: 1.8; margin-bottom: 16px; }
 
-    .partners-section { margin-bottom: 56px; }
-    .partners-section-header {
-      display: flex;
-      align-items: baseline;
-      gap: 16px;
-      border-bottom: 2px solid var(--ink);
-      padding-bottom: 14px;
-      margin-bottom: 20px;
-    }
-    .partners-section-header.is-member { border-bottom-color: var(--red); }
-    .partners-section-num { font-size: 9px; letter-spacing: 4px; color: var(--red); }
-    .partners-section-title { font-family: 'Noto Serif TC', serif; font-size: 18px; font-weight: 900; letter-spacing: 3px; }
-    .partners-section-desc { font-size: 12px; color: var(--muted); line-height: 1.8; margin-bottom: 20px; }
-
-    .partners-grid {
-      display: grid;
-      gap: 16px;
-    }
+    .partners-grid { display: grid; gap: 16px; }
     .partners-grid-4 { grid-template-columns: repeat(4, 1fr); }
     .partners-grid-3 { grid-template-columns: repeat(3, 1fr); }
-    .partners-grid-auto { grid-template-columns: repeat(4, 1fr); }
-
-    .partner-card {
-      background: var(--white);
-      aspect-ratio: 1/1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      position: relative;
-      border: 1.5px solid var(--line);
-      border-radius: 10px;
-      box-shadow: 2px 3px 10px rgba(0,0,0,0.07);
-      transition: transform 0.25s, box-shadow 0.25s;
-    }
-    .partner-card.is-member { border-color: var(--red); border-width: 2px; }
-    .partner-card.has-link:hover {
-      transform: scale(1.05);
-      box-shadow: 4px 6px 18px rgba(0,0,0,0.13);
-      z-index: 1;
-      cursor: pointer;
-    }
+    .partner-card { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; padding: 16px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); transition: border-color .15s; }
+    .partner-card.is-member { border: 2px solid var(--accent); }
+    .partner-card a { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+    @media (hover: hover) { .partner-card.has-link:hover { border-color: var(--ink); } }
     .partner-card img { max-height: 80px; max-width: 100%; width: auto; object-fit: contain; }
-    .member-badge {
-      position: absolute;
-      top: 6px; right: 6px;
-      font-size: 7px;
-      letter-spacing: 2px;
-      color: var(--white);
-      background: var(--red);
-      border-radius: 3px;
-      padding: 2px 6px;
-    }
-
-    #status { font-size: 13px; color: var(--muted); letter-spacing: 1px; padding: 40px 0; }
+    .member-badge { position: absolute; top: 8px; right: 8px; font-size: 11px; font-weight: 700; color: var(--on-accent);
+      background: var(--accent); border-radius: 4px; padding: 1px 6px; }
 
     @media (max-width: 768px) {
-      main { padding: 60px 20px 80px; }
-      .partners-grid-4, .partners-grid-3, .partners-grid-auto { grid-template-columns: repeat(2, 1fr); }
+      .partners-grid-4, .partners-grid-3 { grid-template-columns: repeat(2, 1fr); }
       .partners-grid { gap: 12px; }
     }
   </style>
+  <script src="assets/js/site-header.js" defer></script>
+  <script src="assets/js/icon-motion.js" defer></script>
 </head>
 <body>
-  <nav>
-    <a href="index.html" class="nav-logo">台灣<span>拉麵</span>協會</a>
-    <a href="index.html" class="nav-back">← 返回首頁</a>
-  </nav>
+<!-- 頁首：這裡是靜態備援（logo＋電腦版找拉麵）。完整選單由 assets/js/site-header.js 換上，要改選單請改那支檔案 -->
+<header class="site-header" data-site-header>
+  <a href="./" class="logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
+  <div class="header-right"><a href="/finder.html" class="btn btn-primary btn-sm">找拉麵</a></div>
+</header>
 
-  <main>
-    <p class="page-label">PARTNERS</p>
+<div class="page-body">
+  <main class="page-main">
     <h1 class="page-title">合作夥伴</h1>
-    <p id="status">載入中…</p>
+    <p class="status" id="status">載入中…</p>
     <div id="partners-body"></div>
   </main>
+</div>
 
-  <script>
-    const CATEGORIES = [
-      {
-        key: 'member',
-        label: '協會會員店家',
-        sublabel: 'MEMBER SHOPS',
-        desc: '已正式加入台灣拉麵協會之會員店家。',
-        isMember: true
-      },
-      {
-        key: 'ramen',
-        label: '合作拉麵店',
-        sublabel: 'RAMEN PARTNERS',
-        desc: '與協會有合作關係之拉麵店家。',
-        isMember: false
-      },
-      {
-        key: 'partner',
-        label: '合作商家',
-        sublabel: 'BUSINESS PARTNERS',
-        desc: '與協會有合作關係之在地商家與企業。',
-        isMember: false
-      }
-    ];
+<!-- 頁尾：由 assets/js/site-header.js 產生 -->
+<div data-site-footer></div>
 
-    fetch('data/partners.json?t=' + Date.now())
-      .then(r => r.json())
-      .then(data => {
-        document.getElementById('status').remove();
-        const body = document.getElementById('partners-body');
+<script>
+  var CATEGORIES = [
+    { key: 'member', label: '協會會員店家', desc: '已正式加入台灣拉麵協會之會員店家。', isMember: true },
+    { key: 'ramen', label: '合作拉麵店', desc: '與協會有合作關係之拉麵店家。', isMember: false },
+    { key: 'partner', label: '合作商家', desc: '與協會有合作關係之在地商家與企業。', isMember: false }
+  ];
+  function node(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
 
-        const groups = {};
-        data.forEach(p => {
-          if (!groups[p.category]) groups[p.category] = [];
-          groups[p.category].push(p);
+  fetch('/data/partners.json?t=' + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      document.getElementById('status').remove();
+      var body = document.getElementById('partners-body');
+      var groups = {};
+      data.forEach(function (p) { (groups[p.category] = groups[p.category] || []).push(p); });
+
+      var shown = 0;
+      CATEGORIES.forEach(function (cat) {
+        var items = groups[cat.key];
+        if (!items || !items.length) return;
+        shown++;
+        var sec = node('section', 'partners-section');
+        var head = node('div', 'partners-section-header' + (cat.isMember ? ' is-member' : ''));
+        head.appendChild(node('span', 'partners-section-num', (shown < 10 ? '0' : '') + shown));
+        head.appendChild(node('h2', 'partners-section-title', cat.label));
+        sec.appendChild(head);
+        sec.appendChild(node('p', 'partners-section-desc', cat.desc));
+        var grid = node('div', 'partners-grid ' + (items.length <= 3 ? 'partners-grid-3' : 'partners-grid-4'));
+        items.forEach(function (p) {
+          var card = node('div', 'partner-card' + (cat.isMember ? ' is-member' : '') + (p.url ? ' has-link' : ''));
+          if (cat.isMember) card.appendChild(node('span', 'member-badge', '會員'));
+          var img = node('img');
+          img.src = p.logo;           // 相對路徑：assets/icons/ 放的是 240px 縮圖
+          img.alt = p.name;
+          img.loading = 'lazy';
+          img.decoding = 'async';
+          if (p.url) {
+            var a = node('a');
+            a.href = p.url;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.appendChild(img);
+            card.appendChild(a);
+          } else {
+            card.appendChild(img);
+          }
+          grid.appendChild(card);
         });
-
-        CATEGORIES.forEach((cat, i) => {
-          const items = groups[cat.key];
-          if (!items || !items.length) return;
-
-          const sec = document.createElement('div');
-          sec.className = 'partners-section';
-
-          const colClass = items.length <= 3 ? 'partners-grid-3' : 'partners-grid-4';
-
-          sec.innerHTML = `
-            <div class="partners-section-header${cat.isMember ? ' is-member' : ''}">
-              <span class="partners-section-num">${String(i + 1).padStart(2, '0')}</span>
-              <span class="partners-section-title">${cat.label}</span>
-              <span style="font-size:9px;letter-spacing:3px;color:var(--muted);">${cat.sublabel}</span>
-            </div>
-            <p class="partners-section-desc">${cat.desc}</p>
-            <div class="partners-grid ${colClass}" id="pg-${cat.key}"></div>`;
-          body.appendChild(sec);
-
-          const grid = document.getElementById('pg-' + cat.key);
-          items.forEach(p => {
-            const card = document.createElement('div');
-            card.className = 'partner-card' + (cat.isMember ? ' is-member' : '') + (p.url ? ' has-link' : '');
-            const badge = cat.isMember ? '<span class="member-badge">MEMBER</span>' : '';
-            const img = `<img src="${p.logo}" alt="${p.name}">`;
-            card.innerHTML = badge + (p.url
-              ? `<a href="${p.url}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;">${img}</a>`
-              : img);
-            grid.appendChild(card);
-          });
-        });
-      })
-      .catch(() => {
-        document.getElementById('status').textContent = '載入失敗，請稍後再試。';
+        sec.appendChild(grid);
+        body.appendChild(sec);
       });
-  </script>
+    })
+    .catch(function () {
+      document.getElementById('status').textContent = '載入失敗，請稍後再試。';
+    });
+</script>
 </body>
 </html>

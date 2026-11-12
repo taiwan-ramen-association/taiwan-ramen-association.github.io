@@ -11,108 +11,101 @@
     gtag('config', 'G-D5PB53XF7P');
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="assets/icons/03.png">
+  <!-- AdSense 帳戶 2026-11 因閒置停用，所以不載廣告程式。這行 meta 是 Google 驗證網站用的，保留；
+       重新啟用後在這行下面加回：<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6476285123291834" crossorigin="anonymous"></script>
+       （待辦與步驟見 notes MANUAL §十七「AdSense 帳戶已停用」） -->
   <meta name="google-adsense-account" content="ca-pub-6476285123291834">
   <title>協會章程 | 台灣拉麵協會</title>
   <link rel="canonical" href="https://www.taiwanramen.org/charter.html">
   <meta property="og:site_name" content="台灣拉麵協會">
-  <link rel="icon" href="/favicon.ico" sizes="any">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6476285123291834" crossorigin="anonymous"></script>
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/site.css">
   <style>
-    main { max-width: 800px; margin: 0 auto; padding: 80px 24px 120px; }
-    .page-title { font-family: 'Noto Serif TC', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 900; letter-spacing: 0.06em; margin-bottom: 8px; }
-    .page-approved { font-size: 11px; letter-spacing: 1px; color: var(--muted); margin-bottom: 64px; }
-
-    .chapter { margin-bottom: 64px; }
-    .chapter-header {
-      display: flex; align-items: baseline; gap: 16px;
-      border-bottom: 2px solid var(--ink); padding-bottom: 16px; margin-bottom: 32px;
-    }
-    .chapter-num { font-size: 10px; letter-spacing: 4px; color: var(--red); }
-    .chapter-title { font-family: 'Noto Serif TC', serif; font-size: 20px; font-weight: 900; letter-spacing: 3px; }
-
-    .article { display: grid; grid-template-columns: 60px 1fr; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--line); }
-    .article-num { font-size: 12px; letter-spacing: 1px; color: var(--red); padding-top: 2px; white-space: nowrap; }
-    .article-body { font-size: 13.5px; line-height: 2; color: var(--muted); }
-    .article-intro { margin-bottom: 12px; }
-    .article-items { list-style: none; padding-left: 0; }
-    .article-items li { padding: 6px 0 6px 20px; position: relative; line-height: 1.9; }
-    .article-items li::before { content: attr(data-num); position: absolute; left: 0; color: var(--red); font-size: 12px; }
-    .article-note { margin-top: 12px; padding: 12px 16px; border-left: 2px solid var(--line); font-size: 12.5px; color: var(--muted); line-height: 1.9; }
+    .page-main { max-width: 800px; }
+    .page-title { margin-bottom: 8px; }
+    .page-approved { font-size: 13px; color: var(--muted); margin-bottom: 40px; }
+    .chapter { margin-bottom: 48px; }
+    .chapter-header { display: flex; align-items: baseline; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 12px; margin-bottom: 8px; }
+    .chapter-num { font-size: 13px; font-weight: 700; color: var(--accent-text); }
+    .chapter-title { font-family: var(--serif); font-size: 20px; font-weight: 900; letter-spacing: .03em; }
+    .article { display: grid; grid-template-columns: 64px 1fr; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+    .article-num { font-size: 14px; font-weight: 500; color: var(--accent-text); padding-top: 2px; white-space: nowrap; }
+    .article-body { font-size: 15px; line-height: 2; color: var(--muted); }
+    .article-intro { margin-bottom: 8px; }
+    .article-items { list-style: none; }
+    .article-items li { position: relative; padding: 4px 0 4px 28px; line-height: 1.9; }
+    .article-items li::before { content: attr(data-num); position: absolute; left: 0; color: var(--accent-text); }
+    .article-note { margin-top: 10px; padding: 10px 14px; border-left: 2px solid var(--line); font-size: 14px; line-height: 1.9; }
     .article-content { white-space: pre-line; }
-
-    @media (max-width: 600px) {
-      main { padding: 60px 20px 80px; }
-      .article { grid-template-columns: 48px 1fr; gap: 12px; }
-    }
+    @media (max-width: 600px) { .article { grid-template-columns: 52px 1fr; gap: 12px; } }
   </style>
+  <script src="assets/js/site-header.js" defer></script>
+  <script src="assets/js/icon-motion.js" defer></script>
 </head>
 <body>
-  <nav>
-    <a href="index.html" class="nav-logo">台灣<span>拉麵</span>協會</a>
-    <a href="about.html" class="nav-back">← 關於協會</a>
-  </nav>
+<!-- 頁首：這裡是靜態備援（logo＋電腦版找拉麵）。完整選單由 assets/js/site-header.js 換上，要改選單請改那支檔案 -->
+<header class="site-header" data-site-header>
+  <a href="./" class="logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
+  <div class="header-right"><a href="/finder.html" class="btn btn-primary btn-sm">找拉麵</a></div>
+</header>
 
-  <main>
-    <p class="page-label">CHARTER</p>
+<div class="page-body">
+  <main class="page-main">
     <h1 class="page-title" id="charter-title">台灣拉麵協會章程</h1>
     <p class="page-approved" id="charter-approved"></p>
     <div id="charter-body"></div>
   </main>
+</div>
 
-  <script>
-    const CJK_NUMS = ['一','二','三','四','五','六','七','八','九','十'];
+<!-- 頁尾：由 assets/js/site-header.js 產生 -->
+<div data-site-footer></div>
 
-    fetch('data/charter.json?t=' + Date.now())
-      .then(r => r.json())
-      .then(data => {
-        document.getElementById('charter-title').textContent = data.title;
-        document.getElementById('charter-approved').textContent = data.approved;
-
-        const body = document.getElementById('charter-body');
-        data.chapters.forEach(ch => {
-          const section = document.createElement('div');
-          section.className = 'chapter';
-          section.innerHTML = `<div class="chapter-header">
-            <span class="chapter-num">${ch.number}</span>
-            <span class="chapter-title">${ch.title}</span>
-          </div>`;
-
-          ch.articles.forEach(art => {
-            const row = document.createElement('div');
-            row.className = 'article';
-            row.innerHTML = `<div class="article-num">第${art.number}條</div><div class="article-body"></div>`;
-            const artBody = row.querySelector('.article-body');
-
-            if (art.intro) {
-              artBody.innerHTML += `<div class="article-intro">${art.intro}</div>`;
-            }
-            if (art.items) {
-              const ul = document.createElement('ul');
-              ul.className = 'article-items';
-              art.items.forEach((item, i) => {
-                const li = document.createElement('li');
-                li.setAttribute('data-num', CJK_NUMS[i] + '、');
-                li.textContent = item;
-                ul.appendChild(li);
-              });
-              artBody.appendChild(ul);
-            }
-            if (art.note) {
-              artBody.innerHTML += `<div class="article-note">${art.note}</div>`;
-            }
-            if (art.content) {
-              artBody.innerHTML += `<div class="article-content">${art.content}</div>`;
-            }
-
-            section.appendChild(row);
-          });
-          body.appendChild(section);
+<script>
+  var CJK_NUMS = ['一','二','三','四','五','六','七','八','九','十'];
+  function node(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  fetch('/data/charter.json?t=' + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      document.getElementById('charter-title').textContent = data.title;
+      document.getElementById('charter-approved').textContent = data.approved;
+      var body = document.getElementById('charter-body');
+      data.chapters.forEach(function (ch) {
+        var section = node('section', 'chapter');
+        var head = node('div', 'chapter-header');
+        head.appendChild(node('span', 'chapter-num', ch.number));
+        head.appendChild(node('h2', 'chapter-title', ch.title));
+        section.appendChild(head);
+        ch.articles.forEach(function (art) {
+          var row = node('div', 'article');
+          row.appendChild(node('div', 'article-num', '第' + art.number + '條'));
+          var artBody = node('div', 'article-body');
+          if (art.intro) artBody.appendChild(node('div', 'article-intro', art.intro));
+          if (art.items) {
+            var ul = node('ul', 'article-items');
+            art.items.forEach(function (item, i) {
+              var li = node('li', null, item);
+              li.setAttribute('data-num', (CJK_NUMS[i] || (i + 1)) + '、');
+              ul.appendChild(li);
+            });
+            artBody.appendChild(ul);
+          }
+          if (art.note) artBody.appendChild(node('div', 'article-note', art.note));
+          if (art.content) artBody.appendChild(node('div', 'article-content', art.content));
+          row.appendChild(artBody);
+          section.appendChild(row);
         });
+        body.appendChild(section);
       });
-  </script>
+    });
+</script>
 </body>
 </html>
