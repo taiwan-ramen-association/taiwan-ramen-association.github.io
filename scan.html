@@ -148,11 +148,13 @@
     @media (max-width: 400px) {
       .scan-btn { width: 156px; height: 156px; font-size: 36px; }
     }
+    /* 頁首 logo 是圖檔（2026-11 新首頁上線時換）：不留行高空隙 */
+    .nav-logo img { display: block; }
   </style>
 </head>
 <body>
   <nav>
-    <a href="index.html" class="nav-logo">台灣<span>拉麵</span>協會</a>
+    <a href="index.html" class="nav-logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
     <button id="navLogoutBtn" class="nav-back" style="display:none;background:none;border:none;cursor:pointer;font-size:13px;color:var(--stone)">登出</button>
   </nav>
 

@@ -425,11 +425,13 @@
     .mc-status-active   { background: #e8f5e9; color: #2e7d32; }
     .mc-status-redeemed { background: var(--line); color: var(--muted); }
     .mc-status-expired  { background: #fff3e0; color: #e65100; }
+    /* 頁首 logo 是圖檔（2026-11 新首頁上線時換）：不留行高空隙 */
+    .nav-logo img { display: block; }
   </style>
 </head>
 <body>
   <nav>
-    <a href="index.html" class="nav-logo">台灣<span>拉麵</span>協會</a>
+    <a href="index.html" class="nav-logo" aria-label="台灣拉麵協會 首頁"><img src="assets/img/logo-h.svg" alt="台灣拉麵協會 Taiwan Ramen Association" width="153" height="32"></a>
     <a href="finder.html" class="nav-back">← 返回搜尋</a>
   </nav>
 
