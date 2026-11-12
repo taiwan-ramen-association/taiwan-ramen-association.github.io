@@ -1,0 +1,65 @@
+name: 網站檢查（只通知、不擋部署）
+
+# push 到 main 後跑，跟部署同時進行 → 擋不住部署，失敗時 GitHub 會寄通知信。
+# 檢查：JS 語法（node --check）、10 頁都載 site-header.js、公開頁沒有 noindex、
+#       根目錄頁面沒有 /lab/home/、news.json／partners.json 能解析。
+# 2026-11 新首頁上線時加（決策紀錄見 notes MANUAL）。
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*.html'
+      - 'assets/**'
+      - 'js/**'
+      - 'sw.js'
+      - 'data/news.json'
+      - 'data/partners.json'
+      - '.github/workflows/site-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: JS 語法
+        run: |
+          node --version
+          fail=0
+          for f in assets/js/*.js js/*.js sw.js; do
+            node --check "$f" || { echo "::error file=$f::JS 語法錯誤"; fail=1; }
+          done
+          exit $fail
+
+      - name: 頁面檢查
+        run: |
+          python3 << 'EOF'
+          import glob, json, re, sys
+          bad = []
+          PAGES = ['index.html', 'about.html', 'news.html', 'membership.html', 'partners.html',
+                   'charter.html', 'meetings.html', 'members-zone.html', 'other.html', '404.html']
+          NOINDEX_OK = {'members-zone.html', '404.html'}   # 這兩頁本來就不給搜尋引擎收錄
+          ROBOTS = re.compile(r'<meta[^>]*name=["\']robots["\'][^>]*>', re.I)
+          for p in PAGES:
+              t = open(p, encoding='utf-8').read()
+              if 'assets/js/site-header.js' not in t:
+                  bad.append(p + '：沒有載 assets/js/site-header.js（頁首選單會不見）')
+              if p not in NOINDEX_OK and any('noindex' in m.group(0).lower() for m in ROBOTS.finditer(t)):
+                  bad.append(p + '：公開頁不該有 noindex（Google 會把這頁從搜尋結果拿掉）')
+          for p in sorted(glob.glob('*.html')):
+              if '/lab/home/' in open(p, encoding='utf-8').read():
+                  bad.append(p + '：還有 /lab/home/（測試站路徑）')
+          for p in ('data/news.json', 'data/partners.json'):
+              try:
+                  json.load(open(p, encoding='utf-8'))
+              except Exception as e:
+                  bad.append('%s：JSON 解析失敗（%s）' % (p, e))
+          for b in bad:
+              print('::error::' + b)
+          print('發現 %d 個問題' % len(bad))
+          sys.exit(1 if bad else 0)
+          EOF
