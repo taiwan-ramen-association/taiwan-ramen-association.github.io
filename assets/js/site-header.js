@@ -14,7 +14,7 @@
   'use strict';
 
   var script = document.currentScript;
-  // 網站根目錄：用這支程式自己的網址往回推 → 404 頁在任何深度的網址、測試站 /lab/home/ 都對
+  // 網站根目錄：用這支程式自己的網址往回推 → 404 頁在任何深度的網址都對
   var BASE = (script && script.src) ? script.src.replace(/assets\/js\/site-header\.js(\?.*)?$/, '') : '/';
   var FINDER = '/finder.html';
 
