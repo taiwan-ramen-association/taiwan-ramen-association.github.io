@@ -605,7 +605,8 @@ function _bdgRenderPanel() {
     ${sec('🍜 累積獎章', passive)}
     ${sec('👨‍🍳 職人', craft)}
     ${missed.length ? `<button type="button" class="bdg-missed" data-act="missed">${_bdgMissedOpen ? '▾' : '▸'} 錯過的活動（${missed.length}）</button>${_bdgMissedOpen ? grid(missed) : ''}` : ''}
-    <div class="bdg-foot">Lv＝所有獎章點數加總（${cfg.tiers.map(t => escapeHtml(t.name) + ' ' + t.points).join('・')}；活動獎章 ×${cfg.activityMultiplier}）</div>`;
+    <div class="bdg-foot">Lv＝所有獎章點數加總（${cfg.tiers.map(t => escapeHtml(t.name) + ' ' + t.points).join('・')}；活動獎章 ×${cfg.activityMultiplier}）<br><a href="terms.html#badge-art" target="_blank" rel="noopener" style="color:inherit">獎章圖示說明</a></div>`;
+  // 「獎章圖示說明」＝使用條款 2.4（台北 101 的出處聲明；2026-11-16 加）
 }
 
 // ── 詳細資訊（點獎章）────────────────────────────────────────────────────────
