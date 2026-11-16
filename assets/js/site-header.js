@@ -49,8 +49,8 @@
     { title: '聯絡', links: [
       { text: EMAIL, url: 'mailto:' + EMAIL, icon: 'mail' },
       { text: '臺中市北屯區太順路 286 號 4 樓之 6', icon: 'map-pin' },
-      { text: '店家申請', url: 'mailto:' + EMAIL + '?subject=' + encodeURIComponent('店家申請') },
-      { text: '廣告合作', url: 'mailto:' + EMAIL + '?subject=' + encodeURIComponent('廣告合作') }
+      { text: '店家申請', url: 'mailto:' + EMAIL + '?subject=' + encodeURIComponent('店家申請') }
+      // 「廣告合作」2026-11-16 拿掉：網站不放廣告、不再恢復
     ] },
     { title: '其他', links: [
       { text: '會務專區', href: 'members-zone.html' },
