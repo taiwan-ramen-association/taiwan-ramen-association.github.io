@@ -1,11 +1,11 @@
 // ── menus.js ─────────────────────────────────────────────────────────────────
 // 菜單功能：店家卡片菜單 tab、菜單上傳 modal、pageReviews 內的菜單清單
 // 依賴全域變數（finder.html 主 script 提供）：
-//   db, auth, firebase, storage, currentUserRole
+//   db, auth, firebase, storage, currentUserRole, currentDisplayName（對外名稱）
 // 依賴全域函式：
 //   canUse, canView（feature flag 檢查）、findShopById、escapeHtml
 //   openPhotoViewer（photos.js）、showStampToast（stamps.js）
-//   compressImage、isValidPhotoDate、updateDisplayNames、safeUrl（reviews.js）
+//   compressImage、isValidPhotoDate、updateDisplayNames、safeUrl、myPublicIdentity、nameHtml（reviews.js）
 // 提供全域變數：
 //   menuCache, _mnuFeedLoaded（pageReviews tab 切換用）
 // 提供全域函式：
@@ -180,6 +180,12 @@ document.getElementById('mnuSubmitBtn').addEventListener('click', async () => {
     document.getElementById('mnuProgress').textContent = '❌ 日期格式錯誤或不可為未來日期';
     return;
   }
+  // 對外名稱（暱稱，沒有才用 Google 名稱）；會員資料還沒讀到 → 已跳提示，先不傳。
+  // 部署後 10 分鐘內可能拿到舊版 reviews.js（沒有 myPublicIdentity）→ 退回用 currentDisplayName
+  const me = typeof myPublicIdentity === 'function'
+    ? myPublicIdentity()
+    : { name: currentDisplayName || auth.currentUser.displayName || '匿名' };
+  if (!me) return;
 
   const btn      = document.getElementById('mnuSubmitBtn');
   const progress = document.getElementById('mnuProgress');
@@ -200,7 +206,7 @@ document.getElementById('mnuSubmitBtn').addEventListener('click', async () => {
       shopId:      _mnuShopId,
       shopName:    _mnuShopName,
       uid:         user.uid,
-      displayName: user.displayName || '匿名',
+      displayName: me.name,   // 以前一律存 Google 名稱（2026-11-17 改）
       photoDate,
       photo:       { thumb: url, original: url },
       createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
@@ -266,7 +272,7 @@ async function loadMenusFeedPage(page = 1) {
         <div class="mnu-info">
           <span class="mnu-shop">📍 ${escapeHtml(d.shopName || '')}</span>
           <span class="mnu-date">${escapeHtml(d.photoDate || dateStr)}</span>
-          <span class="mnu-user" data-uid="${d.uid || ''}">${escapeHtml(d.displayName || '匿名')}</span>
+          <span class="mnu-user" data-uid="${d.uid || ''}">${typeof nameHtml === 'function' ? nameHtml(d.uid, d.displayName) : escapeHtml(d.displayName || '匿名')}</span>
         </div>`;
       card.querySelector('.mnu-photo').addEventListener('click', e => {
         const original = e.target.dataset.original || e.target.src;

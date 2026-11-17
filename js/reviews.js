@@ -2,11 +2,13 @@
 // 評論、照片瀏覽、Feed 模組
 // 依賴全域變數（main script 提供）：
 //   db, auth, storage, firebase
-//   currentUserRole, currentDisplayName, currentAvatarUrl, userAvatar
+//   currentUserRole, currentDisplayName（對外名稱）, currentAvatarUrl（對外頭像）
 //   stampMap, reviewMap, isWarned
 // 依賴全域函式：
 //   escapeHtml, showStampToast, canView, canUse, showAccessToast
 //   render, getShopById, openSfModal, lockScroll, unlockScroll
+//   showMemberLoadToast（可選；auth.js、shop.html 有）
+// 提供給 menus.js、photos.js：myPublicIdentity、nameHtml、getUserDisplay、updateDisplayNames、_userDisplayCache
 
 // ── URL 白名單（XSS 第二層防護）──────────────────────────────────────────────
 // escapeHtml 擋屬性逃逸；safeUrl 再限制 URL 只能指向已知圖片來源，
@@ -171,7 +173,7 @@ async function loadReviews(shopId, panel, append = false) {
             ? `<img class="review-avatar" src="${escapeHtml(avatarUrl)}" data-uid="${d.uid}" alt="">`
             : `<div class="review-avatar-placeholder" data-uid="${d.uid}">👤</div>`}
           <div class="review-meta">
-            <div class="review-name" data-uid="${d.uid}">${escapeHtml(d.displayName || '匿名')}</div>
+            <div class="review-name" data-uid="${d.uid}">${nameHtml(d.uid, d.displayName)}</div>
             <div class="review-date">${dateStr}</div>
           </div>
           <div>
@@ -200,13 +202,15 @@ async function loadReviews(shopId, panel, append = false) {
         csend.addEventListener('click', async () => {
           const text = cinput.value.trim();
           if (!text) return;
+          const me = myPublicIdentity();   // 會員資料還沒讀到 → 已跳提示，先不送
+          if (!me) return;
           csend.disabled = true;
           try {
             const u = auth.currentUser;
             await db.collection('reviews').doc(doc.id).collection('comments').add({
               uid: u.uid,
-              displayName: currentDisplayName || u.displayName || '匿名',
-              avatarUrl: currentAvatarUrl || u.photoURL || null,
+              displayName: me.name,
+              avatarUrl: me.avatarUrl || null,
               text,
               createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
@@ -273,8 +277,9 @@ async function loadComments(reviewId, container, showAll = false) {
     if (!snap.docs.length) { container.innerHTML = ''; return; }
     container.innerHTML = snap.docs.map(d => {
       const c = d.data();
-      return `<div class="review-comment"><span class="review-comment-name" data-uid="${c.uid || ''}">${escapeHtml(c.displayName || '匿名')}</span>：${escapeHtml(c.text)}</div>`;
+      return `<div class="review-comment"><span class="review-comment-name" data-uid="${c.uid || ''}">${nameHtml(c.uid, c.displayName)}</span>：${escapeHtml(c.text)}</div>`;
     }).join('');
+    updateDisplayNames(container);   // 留言的名字也換成作者現在的對外名稱（以前不會換，存什麼就一直顯示什麼）
     if (!showAll && snap.docs.length >= 3) {
       const btn = document.createElement('button');
       btn.className = 'review-comments-more';
@@ -286,35 +291,72 @@ async function loadComments(reviewId, container, showAll = false) {
 }
 
 // ── User display cache（UID → { name, avatarUrl }）────────────────────────────
-const _userDisplayCache = new Map();
+const _userDisplayCache   = new Map();
+const _userDisplayPending = new Map();   // 查詢中的 uid → Promise（同一個人同時出現在評論和留言，只查一次）
 async function getUserDisplay(uid) {
   if (_userDisplayCache.has(uid)) return _userDisplayCache.get(uid);
-  try {
-    const snap = await db.collection('userProfiles').doc(uid).get();
-    const d    = snap.data() || {};
-    const result = {
-      name:      d.nickname || d.displayName || '匿名',
-      avatarUrl: d.avatarUrl || d.photoURL   || '',
-    };
-    _userDisplayCache.set(uid, result);
-    return result;
-  } catch {
-    const fallback = { name: '匿名', avatarUrl: '' };
-    _userDisplayCache.set(uid, fallback);
-    return fallback;
-  }
+  if (_userDisplayPending.has(uid)) return _userDisplayPending.get(uid);
+  const p = (async () => {
+    try {
+      const snap = await db.collection('userProfiles').doc(uid).get();
+      const d    = snap.data() || {};
+      const result = {
+        name:      d.nickname || d.displayName || '匿名',
+        avatarUrl: d.avatarUrl || d.photoURL   || '',
+      };
+      _userDisplayCache.set(uid, result);
+      return result;
+    } catch {
+      const fallback = { name: '匿名', avatarUrl: '' };
+      _userDisplayCache.set(uid, fallback);
+      return fallback;
+    } finally {
+      _userDisplayPending.delete(uid);
+    }
+  })();
+  _userDisplayPending.set(uid, p);
+  return p;
 }
 
-// 渲染後非同步更新容器內所有 [data-uid] 名稱元素
+// 名字欄位的初始內容：查過的 uid 直接用查到的對外名稱；還沒查過就先留空，等 updateDisplayNames 補上。
+// 不先顯示文件裡存的名字：舊資料存的可能是 Google 名稱，先顯示再換成暱稱就會閃一下（2026-11-17）。
+function nameHtml(uid, storedName) {
+  if (!uid) return escapeHtml(storedName || '匿名');
+  const u = _userDisplayCache.get(uid);
+  return u ? escapeHtml(u.name) : '&nbsp;';
+}
+
+// 渲染後非同步更新容器內 [data-uid] 的名字和頭像（換成作者現在的對外名稱、頭像）
 async function updateDisplayNames(container) {
-  const els  = [...container.querySelectorAll('[data-uid]')];
+  const els  = [...container.querySelectorAll('[data-uid]')].filter(e => e.dataset.uid);
   if (!els.length) return;
   const uids = [...new Set(els.map(e => e.dataset.uid))];
   await Promise.all(uids.map(uid => getUserDisplay(uid)));
   els.forEach(el => {
     const u = _userDisplayCache.get(el.dataset.uid);
-    if (u) el.textContent = u.name;
+    if (!u) return;
+    if (el.tagName === 'IMG') {
+      // 頭像：換成對方現在的頭像（後來才上傳自己頭像的人，舊評論也跟著換）
+      const src = safeUrl(u.avatarUrl);
+      if (src && el.getAttribute('src') !== src) el.src = src;
+    } else if (!el.matches('.review-avatar-placeholder, .rf-avatar-ph')) {
+      el.textContent = u.name;   // 沒頭像的 👤 圓圈不動（以前會被換成名字）
+    }
   });
+}
+
+// ── 對外名稱、頭像（評論、留言、菜單照片寫進公開資料用）────────────────────────
+// 有暱稱用暱稱、有自己上傳的頭像用它，沒有才用 Google 的（和 auth.js 同步 userProfiles 的規則一樣）。
+// currentDisplayName／currentAvatarUrl 由頁面填：搜尋器是 auth.js，店家頁是 shop.html。
+// 會員資料還沒讀到時 currentDisplayName 是空的 → 跳提示、回 null，不拿 Google 名稱代替：
+// 設了暱稱的人會被存成 Google 名稱（2026-11-17 以前的評論、菜單照片、店家頁留言就是這樣）。
+function myPublicIdentity() {
+  if (!auth.currentUser) { showStampToast('請先登入以使用此功能'); return null; }
+  // 頭像只存自己上傳的或 Google 大頭照（safeUrl 白名單）；沒頭像時 finder 的 currentAvatarUrl 是預設圖 03.png，不存
+  if (currentDisplayName) return { name: currentDisplayName, avatarUrl: safeUrl(currentAvatarUrl) || '' };
+  if (typeof showMemberLoadToast === 'function') showMemberLoadToast();
+  else showStampToast('還在載入，請稍後再試');
+  return null;
 }
 
 // ── Photo Viewer ──────────────────────────────────────────────────────────────
@@ -425,6 +467,8 @@ document.getElementById('rvSubmitBtn').addEventListener('click', async () => {
     document.getElementById('rvProgress').textContent = '❌ 日期格式錯誤或不可為未來日期';
     return;
   }
+  const me = myPublicIdentity();   // 會員資料還沒讀到 → 已跳提示，先不送（照片也還沒傳）
+  if (!me) return;
 
   const submitBtn = document.getElementById('rvSubmitBtn');
   const cancelBtn = document.getElementById('rvCancelBtn');
@@ -446,13 +490,14 @@ document.getElementById('rvSubmitBtn').addEventListener('click', async () => {
 
     progress.textContent = '送出評論…';
     const u = auth.currentUser;
-    // 頭像：直接用目前顯示的頭像 URL（已是 Storage URL 或 DiceBear 或 Google）
+    // 名字、頭像：對外名稱與頭像（myPublicIdentity）。以前名字一律存 Google 名稱；
+    // 頭像讀 userAvatar 元素，店家頁沒有這個元素，送出會失敗（2026-11-17 改）
     await db.collection('reviews').doc(reviewId).set({
       shopId:      _rvShopId,
       shopName:    _rvShopName,
       uid:         u.uid,
-      displayName: u.displayName || '匿名',
-      avatarUrl:   userAvatar.src || u.photoURL || '',
+      displayName: me.name,
+      avatarUrl:   me.avatarUrl,
       rating:      _rvRating,
       text,
       photos,
@@ -600,7 +645,7 @@ async function loadReviewsFeedPage(page = 1, opts) {
             ? `<img class="rf-avatar" src="${escapeHtml(avatarUrl)}" data-uid="${d.uid}" alt="">`
             : `<div class="rf-avatar-ph" data-uid="${d.uid}">👤</div>`}
           <div class="rf-user-info">
-            <span class="rf-username" data-uid="${d.uid}">${escapeHtml(d.displayName || '匿名')}</span>
+            <span class="rf-username" data-uid="${d.uid}">${nameHtml(d.uid, d.displayName)}</span>
             <span class="rf-shopname">📍 ${escapeHtml(d.shopName || '')}</span>
           </div>
           <div class="rf-right">
@@ -638,13 +683,15 @@ async function loadReviewsFeedPage(page = 1, opts) {
         rcs.addEventListener('click', async () => {
           const text = rci.value.trim();
           if (!text) return;
+          const me = myPublicIdentity();   // 會員資料還沒讀到 → 已跳提示，先不送
+          if (!me) return;
           rcs.disabled = true;
           try {
             const u = auth.currentUser;
             await db.collection('reviews').doc(doc.id).collection('comments').add({
               uid: u.uid,
-              displayName: currentDisplayName || u.displayName || '匿名',
-              avatarUrl: currentAvatarUrl || u.photoURL || null,
+              displayName: me.name,
+              avatarUrl: me.avatarUrl || null,
               text,
               createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             });

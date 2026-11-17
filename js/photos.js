@@ -220,11 +220,17 @@ function _renderPV(dir) {
     return;
   }
   dateEl.textContent   = _pvMeta.date ? `拍攝日期 ${_pvMeta.date}` : '';
-  authorEl.textContent = _pvMeta.authorName ? `by ${_pvMeta.authorName}` : '';
-  if (_pvMeta.uid) {
-    getUserDisplay(_pvMeta.uid).then(u => {
-      authorEl.textContent = `by ${u.name}`;
+  if (_pvMeta.uid && typeof getUserDisplay === 'function') {
+    // 有上傳者 uid：名字只用查到的對外名稱（查過的直接顯示），不先顯示呼叫端帶來的 authorName
+    //（舊資料存的可能是 Google 名稱，先顯示再換會閃一下；2026-11-17）
+    const uid    = _pvMeta.uid;
+    const cached = typeof _userDisplayCache !== 'undefined' ? _userDisplayCache.get(uid) : null;
+    authorEl.textContent = cached ? `by ${cached.name}` : '';
+    getUserDisplay(uid).then(u => {
+      if (_pvMeta.uid === uid) authorEl.textContent = `by ${u.name}`;   // 查詢期間換到別張照片就不蓋
     });
+  } else {
+    authorEl.textContent = _pvMeta.authorName ? `by ${_pvMeta.authorName}` : '';
   }
 }
 function _pvGo(delta) {

@@ -724,6 +724,13 @@ function showStampToast(msg) {
   t._t = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
+// ── 會員資料還沒讀到時的提示（reviews.js／menus.js 送出評論、留言、菜單照片前會檢查）──
+// 和搜尋器（auth.js）同一句：讀取失敗說「沒有載入成功」，還在讀就說「還在載入」
+var _shopMemberFailed = false;
+function showMemberLoadToast() {
+  showStampToast(_shopMemberFailed ? '會員資料沒有載入成功，請重新整理' : '還在載入，請稍後再試');
+}
+
 // ── Dark mode init ────────────────────────────────────────────────────────────
 (function() {
   if (localStorage.getItem('darkMode') === '1') document.body.classList.add('dark');
@@ -732,19 +739,28 @@ function showStampToast(msg) {
 // ── Auth state ────────────────────────────────────────────────────────────────
 auth.onAuthStateChanged(async function(user) {
   if (user) {
+    // 名字先清空：換帳號登入、這次又讀不到時，不能沿用上一個人的名字
+    currentDisplayName = '';
+    currentAvatarUrl   = '';
+    _shopMemberFailed  = false;
     // Load role
     try {
       const snap = await db.collection('users').doc(user.uid).get();
       if (snap.exists) {
         const d = snap.data();
         currentUserRole    = d.role || 'viewer';
-        currentDisplayName = d.displayName || user.displayName || '';
+        // 對外名稱：暱稱優先，沒有才用 Google 名稱。不能用 users.displayName：每次登入搜尋器都會被蓋成 Google 名稱
+        //（以前在店家頁留言一律存 Google 名稱，2026-11-17 改）
+        currentDisplayName = d.nickname || user.displayName || '匿名';
         currentAvatarUrl   = d.avatarUrl || user.photoURL || '';
         isWarned           = d.warned === true;
       } else {
-        currentUserRole = 'viewer';
+        // 沒開過搜尋器的帳號還沒有 users 文件，也就沒有暱稱 → 用 Google 名稱、頭像
+        currentUserRole    = 'viewer';
+        currentDisplayName = user.displayName || '匿名';
+        currentAvatarUrl   = user.photoURL || '';
       }
-    } catch(e) { currentUserRole = 'viewer'; }
+    } catch(e) { currentUserRole = 'viewer'; _shopMemberFailed = true; }   // 名字留空 → 送出前會擋下並提示
     // Load stamps
     try {
       const snap2 = await db.collection('userVisits').doc(user.uid).get();

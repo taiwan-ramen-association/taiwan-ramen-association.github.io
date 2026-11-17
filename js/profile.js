@@ -434,8 +434,11 @@ function bindSettingsModal(uid, profile) {
       nickSaveBtn.disabled = true; nickSaveBtn.textContent = '儲存中…';
       try {
         await db.collection('users').doc(uid).update({ nickname });
+        // displayName＝對外名稱：有暱稱用暱稱，清空暱稱就回到 Google 名稱（和 auth.js 同步的規則一樣）。
+        // 以前清空會存成空字串，別人看到的是「匿名」（2026-11-17 改）
+        const me = firebase.auth().currentUser;
         await db.collection('userProfiles').doc(uid).set(
-          { nickname, displayName: nickname || '' },
+          { nickname, displayName: nickname || (me && me.displayName) || '匿名' },
           { merge: true }
         );
         // 更新頁面上的暱稱顯示
