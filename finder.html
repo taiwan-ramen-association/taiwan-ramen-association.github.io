@@ -2820,6 +2820,8 @@
   <span>繼續使用本服務，即表示您同意本協會的 <a href="terms.html" target="_blank">使用者條款</a>（2026/8/5 更新：新增第五條「個人資料之蒐集、處理與利用」告知）。本網站使用 Google Analytics 改善服務體驗。</span>
   <button id="tosBannerBtn">我知道了</button>
 </div>
+<!-- 五顆一開頁就顯示（2026-11-17；以前收藏／社群／任務要等登入流程跑完才出現，中間出錯就永遠不出現）；
+     權限只決定要不要變淡（ff-locked，js/auth.js applyFeatureFlags） -->
 <nav class="bottom-nav" id="bottomNav">
   <!-- 首頁 -->
   <button class="bnav-item active" id="bnavHome">
@@ -2838,14 +2840,14 @@
     <span class="bnav-label">搜尋</span>
   </button>
   <!-- 收藏 -->
-  <button class="bnav-item" id="bnavFavorites" style="display:none">
+  <button class="bnav-item" id="bnavFavorites">
     <svg class="bnav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
     </svg>
     <span class="bnav-label">收藏</span>
   </button>
   <!-- 貼文 -->
-  <button class="bnav-item" id="bnavPosts" style="display:none">
+  <button class="bnav-item" id="bnavPosts">
     <svg class="bnav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
     </svg>
@@ -2853,7 +2855,7 @@
     <span class="bnav-badge" id="bnavPostsBadge"></span>
   </button>
   <!-- 挑戰任務 -->
-  <button class="bnav-item" id="bnavChallenges" style="display:none">
+  <button class="bnav-item" id="bnavChallenges">
     <svg class="bnav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
       <line x1="4" y1="22" x2="4" y2="15"/>
@@ -4572,17 +4574,34 @@ document.getElementById('bnavFinder').addEventListener('click', () => {
   if (_currentPage === 'finder') openSfModal();
   else switchPage('finder');
 });
-document.getElementById('bnavFavorites').addEventListener('click', () => {
-  if (!auth.currentUser || !canUse('favorites')) { showAccessToast(); return; }
+// 收藏／社群／任務（2026-11-17 起一開頁就顯示）：身分還沒確定（js/auth.js 登入流程還沒跑完）就點的話，
+// 先等跑完再判斷，免得已登入的人先看到「請先登入」。最多等 6 秒，之後照當下狀態判斷（提示文字由 showAccessToast
+// 依狀態決定）。等待中再點一律不理；等完時使用者已經切到別頁就不跳。快取裡的舊版 auth.js 沒有 _authSettled → 照舊直接判斷
+var _bnavWaiting = false;
+async function _bnavAllowed(feat, needLogin) {
+  if (typeof _authSettled !== 'undefined' && !_authSettled) {
+    if (_bnavWaiting) return false;
+    const from = _currentPage;
+    _bnavWaiting = true;
+    try {
+      await Promise.race([_authSettledPromise, new Promise(r => setTimeout(r, 6000))]);
+    } finally { _bnavWaiting = false; }
+    if (_currentPage !== from) return false;
+  }
+  if ((needLogin && !auth.currentUser) || !canUse(feat)) { showAccessToast(); return false; }
+  return true;
+}
+document.getElementById('bnavFavorites').addEventListener('click', async () => {
+  if (!(await _bnavAllowed('favorites', true))) return;
   switchPage(_currentPage === 'favorites' ? 'finder' : 'favorites');
 });
-document.getElementById('bnavPosts').addEventListener('click', () => {
-  if (!canUse('postsNav')) { showAccessToast(); return; }
+document.getElementById('bnavPosts').addEventListener('click', async () => {
+  if (!(await _bnavAllowed('postsNav', false))) return;
   switchPage('reviews');
 });
 
-document.getElementById('bnavChallenges').addEventListener('click', () => {
-  if (!canUse('challengesNav')) { showAccessToast(); return; }
+document.getElementById('bnavChallenges').addEventListener('click', async () => {
+  if (!(await _bnavAllowed('challengesNav', false))) return;
   switchPage('challenges');
 });
 
@@ -4684,7 +4703,9 @@ function _dlOpenPage(pg) {
   if (!can) { _dlFinish(); return; }
   if (can()) { switchPage(pg); _dlFinish(); return; }
   if (!_dlAuthDone) { _dlPendingPage = pg; _dlStage(85, 95, '確認登入狀態…'); return; }
-  _dlFinish(auth.currentUser ? '此功能目前暫不開放' : '請先登入以使用此功能');   // 文字同 showAccessToast
+  // 文字同 showAccessToast（2026-11-17 起由 js/auth.js accessDeniedText 決定；快取裡的舊版 auth.js 沒有就用舊寫法）
+  _dlFinish(typeof accessDeniedText === 'function' ? accessDeniedText()
+    : (auth.currentUser ? '此功能目前暫不開放' : '請先登入以使用此功能'));
 }
 // js/auth.js 的登入流程跑完時呼叫（已登入、未登入、出錯三條路都會）＝身分確定了。
 // 名字沿用舊版（以前深連結要等到這裡才套用）；現在只用來重試「等登入結果」的分頁。

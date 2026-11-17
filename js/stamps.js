@@ -5,7 +5,7 @@
 // 依賴全域函式：
 //   render, lockScroll, unlockScroll
 // 提供全域變數：
-//   stampMap, reviewMap, favSet, stampedAtMap
+//   stampMap, reviewMap, favSet, stampedAtMap, _stampsUid
 // 提供全域函式：
 //   loadStamps, openStampModal, closeStampModal,
 //   toggleFav, showStampToast, valToStatus, getStampVal
@@ -19,6 +19,10 @@ var reviewMap = {};   // shopId → string
 // 語意與限制詳見 ramen-finder-notes/ramen-wrapped-plan.md
 var stampedAtMap = {};
 var favSet    = new Set();  // 儲存 shop ID，由 Firestore 載入
+// 踩點紀錄讀成功的 uid（2026-11-17）。不等於目前登入者＝還在讀、讀失敗或卡住 → 踩點視窗不開、不寫入（_stampsReady）。
+// 不擋的話會拿空的紀錄去寫：吃過的次數被蓋掉、第一次踩點時間 stampedAt 變成今天、食記沒填就整段刪掉，
+// 公開的制霸數 conqueredCount 也會被改小
+var _stampsUid = null;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const STATUS_TO_VAL = { once: 1, work: 20 };
@@ -46,12 +50,22 @@ function getStampVal() {
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
-function showStampToast(msg) {
+// ms：停留毫秒數，不給（或 0）＝ 2.2 秒；「會員資料沒有載入成功」那則停久一點（js/auth.js）
+function showStampToast(msg, ms) {
   const t = document.getElementById('stampToast');
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(t._t);
-  t._t = setTimeout(() => t.classList.remove('show'), 2200);
+  t._t = setTimeout(() => t.classList.remove('show'), ms || 2200);
+}
+
+// 踩點紀錄讀好了沒（見上方 _stampsUid）；沒好就跳提示（文字由 js/auth.js 依狀態決定）
+function _stampsReady() {
+  const u = auth.currentUser;
+  if (u && _stampsUid === u.uid) return true;
+  if (typeof showMemberLoadToast === 'function') showMemberLoadToast();
+  else showStampToast('還在載入，請稍後再試');
+  return false;
 }
 
 // ── Favorites ─────────────────────────────────────────────────────────────────
@@ -74,6 +88,7 @@ async function toggleFav(shopId) {
 
 // ── Load stamps from Firestore ────────────────────────────────────────────────
 async function loadStamps(uid) {
+  _stampsUid = null;
   const snap = await db.collection('userVisits').doc(uid).get();
   if (snap.exists) {
     stampMap     = snap.data().visits    || {};
@@ -82,12 +97,14 @@ async function loadStamps(uid) {
   } else {
     stampMap = {}; reviewMap = {}; stampedAtMap = {};
   }
+  _stampsUid = uid;
 }
 
 // ── Stamp Modal ───────────────────────────────────────────────────────────────
 function openStampModal(shopId, shopName) {
   if (!auth.currentUser) { showStampToast('請先登入以使用此功能'); return; }
   if (isWarned) { showStampToast('您的帳號目前受到限制'); return; }
+  if (!_stampsReady()) return;
   _stampShopId   = shopId;
   _stampShopName = shopName;
   const stored = stampMap[shopId];
@@ -154,6 +171,7 @@ document.getElementById('smReview').addEventListener('input', e => {
 document.getElementById('smConfirmBtn').addEventListener('click', async () => {
   const shopId = _stampShopId;
   if (!shopId || !auth.currentUser) return;
+  if (!_stampsReady()) return;
   const val    = getStampVal();
   const review = document.getElementById('smReview').value.trim();
   stampMap[shopId] = val;
@@ -191,6 +209,7 @@ document.getElementById('smConfirmBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('smResetBtn').addEventListener('click', async () => {
+  if (!_stampsReady()) return;   // 制霸數要從 stampMap 重算，沒讀到就不能清
   if (!confirm(`確定要清除「${_stampShopName}」的踩點記錄嗎？\n此操作無法復原。`)) return;
   const shopId = _stampShopId;
   if (!shopId || !auth.currentUser) return;

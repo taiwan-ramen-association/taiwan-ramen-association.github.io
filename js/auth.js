@@ -10,8 +10,9 @@
 // 提供全域：
 //   auth, db, storage, provider, firebase (透過 initializeApp)
 //   currentUserRole, currentDisplayName, currentAvatarUrl, isWarned
+//   _memberRoleKnown, _memberSlowOrFailed, _authSettled, _authSettledPromise（2026-11-17，見 §3、§8）
 //   featureFlags（含 vis/perm 設定）
-//   canView, canUse, showAccessToast, hasPermission, getRoleLevel
+//   canView, canUse, showAccessToast, accessDeniedText, showMemberLoadToast, hasPermission, getRoleLevel
 //   loadFeatureFlags, applyFeatureFlags
 //   getAvatarUrl, applyAvatarUrl
 //   showBetaGate, openPrivacyModal, closePrivacyModal, doGoogleSignIn
@@ -78,6 +79,28 @@ var currentDisplayName = '';
 var currentAvatarUrl   = '';
 var isWarned           = false;
 
+// 會員資料載入狀態（2026-11-17，見 §8 onAuthStateChanged 開頭的說明）
+//   _memberRoleKnown     users/{uid} 讀到了、身分已填 → currentUserRole／isWarned 才可信；false＝權限照未登入算
+//   _memberSlowOrFailed  讀取失敗，或超過 MEMBER_WATCHDOG_MS 還沒讀完 → 提示改成請使用者重新整理
+// 別的檔案要用一律 window.xxx 或先 typeof：部署後約 10 分鐘內 finder.html／stamps.js 可能還是快取的舊版
+var _memberRoleKnown     = false;
+var _memberSlowOrFailed  = false;
+var MEMBER_LOAD_FAIL_MSG = '會員資料沒有載入成功，請重新整理';
+const MEMBER_WATCHDOG_MS = 10000;
+let _memberWatchdog      = null;
+
+// 身分確定了沒：登入流程跑完（已登入、未登入、出錯三條路都算）才是 true，登入狀態改變時重來一次。
+// finder.html 底部 nav 用：還沒確定就點 → 先等 _authSettledPromise（見 finder.html _bnavAllowed）
+var _authSettled = false;
+var _authSettledResolve = null;
+var _authSettledPromise = new Promise(r => { _authSettledResolve = r; });
+function _authBegin() {
+  if (!_authSettled) return;
+  _authSettled = false;
+  _authSettledPromise = new Promise(r => { _authSettledResolve = r; });
+}
+function _authEnd() { _authSettled = true; _authSettledResolve(); }
+
 var featureFlags = {
   favorites:      { vis: 'viewer',   perm: 'viewer'   },
   stamps:         { vis: 'viewer',   perm: 'viewer'   },
@@ -120,13 +143,28 @@ function canUse(feature) {
   return getRoleLevel(currentUserRole) >= req;
 }
 
-// 未登入 vs 已登入無權限，顯示對應提示
+// 權限不足時的提示：未登入／會員資料還沒好（身分還沒填）／已登入但沒權限。
+// accessDeniedText 也給 finder.html 深連結用（兩邊文字要一樣）
+function accessDeniedText() {
+  if (!auth.currentUser) return '請先登入以使用此功能';
+  if (!_memberRoleKnown) return _memberSlowOrFailed ? MEMBER_LOAD_FAIL_MSG : '還在載入，請稍後再試';
+  return '此功能目前暫不開放';
+}
 function showAccessToast() {
-  if (!auth.currentUser) {
-    showStampToast('請先登入以使用此功能');
-  } else {
-    showStampToast('此功能目前暫不開放');
-  }
+  const msg = accessDeniedText();
+  showStampToast(msg, msg === MEMBER_LOAD_FAIL_MSG ? 5000 : 0);
+}
+// 按了要用會員資料的功能、但還沒載好（踩點，js/stamps.js _stampsReady）：失敗或逾時 → 請重新整理；還在跑 → 稍候
+function showMemberLoadToast() {
+  if (_memberSlowOrFailed) showStampToast(MEMBER_LOAD_FAIL_MSG, 5000);
+  else showStampToast('還在載入，請稍後再試');
+}
+// 會員資料沒讀到 → 跳一次提示。要等店家資料、壽星動畫：載入畫面（z-index 1400）、深連結遮罩都蓋在提示（700）上面
+function _queueMemberFailToast() {
+  const show  = () => { if (_memberSlowOrFailed && auth.currentUser) showStampToast(MEMBER_LOAD_FAIL_MSG, 6000); };
+  const later = () => setTimeout(show, (typeof _dlMaskOpen !== 'undefined' && _dlMaskOpen) ? 400 : 0);
+  const afterAnim = () => (typeof _onBdAnimDone === 'function' ? _onBdAnimDone(later) : later());
+  if (typeof _onDataLoaded === 'function') _onDataLoaded(afterAnim); else afterAnim();
 }
 
 async function loadFeatureFlags() {
@@ -203,11 +241,12 @@ function applyFeatureFlags() {
   // vis 退役：bottomNav 一律顯示；perm 控鎖定（未達 → ff-locked），
   // 點擊鎖定項由既有 click handler（canUse 檢查 → showAccessToast）提示登入/不開放。
   // 首頁 bnavHome、搜尋 bnavFinder 無 flag，永遠可用。
+  // 2026-11-17 起 HTML 不再預設 display:none（一開頁就是五顆）；下面清 display 那行留給快取裡的舊版 finder.html
   [['bnavFavorites', 'favorites'], ['bnavPosts', 'postsNav'], ['bnavChallenges', 'challengesNav']]
     .forEach(([id, feat]) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.style.display = '';                            // 覆蓋 HTML 的 display:none → 常駐
+      el.style.display = '';                            // 覆蓋舊版 HTML 的 display:none → 常駐
       el.classList.toggle('ff-locked', !canUse(feat));  // perm 控鎖定
     });
 
@@ -287,25 +326,54 @@ const _pageScriptsReady = new Promise(resolve => {
   else document.addEventListener('DOMContentLoaded', resolve, { once: true });
 });
 
+// 2026-11-17 錯誤處理：每一步各自 try/catch；不管哪一步失敗，最後都會跑到 applyFeatureFlags()、render()、
+// 深連結，已登入的人右上角維持頭像（不會變回「登入」）。
+//   寫登入資料（lastLogin 等）失敗 → 照常往下
+//   讀不到會員資料（users）→ 不能當成第一次登入（會重設身分、重發會員編號、多送 sign_up）：
+//     身分留空＝權限照未登入算；不跑首次登入、不同步 userProfiles、不讀踩點
+//   讀不到踩點紀錄（userVisits）→ 身分照常，只擋踩點（js/stamps.js _stampsReady）
+//   這兩種獎章都不給 uid（不然 _bdgWriteSeen 會把「0 個踩點」算出來的結果寫回 badgeSeen），並跳提示 MEMBER_LOAD_FAIL_MSG
+//   斷線時 set()／get() 不會失敗而是一直等 → 超過 MEMBER_WATCHDOG_MS 先跳提示；網路恢復後照常跑完、自動解鎖
+//   身分（currentUserRole 等）等踩點讀完才填：中途有 render 的話按鈕都是鎖住的，不會拿還沒載完的資料去寫
+//   其他沒料到的錯誤（外層 catch）→ 一律照「讀不到會員資料」處理
 auth.onAuthStateChanged(async user => {
+  _authBegin();
+  clearTimeout(_memberWatchdog);
+  _memberRoleKnown    = false;
+  _memberSlowOrFailed = false;
   try {
     if (user) {
       _googlePhotoURL = user.photoURL || '';
       loginBtn.style.display = 'none';
       userAvatar.style.display = 'block';
+      _memberWatchdog = setTimeout(() => {
+        const u = auth.currentUser;
+        if (!u || u.uid !== user.uid || _memberRoleKnown) return;
+        console.warn('[auth] 會員資料超過 ' + (MEMBER_WATCHDOG_MS / 1000) + ' 秒還沒讀完');
+        _memberSlowOrFailed = true;
+        _queueMemberFailToast();
+      }, MEMBER_WATCHDOG_MS);
 
       const userRef = db.collection('users').doc(user.uid);
-      await userRef.set({
-        displayName: user.displayName || '',
-        email:       user.email || '',
-        photoURL:    user.photoURL || '',
-        lastLogin:   firebase.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
-      const snap     = await userRef.get();
-      const userData = snap.data();
+      try {
+        await userRef.set({
+          displayName: user.displayName || '',
+          email:       user.email || '',
+          photoURL:    user.photoURL || '',
+          lastLogin:   firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch (e) { console.warn('[auth] 寫入登入資料失敗（照常往下）', e); }
+
+      // 讀失敗、文件不存在（上面也沒寫進去）、只拿到快取 → userData 留 null
+      let userData = null;
+      try {
+        const snap = await userRef.get();
+        if (snap.exists && !(snap.metadata && snap.metadata.fromCache)) userData = snap.data();
+        else console.error('[auth] 會員資料沒讀到：' + (snap.exists ? '只有快取' : '文件不存在'));
+      } catch (e) { console.error('[auth] 讀取會員資料失敗', e); }
 
       // 第一次登入：設定基本欄位 + 自動分配 memberNo
-      if (!userData.role) {
+      if (userData && !userData.role) {
         // Step 1：先寫入基本欄位（獨立，確保一定成功）
         try {
           await userRef.update({
@@ -333,19 +401,21 @@ auth.onAuthStateChanged(async user => {
         Object.assign(userData, snap2.data());
       }
 
-      // 同步公開 profile（讓其他登入用戶可讀 nickname / avatarUrl）
-      try {
-        await db.collection('userProfiles').doc(user.uid).set({
-          displayName: userData.nickname || user.displayName || '匿名',
-          nickname:    userData.nickname || '',
-          avatarUrl:   userData.avatarUrl || user.photoURL || '',
-        }, { merge: true });
-      } catch(e) { console.warn('userProfiles sync failed', e); }
+      // 同步公開 profile（讓其他登入用戶可讀 nickname / avatarUrl）；會員資料沒讀到就不同步（不知道暱稱）
+      if (userData) {
+        try {
+          await db.collection('userProfiles').doc(user.uid).set({
+            displayName: userData.nickname || user.displayName || '匿名',
+            nickname:    userData.nickname || '',
+            avatarUrl:   userData.avatarUrl || user.photoURL || '',
+          }, { merge: true });
+        } catch(e) { console.warn('userProfiles sync failed', e); }
+      }
 
       // 從 Firestore 讀取 featureFlags，決定本頁存取門檻（GATE_FLAG 由頁面偵測決定）
       let permRole = await _readGatePerm();
 
-      if (!hasPermission(userData.role, permRole)) {
+      if (!hasPermission(userData ? userData.role : '', permRole)) {
         showBetaGate(GATE_MSG_NO_PERM);
         userAvatar.style.display = 'block';
         return;
@@ -362,11 +432,7 @@ auth.onAuthStateChanged(async user => {
       document.getElementById('pdGoogleAvatar').src        = user.photoURL || 'assets/icons/03.png';
       document.getElementById('pdGoogleName').textContent  = user.displayName || '';
       pdEmail.value = user.email || '';
-      adminLink.style.display   = userData.role === 'admin' ? 'flex' : 'none';
-      isWarned = userData.role === 'warned';
-      currentUserRole    = userData.role || 'viewer';
-      currentShopId      = userData.shopId || '';
-      currentDisplayName = userData.nickname || user.displayName || '匿名';
+      currentDisplayName = userData ? (userData.nickname || user.displayName || '匿名') : '';
       currentAvatarUrl   = avatar;
 
       // GA4: 綁定 user_id（跨裝置識別）
@@ -377,17 +443,31 @@ auth.onAuthStateChanged(async user => {
       // 以下用到 stamps.js（favSet、loadStamps）、card.js（render）與內嵌腳本，先等腳本載完
       await _pageScriptsReady;
 
-      // 載入收藏清單 + 踩點記錄
-      const favIds = userData.favorites || [];
-      favSet = new Set(favIds);
-      await loadStamps(user.uid);
-      // 獎章要用踩點判斷「從業過」，所以排在 loadStamps 之後
-      if (typeof badgesSetUser === 'function') badgesSetUser(user.uid, userData);
+      // 載入收藏清單 + 踩點記錄（會員資料沒讀到就不讀踩點：身分不明，踩點本來就鎖住）
+      favSet = new Set(userData ? (userData.favorites || []) : []);
+      let stampsOk = false;
+      if (userData) {
+        try { await loadStamps(user.uid); stampsOk = true; }
+        catch (e) { console.error('[auth] 讀取踩點紀錄失敗', e); }
+      }
+
+      // 身分最後才填（見本段開頭）
+      adminLink.style.display = userData && userData.role === 'admin' ? 'flex' : 'none';
+      isWarned            = !!userData && userData.role === 'warned';
+      currentUserRole     = userData ? (userData.role || 'viewer') : '';
+      currentShopId       = userData ? (userData.shopId || '') : '';
+      _memberRoleKnown    = !!userData;
+      _memberSlowOrFailed = !stampsOk;
+      clearTimeout(_memberWatchdog);
+
+      // 獎章要用踩點判斷「從業過」，所以排在 loadStamps 之後；踩點沒讀到就不給 uid（見本段開頭）
+      if (typeof badgesSetUser === 'function') badgesSetUser(stampsOk ? user.uid : null, stampsOk ? userData : null);
       await _ffReady;
       applyFeatureFlags();
       render();
       checkUnreadBadge();
       if (typeof applyDeepLinkOnce === 'function') applyDeepLinkOnce();
+      if (_memberSlowOrFailed) _queueMemberFailToast();
 
       // 登入後背景重抓「受登入狀態影響」的資料，不 reload、不跳頁（登出才 reload）。
       // 未登入時這些頁面是以「空進度／無留言框」渲染的，不重抓就會停在舊畫面：
@@ -446,11 +526,32 @@ auth.onAuthStateChanged(async user => {
     }
   } catch (err) {
     console.error('[auth] 處理失敗:', err.message, err.stack || '');
-    loginBtn.style.display   = 'flex';
-    userAvatar.style.display = 'none';
-    // 深連結（2026-11-11）：登入流程出錯也算「身分確定了」，等登入結果的分頁（收藏等）
-    // 不必等到 10 秒逾時；腳本可能還沒載完，所以等 _pageScriptsReady（見 finder.html「深連結」段）
-    _pageScriptsReady.then(() => { if (typeof applyDeepLinkOnce === 'function') applyDeepLinkOnce(); });
+    // 2026-11-17：已登入就維持頭像（不變回「登入」）；會員狀態可能只跑一半 → 照「讀不到會員資料」處理
+    if (user) {
+      loginBtn.style.display   = 'none';
+      userAvatar.style.display = 'block';
+      adminLink.style.display  = 'none';
+      isWarned        = false;
+      currentUserRole = '';
+      currentShopId   = '';
+      _memberRoleKnown    = false;
+      _memberSlowOrFailed = true;
+    } else {
+      loginBtn.style.display   = 'flex';
+      userAvatar.style.display = 'none';
+    }
+    clearTimeout(_memberWatchdog);
+    // 清單、底部選單、深連結照常出現；腳本可能還沒載完，先等 _pageScriptsReady（見 finder.html「深連結」段）
+    await _pageScriptsReady;
+    if (user && typeof badgesSetUser === 'function') { try { badgesSetUser(null, null); } catch (e) {} }
+    try { await _ffReady; applyFeatureFlags(); } catch (e) { console.error('[auth] applyFeatureFlags 失敗', e); }
+    try { render(); } catch (e) { console.error('[auth] render 失敗', e); }
+    if (user) _queueMemberFailToast();
+    // 深連結（2026-11-11）：登入流程出錯也算「身分確定了」，等登入結果的分頁（收藏等）不必等到 10 秒逾時
+    if (typeof applyDeepLinkOnce === 'function') applyDeepLinkOnce();
+  } finally {
+    clearTimeout(_memberWatchdog);
+    _authEnd();
   }
 });
 
