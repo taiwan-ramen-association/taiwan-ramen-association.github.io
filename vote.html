@@ -75,6 +75,18 @@ main { max-width: 720px; margin: 0 auto; padding: 18px 16px 60px; }
   cursor: pointer; font-family: inherit;
 }
 .v-banner-btn:active { opacity: 0.82; }
+/* 白名單場次：受邀狀態、不在名單的人看到自己的帳號 ID（方便受邀者傳給協會核對）*/
+.v-note { margin-top: 8px; font-size: 13px; color: var(--stone); }
+.v-uid { margin-top: 10px; font-size: 13px; color: var(--stone); }
+.v-uid code {
+  display: inline-block; margin: 6px 6px 0 0; padding: 4px 8px; border-radius: 6px;
+  background: var(--white); border: 1px solid var(--line); color: var(--ink);
+  font-size: 12px; word-break: break-all; user-select: all;
+}
+.v-uid button {
+  padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--white);
+  color: var(--ink); font-size: 12px; cursor: pointer; font-family: inherit;
+}
 
 /* 票匭分頁籤（比照挑戰排行榜 ch-rank-mtab）*/
 .v-tabs { display: flex; border-bottom: 1px solid var(--line); margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
@@ -514,9 +526,27 @@ async function loadUserState(uid) {
   _eligible = await checkEligibility(uid);
 }
 
+// 白名單開關：與 firestore.rules needsWhitelist()、後台 vtNeedsWhitelist() 同一個判斷式——
+// 只有「沒有這欄」或「false」算關閉；null、打錯型別一律當成啟用（rules 也是這樣擋）
+function needsWhitelist(v) {
+  return !(v.requireWhitelist === undefined || v.requireWhitelist === false);
+}
+
 // 前台的資格判定要與 rules 同一套條件，但目的不同：
 // rules 負責「擋」，這裡負責「講清楚是哪一條沒過」。只說「無資格」等於沒說。
 async function checkEligibility(uid) {
+  // 白名單場次先查名單（本人只讀得到自己那份）。不在名單的人不再列帳號日期、活動門檻——
+  // 講了反而像是補齊條件就能投
+  if (needsWhitelist(_vote)) {
+    try {
+      const w = await db.collection('votes').doc(_voteId).collection('whitelist').doc(uid).get();
+      if (!w.exists) return { ok: false, reasons: ['本場投票僅限受邀名單內的帳號參加。'], showUid: true };
+    } catch (e) {
+      console.error('[vote] 白名單讀取失敗', e);
+      return { ok: false, reasons: ['無法確認您的受邀資格，請重新整理再試。'] };
+    }
+  }
+
   const reasons = [];
   try {
     const uDoc = await db.collection('users').doc(uid).get();
@@ -626,7 +656,7 @@ function renderBanner(ws) {
       return `<div class="v-banner"><div class="v-banner-title">投票尚未上線</div>本場投票還在準備中，目前僅供預覽。</div>`;
     }
     const when = _vote.startAt ? `將於 ${fmtTs(_vote.startAt)} 開始。` : '尚未開始。';
-    return `<div class="v-banner"><div class="v-banner-title">投票尚未開始</div>${esc(when)}先看看有哪些候選吧。</div>`;
+    return `<div class="v-banner"><div class="v-banner-title">投票尚未開始</div>${esc(when)}先看看有哪些候選吧。${renderInviteNote()}</div>`;
   }
   if (ws === 'gated') {
     // 「門還沒開」與「投票尚未開始」是兩回事：後者是時間問題、會自己到，
@@ -643,6 +673,13 @@ function renderBanner(ws) {
   }
   // ws === 'open'
   if (!_user) {
+    if (needsWhitelist(_vote)) {
+      return `<div class="v-banner">
+        <div class="v-banner-title">本場為受邀投票</div>
+        只有受邀名單內的帳號可以投票，其他人可以先瀏覽所有候選。受邀者請登入後投票。
+        <button class="v-banner-btn" id="bannerLoginBtn">登入投票</button>
+      </div>`;
+    }
     return `<div class="v-banner">
       <div class="v-banner-title">登入後即可投票</div>
       現在可以先瀏覽所有候選。投票需要登入以避免重複投票。
@@ -653,9 +690,28 @@ function renderBanner(ws) {
     return `<div class="v-banner alert">
       <div class="v-banner-title">您目前不符合本場投票資格</div>
       <ul>${_eligible.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
+      ${_eligible.showUid ? renderUidBox() : ''}
     </div>`;
   }
   return '';
+}
+
+// 白名單場次在投票開始前就讓人確認自己在不在名單：協會多半在開票前收集受邀者的帳號 ID，
+// 若要等開始後才看得到，受邀者沒有地方查、也拿不到自己的 ID
+function renderInviteNote() {
+  if (!needsWhitelist(_vote)) return '';
+  if (!_user) {
+    return `<div class="v-note">本場為受邀投票，受邀者可以先登入確認自己在名單內。</div>
+      <button class="v-banner-btn" id="bannerLoginBtn">登入</button>`;
+  }
+  if (!_eligible) return '';
+  if (_eligible.ok) return '<div class="v-note">✓ 您在本場的受邀名單內，投票開始後就可以投票。</div>';
+  return `<ul>${_eligible.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>${_eligible.showUid ? renderUidBox() : ''}`;
+}
+
+function renderUidBox() {
+  return `<div class="v-uid">如果您是受邀者，請把這組帳號 ID 傳給協會核對：<br>
+    <code>${esc(_user.uid)}</code><button type="button" id="copyUidBtn">複製</button></div>`;
 }
 
 function renderTabs(ws) {
@@ -752,6 +808,16 @@ function bindApp() {
 
   const bl = document.getElementById('bannerLoginBtn');
   if (bl) bl.addEventListener('click', () => document.getElementById('privacyModal').classList.add('open'));
+
+  const cu = document.getElementById('copyUidBtn');
+  if (cu) cu.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(_user.uid);
+      toast('已複製帳號 ID');
+    } catch (e) {
+      toast('無法自動複製，請長按上面那串 ID 手動複製');
+    }
+  });
 
   app.querySelectorAll('.v-tab').forEach(t => t.addEventListener('click', () => {
     _activeBox = t.dataset.box;
