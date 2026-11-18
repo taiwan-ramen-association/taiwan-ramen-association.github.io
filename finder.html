@@ -2817,7 +2817,7 @@
 
 <!-- Bottom Navigation Bar -->
 <div id="tosBanner" style="display:none">
-  <span>繼續使用本服務，即表示您同意本協會的 <a href="terms.html" target="_blank">使用者條款</a>（2026/8/5 更新：新增第五條「個人資料之蒐集、處理與利用」告知）。本網站使用 Google Analytics 改善服務體驗。</span>
+  <span>繼續使用本服務，即表示您同意本協會的 <a href="terms.html" target="_blank">使用者條款</a>（2026/11/18 更新：新增 5.9「對外公開顯示的資料」）。本網站使用 Google Analytics 改善服務體驗。</span>
   <button id="tosBannerBtn">我知道了</button>
 </div>
 <!-- 五顆一開頁就顯示（2026-11-17；以前收藏／社群／任務要等登入流程跑完才出現，中間出錯就永遠不出現）；
@@ -2981,7 +2981,7 @@
     <div class="fmod-scroll">
       <div class="fmod-section">
         <p class="fmod-section-title">帳號連結用途</p>
-        <p>您的 Google 帳號僅用於識別身份，我們記錄您的顯示名稱及 Email，用於提供收藏、踩點等個人化服務。</p>
+        <p>您的 Google 帳號用於識別身份，我們記錄您的顯示名稱、頭像及 Email，用於提供收藏、踩點等個人化服務。您發表評論、留言或菜單照片時，會公開顯示暱稱與頭像；未設定時顯示 Google 帳號的名稱與頭像，可隨時在個人頁更改。</p>
       </div>
       <div class="fmod-section">
         <p class="fmod-section-title">個資蒐集聲明</p>
@@ -4395,11 +4395,11 @@ loadData();
 
 // ── TOS 同意橫幅 ───────────────────────────────────────────────────────────
 (function () {
-  if (localStorage.getItem('tos_agreed_v3')) return;
+  if (localStorage.getItem('tos_agreed_v4')) return;
   const banner = document.getElementById('tosBanner');
   banner.style.display = 'flex';
   document.getElementById('tosBannerBtn').addEventListener('click', () => {
-    localStorage.setItem('tos_agreed_v3', '1');
+    localStorage.setItem('tos_agreed_v4', '1');
     banner.style.transition = 'opacity 0.3s ease';
     banner.style.opacity = '0';
     setTimeout(() => banner.remove(), 350);
