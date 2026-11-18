@@ -23,6 +23,10 @@
 // 對外介面不變：render() / _appendCards() / _filtered / _displayedCount / expandedCard
 // 仍是同名全域，由下方薄包裝代理到 mainList 實例，其餘 19 處呼叫端一行都不用改。
 
+// 圖示（2026-11-18）：finder.html 有 icHtml（PulsoIcon 圖示表）就畫線條圖示；
+// 沒有（快取裡的舊版 finder.html）就照舊用 emoji／字元
+function _cdIc(name, ch, cls) { return typeof icHtml === 'function' ? icHtml(name, cls) : ch; }
+
 // ── 清單實例工廠 ─────────────────────────────────────────────────────────────
 // opts.batchSize   每批渲染筆數（預設 20）；Infinity = 一次渲染完、不掛 IntersectionObserver
 // opts.emptyHTML   空清單時顯示的內容
@@ -30,7 +34,7 @@
 function createCardList(containerId, opts = {}) {
   const batchSize = opts.batchSize ?? 20;
   const emptyHTML = opts.emptyHTML
-    ?? '<div class="empty-state"><div class="big">\u{1F35C}</div><p>找不到符合的店家<br>請調整篩選條件</p></div>';
+    ?? '<div class="empty-state"><div class="big">' + _cdIc('noodles', '\u{1F35C}') + '</div><p>找不到符合的店家<br>請調整篩選條件</p></div>';
 
   // 以下四個以前是模組層全域，現在是「這個實例自己的」
   let items          = [];
@@ -141,7 +145,7 @@ function createCardList(containerId, opts = {}) {
         const id = btn.dataset.id;
         if (!id) return;
         await toggleFav(id);
-        btn.textContent = favSet.has(id) ? '\u2665' : '\u2661';
+        btn.innerHTML = favSet.has(id) ? _cdIc('heart-solid', '\u2665') : _cdIc('heart', '\u2661');
         if (typeof opts.onFavToggle === 'function') opts.onFavToggle(id, btn);
       });
     });
@@ -193,7 +197,7 @@ const mainList = createCardList('cardList', { batchSize: 20 });
 // 一次渲染完就永遠不會有高度塌縮、捲動位置天然穩定。
 const favList = createCardList('favCardList', {
   batchSize: Infinity,
-  emptyHTML: '<div class="empty-state"><div class="big">♡</div>'
+  emptyHTML: '<div class="empty-state"><div class="big">' + _cdIc('heart', '♡') + '</div>'
     + '<p>還沒有收藏的店家<br>在搜尋頁點愛心就能加入</p>'
     + '<button class="empty-cta" id="favEmptyCta">去找店家</button></div>',
   // 在收藏頁取消收藏：卡片留在原位變灰，不整份重畫（重畫會塌高度、吃掉捲動位置）。
@@ -236,14 +240,14 @@ function renderCard(shop) {
     : `https://www.google.com/maps/search/${encodeURIComponent(shop['地址'] || shop['店名'])}`;
   const mapBtn  = shop['地址']
     ? `<a href="${escapeHtml(mapUrl)}" target="_blank" class="map-btn">
-         <span class="map-btn-icon">📍</span>
+         <span class="map-btn-icon">${_cdIc('map-pin', '📍')}</span>
          ${shop['地址']}
        </a>`
     : '';
 
   const links = [];
-  if (isValidUrl(shop['Instagram'])) links.push(`<a href="${escapeHtml(shop['Instagram'])}" target="_blank" class="link-btn link-ig">📷 Instagram</a>`);
-  if (isValidUrl(shop['Facebook']))  links.push(`<a href="${escapeHtml(shop['Facebook'])}"  target="_blank" class="link-btn link-fb">👥 Facebook</a>`);
+  if (isValidUrl(shop['Instagram'])) links.push(`<a href="${escapeHtml(shop['Instagram'])}" target="_blank" class="link-btn link-ig">${_cdIc('brand-instagram', '📷')} Instagram</a>`);
+  if (isValidUrl(shop['Facebook']))  links.push(`<a href="${escapeHtml(shop['Facebook'])}"  target="_blank" class="link-btn link-fb">${_cdIc('brand-facebook', '👥')} Facebook</a>`);
 
   const detailItems = [
     shop['支付方式'] ? {l:'支付', v:shop['支付方式']} : null,
@@ -272,16 +276,16 @@ function renderCard(shop) {
         ${birthday ? '<span class="birthday-badge">🎂 本日壽星</span>' : ''}
         ${shop['會員'] === 'Y' ? '<span class="member-badge">MEMBER SHOP</span>' : ''}
         ${isNewOpen(shop) ? '<span class="new-open-badge">NEW OPEN</span>' : ''}
-        ${canView('shopPage') ? `<a class="shop-link-btn${canUse('shopPage') ? '' : ' ff-locked'}" href="shop.html?id=${escapeAttr(shop['ID'] || '')}" target="_blank" title="店家主頁" onclick="if(typeof gtag!=='undefined')gtag('event','shop_page_open',{shop_id:'${escapeAttr(shop['ID'] || '')}',shop_name:'${escapeAttr(shop['店名'] || '')}'})">✈</a>` : ''}
+        ${canView('shopPage') ? `<a class="shop-link-btn${canUse('shopPage') ? '' : ' ff-locked'}" href="shop.html?id=${escapeAttr(shop['ID'] || '')}" target="_blank" title="店家主頁" onclick="if(typeof gtag!=='undefined')gtag('event','shop_page_open',{shop_id:'${escapeAttr(shop['ID'] || '')}',shop_name:'${escapeAttr(shop['店名'] || '')}'})">${_cdIc('store', '✈')}</a>` : ''}
         <span class="queue-badge-header" data-id="${escapeAttr(shop['ID'] || '')}" hidden></span>
-        ${canView('favorites') ? `<button class="fav-btn${isWarned || !canUse('favorites') ? ' locked' : ''}" data-id="${escapeAttr(shop['ID'] || '')}">${favSet.has(shop['ID']) ? '♥' : '♡'}</button>` : ''}
-        ${canView('stamps') ? `<button class="stamp-btn${isWarned || !canUse('stamps') ? ' locked' : ' can-stamp'}${(stampMap[shop['ID']] ?? 0) >= 1 ? ' stamped' : ''}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}" title="踩點">👣</button>` : ''}
+        ${canView('favorites') ? `<button class="fav-btn${isWarned || !canUse('favorites') ? ' locked' : ''}" data-id="${escapeAttr(shop['ID'] || '')}" title="收藏" aria-label="收藏">${favSet.has(shop['ID']) ? _cdIc('heart-solid', '♥') : _cdIc('heart', '♡')}</button>` : ''}
+        ${canView('stamps') ? `<button class="stamp-btn${isWarned || !canUse('stamps') ? ' locked' : ' can-stamp'}${(stampMap[shop['ID']] ?? 0) >= 1 ? ' stamped' : ''}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}" title="踩點">${_cdIc('footprints', '👣')}</button>` : ''}
       </div>
     </div>
     <div class="card-meta">
       <div class="card-meta-main">
         <div class="meta-row">
-          ${dayStr ? `<span><span class="meta-icon">📅</span><span class="meta-text">${dayStr}${hours ? '　' + hours : ''}${offDay && offDay !== '無' ? '　休：' + offDay : ''}</span></span>` : ''}
+          ${dayStr ? `<span><span class="meta-icon">${_cdIc('calendar', '📅')}</span><span class="meta-text">${dayStr}${hours ? '　' + hours : ''}${offDay && offDay !== '無' ? '　休：' + offDay : ''}</span></span>` : ''}
         </div>
       </div>
       <span class="card-chevron" aria-hidden="true"></span>
@@ -310,16 +314,16 @@ function renderCard(shop) {
           <div class="queue-count-row"><span class="queue-no-data">展開後載入...</span></div>
           <button class="queue-report-btn${canUse('queueReport') ? '' : ' ff-locked'}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}">我要回報</button>
         </div>` : ''}
-        ${canView('issueReport') ? `<button class="ir-btn-card${canUse('issueReport') ? '' : ' ff-locked'}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}">⚑ 回報問題</button>` : ''}
+        ${canView('issueReport') ? `<button class="ir-btn-card${canUse('issueReport') ? '' : ' ff-locked'}" data-id="${escapeAttr(shop['ID'] || '')}" data-name="${escapeAttr(shop['店名'] || '')}">${_cdIc('circle-alert', '⚑')} 回報問題</button>` : ''}
       </div>
       <div class="card-tab-panel" data-tab-panel="menu">
-        ${canView('menuTab') ? `<div class="menu-tab-inner"></div>` : `<p class="tab-placeholder">🍜 菜單功能<br>暫不開放</p>`}
+        ${canView('menuTab') ? `<div class="menu-tab-inner"></div>` : `<p class="tab-placeholder">${_cdIc('utensils', '🍜')} 菜單功能<br>暫不開放</p>`}
       </div>
       <div class="card-tab-panel" data-tab-panel="photos">
-        <p class="tab-placeholder">📷 照片功能<br>即將上線</p>
+        <p class="tab-placeholder">${_cdIc('camera', '📷')} 照片功能<br>即將上線</p>
       </div>
       <div class="card-tab-panel" data-tab-panel="reviews">
-        ${canView('reviews') ? '<div class="review-loading">點擊「評論」頁籤載入…</div>' : '<p class="tab-placeholder">💬 評論功能<br>暫不開放</p>'}
+        ${canView('reviews') ? '<div class="review-loading">點擊「評論」頁籤載入…</div>' : '<p class="tab-placeholder">' + _cdIc('message-square-text', '💬') + ' 評論功能<br>暫不開放</p>'}
       </div>
       </div>
       </div>

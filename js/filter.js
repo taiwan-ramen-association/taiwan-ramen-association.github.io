@@ -9,6 +9,26 @@
 //   toMins, isOpenAt, isNewOpen, isThisMonth, isBirthday, isUpcoming,
 //   shopDist, switchView, render, showStampToast, serverNow, locateUser
 
+// 圖示（2026-11-18）：finder.html 有 icHtml（PulsoIcon 圖示表）就畫線條圖示；
+// 沒有（快取裡的舊版 finder.html）就照舊用 emoji／字元
+function _flIc(name, ch, cls) { return typeof icHtml === 'function' ? icHtml(name, cls) : ch; }
+function _flIcSet(el, name, ch, text, after) {   // text 一律 text node
+  if (typeof icSet === 'function') icSet(el, name, text, after);
+  else el.textContent = after ? text + ch : ch + text;
+}
+
+// 搜尋列摘要：tags 的每一項是字串，或前面帶圖示的 { ic, ch, t }；文字一律 text node（2026-11-18）
+function _flTags(el, tags) {
+  el.textContent = '';
+  tags.forEach((g, i) => {
+    if (i) el.appendChild(document.createTextNode(' · '));
+    if (typeof g === 'string') { el.appendChild(document.createTextNode(g)); return; }
+    if (typeof icNode === 'function') el.appendChild(icNode(g.ic, g.cls));
+    else el.appendChild(document.createTextNode(g.ch));
+    el.appendChild(document.createTextNode(' ' + g.t));
+  });
+}
+
 // ── Filter ───────────────────────────────────────────────────────────────────
 
 const DAY_ORDER = {'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'日':7};
@@ -170,7 +190,7 @@ function syncSfModal() {
       if (customLocLabel) {
         if (ci) ci.style.display = 'none';
         if (cb) cb.style.display = 'none';
-        if (cl) { cl.textContent = '📍 ' + customLocLabel; cl.style.display = ''; }
+        if (cl) { _flIcSet(cl, 'map-pin', '📍', ' ' + customLocLabel); cl.style.display = ''; }
         if (cr) cr.style.display = '';
       } else {
         if (ci) { ci.style.display = ''; ci.classList.remove('error'); }
@@ -275,7 +295,7 @@ function updateSfTrigger() {
   const query    = (document.getElementById('searchInput') || {}).value?.trim() || '';
 
   const tags = [];
-  if (activeCollection)                 tags.push('📋 ' + activeCollection.title);
+  if (activeCollection)                 tags.push({ ic: 'clipboard-list', ch: '📋', t: activeCollection.title });
   if (query)                            tags.push(query);
   if (isNowOpen)                        tags.push('現在營業中');
   if (selectedCities.size)             [...selectedCities].forEach(c => tags.push(c));
@@ -287,9 +307,10 @@ function updateSfTrigger() {
   if (mealTime && !isNowOpen)           tags.push(mealTime);
   if (locEnabled && userLat !== null) {
     const locTag = locMode === 'custom'
-      ? ('🗺️ ' + (customLocLabel || '指定位置'))
-      : '📍 附近';
-    tags.push(locTag + (locRadius >= 1000 ? ' ' + locRadius/1000 + 'km' : locRadius ? ' ' + locRadius + 'm' : ''));
+      ? { ic: 'map', ch: '🗺️', t: customLocLabel || '指定位置' }
+      : { ic: 'map-pin', ch: '📍', t: '附近' };
+    locTag.t += (locRadius >= 1000 ? ' ' + locRadius/1000 + 'km' : locRadius ? ' ' + locRadius + 'm' : '');
+    tags.push(locTag);
   }
   if (showNonActive)                    tags.push('含非現存');
   if (showUnvisited)                    tags.push('未踩點');
@@ -307,7 +328,7 @@ function updateSfTrigger() {
 
   if (tags.length) {
     if (badge)    { badge.textContent = count; badge.style.display = ''; }
-    if (trigText) { trigText.textContent = tags.join(' · '); trigText.classList.add('has-query'); }
+    if (trigText) { _flTags(trigText, tags); trigText.classList.add('has-query'); }
   } else {
     if (badge)    badge.style.display = 'none';
     if (trigText) { trigText.textContent = '搜尋店名、地址、派系…'; trigText.classList.remove('has-query'); }
@@ -322,18 +343,18 @@ function renderFilterChips() {
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const query = (document.getElementById('searchInput') || {}).value?.trim() || '';
   const chips = [];
-  if (activeCollection)    chips.push({ label: '📋 ' + activeCollection.title, type: 'collection' });
+  if (activeCollection)    chips.push({ label: activeCollection.title, ic: 'clipboard-list', ch: '📋', type: 'collection' });
   if (query)               chips.push({ label: query, type: 'query' });
-  if (isNowOpen)           chips.push({ label: '🟢 現在營業中', type: 'nowOpen' });
+  if (isNowOpen)           chips.push({ label: '現在營業中', ic: 'circle-solid', cls: 'ic-open', ch: '🟢', type: 'nowOpen' });
   if (selectedCities.size) [...selectedCities].forEach(c => chips.push({ label: c, type: 'city', value: c }));
   if (selectedTypes.size)  [...selectedTypes].forEach(t => chips.push({ label: t, type: 'type', value: t }));
   if (selectedDays.size && !isNowOpen)
     chips.push({ label: '週' + ALL_DAYS.filter(d => selectedDays.has(d)).join(''), type: 'days' });
   if (mealTime && !isNowOpen) chips.push({ label: mealTime, type: 'meal' });
   if (locEnabled && userLat !== null) {
-    const base = locMode === 'custom' ? ('🗺️ ' + (customLocLabel || '指定位置')) : '📍 附近';
+    const custom = locMode === 'custom';
     const r = locRadius >= 1000 ? ' ' + locRadius/1000 + 'km' : locRadius ? ' ' + locRadius + 'm' : '';
-    chips.push({ label: base + r, type: 'loc' });
+    chips.push({ label: (custom ? (customLocLabel || '指定位置') : '附近') + r, ic: custom ? 'map' : 'map-pin', ch: custom ? '🗺️' : '📍', type: 'loc' });
   }
   if (showNonActive) chips.push({ label: '含非現存', type: 'nonActive' });
   if (showUnvisited) chips.push({ label: '未踩點', type: 'unvisited' });
@@ -341,7 +362,7 @@ function renderFilterChips() {
   if (!chips.length) { wrap.innerHTML = ''; return; }
   let html = chips.map(c =>
     `<button class="fchip" data-ctype="${c.type}" data-cvalue="${escapeAttr(c.value || '')}">` +
-    `<span>${esc(c.label)}</span><span class="fchip-x">✕</span></button>`
+    `<span>${c.ic ? _flIc(c.ic, c.ch, c.cls) + ' ' : ''}${esc(c.label)}</span><span class="fchip-x">${_flIc('x', '✕')}</span></button>`
   ).join('');
   if (chips.length > 1) html += `<button class="fchip-clear">清除全部</button>`;
   wrap.innerHTML = html;
@@ -523,13 +544,13 @@ async function handleCustomLocConfirm() {
   const q   = inp.value.trim();
   if (!q) return;
   inp.classList.remove('error');
-  btn.textContent = '⏳';
+  _flIcSet(btn, 'loader-circle', '⏳', '');
   btn.disabled = true;
   try {
     const { lat, lng, label } = await geocodeQuery(q);
     inp.style.display = 'none';
     btn.style.display = 'none';
-    lbl.textContent   = '📍 ' + label;
+    _flIcSet(lbl, 'map-pin', '📍', ' ' + label);
     lbl.style.display = '';
     rst.style.display = '';
     activateCustomLocate(lat, lng, label);
@@ -634,5 +655,5 @@ document.getElementById('sfOtherHeader').addEventListener('click', () => {
   const body = document.getElementById('sfOtherBody');
   const btn  = document.getElementById('sfExpandBtn');
   const open = body.classList.toggle('open');
-  btn.textContent = open ? '收起 ▴' : '展開 ▾';
+  _flIcSet(btn, open ? 'chevron-up' : 'chevron-down', open ? '▴' : '▾', open ? '收起 ' : '展開 ', true);
 });

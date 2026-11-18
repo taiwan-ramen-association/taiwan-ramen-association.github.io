@@ -11,6 +11,10 @@
 //
 // ⚠ 所有識別字加 scn / SCN 前綴，避免與 auth.js / 主 script 全域（如 ROLE_LEVEL）衝突。
 
+// 圖示（2026-11-18）：finder.html 有 icHtml（PulsoIcon 圖示表）就畫線條圖示；
+// 沒有（快取裡的舊版 finder.html）就照舊用 emoji／字元
+function _scnIc(name, ch, cls) { return typeof icHtml === 'function' ? icHtml(name, cls) : ch; }
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SCN_PANEL_TIMEOUT = 60; // 秒
 const SCN_QUEST_GPS_RADIUS = 100000; // 公尺：客人需在店家此範圍內才能完成尋寶站（情境2）
@@ -323,7 +327,7 @@ function scnOpenCustomerPanel(uid, profile, coupons, shopRewards, redeemedItemsT
             <div class="cp-item-sub">${_scnEsc(r.condition || '')}　<span style="opacity:.6">${_scnEsc(forBadge.label)} 適用</span></div>
           </div>
           ${done
-            ? `<button class="cp-redeem-btn" disabled>✅ 今日已兌換</button>`
+            ? `<button class="cp-redeem-btn" disabled>${_scnIc('circle-check', '✅')} 今日已兌換</button>`
             : `<button class="cp-redeem-btn" data-path="B" data-reward-idx="${i}">核銷</button>`}
         </div>`;
     }).join('');
@@ -410,7 +414,7 @@ async function scnLoadChallengeVerify(custUid) {
           <div class="cp-item-sub">${_scnEsc(st.challengeTitle)}</div>
         </div>
         ${done
-          ? `<button class="cp-redeem-btn" disabled>✅ 已驗證</button>`
+          ? `<button class="cp-redeem-btn" disabled>${_scnIc('circle-check', '✅')} 已驗證</button>`
           : `<button class="cp-redeem-btn" data-ch-cid="${_scnEsc(st.challengeId)}" data-ch-tid="${_scnEsc(st.taskId)}">驗證完成</button>`}
       </div>`;
     }).join('');
@@ -422,7 +426,7 @@ async function scnLoadChallengeVerify(custUid) {
         try {
           await scnVerifyChallengeTask(custUid, btn.dataset.chCid, btn.dataset.chTid);
           scnShowToast('✅ 挑戰任務已驗證！', 'success');
-          btn.textContent = '✅ 已驗證';
+          btn.innerHTML = _scnIc('circle-check', '✅') + ' 已驗證';
         } catch (e) {
           console.error('[scan] 挑戰驗證失敗', e);
           scnShowToast('驗證失敗：' + (e.code === 'permission-denied' ? '權限不足（operators / 已驗證）' : '請重試'), 'error');
@@ -568,11 +572,16 @@ async function scnHandleQuestQR(raw) {
 }
 
 // 尋寶結果面板（重用 customerPanel DOM）
+// 尋寶面板標題的圖示（2026-11-18）：這三個換成 PulsoIcon，其他照原樣
+function _scnQuestIc(icon) {
+  const n = ({ '🧭': 'compass', '🎉': 'party-popper', '✅': 'circle-check' })[icon];
+  return n ? _scnIc(n, icon) : icon;
+}
 function scnShowQuestPanel(icon, title, bodyHtml) {
   const cp = document.getElementById('cpContent');
   if (!cp) return;
   cp.innerHTML =
-    `<div class="cp-section-title" style="font-size:16px">${icon} ${_scnEsc(title)}</div>` +
+    `<div class="cp-section-title" style="font-size:16px">${_scnQuestIc(icon)} ${_scnEsc(title)}</div>` +
     (bodyHtml || '') +
     `<button class="cp-redeem-btn" id="scnQuestClose" style="width:100%;margin-top:14px">關閉</button>`;
   const btn = document.getElementById('scnQuestClose');
@@ -647,7 +656,7 @@ let _scnToastTimer;
 function scnShowToast(msg, type = '') {
   const el = document.getElementById('scToast');
   if (!el) return;
-  el.textContent = msg;
+  if (typeof icToast === 'function') icToast(el, msg); else el.textContent = msg;   // 2026-11-18：開頭 ✅⚠📍 換成圖示
   el.className   = 'sc-toast ' + type;
   void el.offsetWidth; // reflow
   el.classList.add('show');

@@ -11,6 +11,14 @@
 // 提供全域函式：
 //   loadShopMenu, openMenuModal, closeMenuModal, loadMenusFeedPage
 
+// 圖示（2026-11-18）：finder.html 有 icHtml（PulsoIcon 圖示表）就畫線條圖示；
+// 沒有（shop.html、快取裡的舊版 finder.html）就照舊用 emoji／字元
+function _mnIc(name, ch, cls) { return typeof icHtml === 'function' ? icHtml(name, cls) : ch; }
+function _mnIcSet(el, name, ch, text, after) {   // text 一律 text node
+  if (typeof icSet === 'function') icSet(el, name, text, after);
+  else el.textContent = after ? text + ch : ch + text;
+}
+
 // ── 1. 店家卡片內的菜單 tab ──────────────────────────────────────────────────
 var menuCache = {}; // shopId → { docs: [], lastDoc, hasMore }
 
@@ -23,7 +31,7 @@ async function loadShopMenu(shop, panel, append = false) {
       headerRow.className = 'review-header-row';
       const uploadBtn = document.createElement('button');
       uploadBtn.className = 'mnu-upload-btn';
-      uploadBtn.innerHTML = '📷 上傳菜單照片';
+      uploadBtn.innerHTML = _mnIc('camera', '📷') + ' 上傳菜單照片';
       uploadBtn.addEventListener('click', () => openMenuModal(shopId, shop['店名'] || ''));
       headerRow.appendChild(uploadBtn);
       panel.appendChild(headerRow);
@@ -75,7 +83,7 @@ async function loadShopMenu(shop, panel, append = false) {
         const delBtn = document.createElement('button');
         delBtn.className = 'mnu-del-btn';
         delBtn.title = '刪除';
-        delBtn.textContent = '✕';
+        delBtn.innerHTML = _mnIc('x', '✕');
         delBtn.addEventListener('click', async e => {
           e.stopPropagation();
           if (!confirm('確定刪除這張菜單照片？')) return;
@@ -115,7 +123,7 @@ let _mnuShopId = '', _mnuShopName = '', _mnuFile = null;
 function openMenuModal(shopId, shopName) {
   _mnuShopId = shopId; _mnuShopName = shopName;
   _mnuFile = null;
-  document.getElementById('mnuTitle').textContent = `📷 上傳菜單 — ${shopName}`;
+  _mnIcSet(document.getElementById('mnuTitle'), 'camera', '📷', ` 上傳菜單 — ${shopName}`);
   document.getElementById('mnuPhotoDate').value = '';
   document.getElementById('mnuPhotoDate').max = new Date().toISOString().split('T')[0];
   document.getElementById('mnuProgress').textContent = '';
@@ -123,7 +131,7 @@ function openMenuModal(shopId, shopName) {
   document.getElementById('mnuPreviewGrid').innerHTML = '';
   // 重置上傳區
   const area = document.getElementById('mnuUploadArea');
-  area.innerHTML = `<input type="file" id="mnuFileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif">📷 點擊上傳照片`;
+  area.innerHTML = `<input type="file" id="mnuFileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif">${_mnIc('camera', '📷')} 點擊上傳照片`;
   area.querySelector('#mnuFileInput').addEventListener('change', onMnuFileChange);
   document.getElementById('mnuBackdrop').classList.add('open');
   document.getElementById('mnuModal').classList.add('open');
@@ -138,14 +146,14 @@ function onMnuFileChange(e) {
   preview.innerHTML = `
     <div class="rv-preview-item">
       <img src="${url}" alt="">
-      <button class="rv-preview-remove" id="mnuPreviewRemove">✕</button>
+      <button class="rv-preview-remove" id="mnuPreviewRemove" aria-label="移除">${_mnIc('x', '✕')}</button>
     </div>`;
   preview.querySelector('#mnuPreviewRemove').addEventListener('click', () => {
     _mnuFile = null;
     preview.innerHTML = '';
     // 重置 input 讓使用者可再次選擇
     const area = document.getElementById('mnuUploadArea');
-    area.innerHTML = `<input type="file" id="mnuFileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif">📷 點擊上傳照片`;
+    area.innerHTML = `<input type="file" id="mnuFileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif">${_mnIc('camera', '📷')} 點擊上傳照片`;
     area.querySelector('#mnuFileInput').addEventListener('change', onMnuFileChange);
     checkMnuReady();
   });
@@ -270,7 +278,7 @@ async function loadMenusFeedPage(page = 1) {
       card.innerHTML = `
         <img class="mnu-photo" src="${escapeHtml(safeUrl(d.photo?.thumb || d.photo?.original || ''))}" data-original="${escapeHtml(safeUrl(d.photo?.original || ''))}" alt="" loading="lazy">
         <div class="mnu-info">
-          <span class="mnu-shop">📍 ${escapeHtml(d.shopName || '')}</span>
+          <span class="mnu-shop">${_mnIc('map-pin', '📍')} ${escapeHtml(d.shopName || '')}</span>
           <span class="mnu-date">${escapeHtml(d.photoDate || dateStr)}</span>
           <span class="mnu-user" data-uid="${d.uid || ''}">${typeof nameHtml === 'function' ? nameHtml(d.uid, d.displayName) : escapeHtml(d.displayName || '匿名')}</span>
         </div>`;
@@ -294,9 +302,9 @@ function renderMnuPagination() {
   if (!el) return;
   const pages = Array.from({ length: _mnuFeedMaxPage }, (_, i) => i + 1);
   el.innerHTML =
-    `<button class="rf-page-btn rf-page-prev" ${_mnuFeedPage <= 1 ? 'disabled' : ''}>◄</button>` +
+    `<button class="rf-page-btn rf-page-prev" ${_mnuFeedPage <= 1 ? 'disabled' : ''} aria-label="上一頁">${_mnIc('chevron-left', '◄')}</button>` +
     pages.map(p => `<button class="rf-page-btn${p === _mnuFeedPage ? ' active' : ''}" data-page="${p}">${p}</button>`).join('') +
-    `<button class="rf-page-btn rf-page-next" ${_mnuFeedPage >= _mnuFeedMaxPage ? 'disabled' : ''}>►</button>`;
+    `<button class="rf-page-btn rf-page-next" ${_mnuFeedPage >= _mnuFeedMaxPage ? 'disabled' : ''} aria-label="下一頁">${_mnIc('chevron-right', '►')}</button>`;
   el.querySelector('.rf-page-prev').addEventListener('click', () => {
     if (_mnuFeedPage > 1) loadMenusFeedPage(_mnuFeedPage - 1);
   });

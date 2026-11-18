@@ -53,7 +53,8 @@ function getStampVal() {
 // ms：停留毫秒數，不給（或 0）＝ 2.2 秒；「會員資料沒有載入成功」那則停久一點（js/auth.js）
 function showStampToast(msg, ms) {
   const t = document.getElementById('stampToast');
-  t.textContent = msg;
+  // 2026-11-18：開頭 ✅❌✓⚠🎉🧭📍 換成 PulsoIcon（finder.html 的 icToast；沒有就照舊）
+  if (typeof icToast === 'function') icToast(t, msg); else t.textContent = msg;
   t.classList.add('show');
   clearTimeout(t._t);
   t._t = setTimeout(() => t.classList.remove('show'), ms || 2200);

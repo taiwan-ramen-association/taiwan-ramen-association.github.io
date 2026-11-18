@@ -11,6 +11,14 @@
 // 提供全域函式：
 //   loadChallengesPage, openChSubmitModal, closeChSubmitModal
 
+// 圖示（2026-11-18）：finder.html 有 icHtml（PulsoIcon 圖示表）就畫線條圖示；
+// 沒有（快取裡的舊版 finder.html）就照舊用 emoji／字元
+function _chIc(name, ch, cls) { return typeof icHtml === 'function' ? icHtml(name, cls) : ch; }
+function _chIcSet(el, name, ch, text, after) {   // text 一律 text node
+  if (typeof icSet === 'function') icSet(el, name, text, after);
+  else el.textContent = after ? text + ch : ch + text;
+}
+
 // ── 狀態 ────────────────────────────────────────────────────────────────────
 var _chChallenges       = [];     // 進行中的挑戰列表
 var _chUserProgress     = {};     // {challengeId: {completedTaskIds: [...]}}
@@ -365,7 +373,7 @@ function renderChallengeCard(challenge) {
       ${ended ? '<div class="ch-ended-mask"><span>活動已結束</span></div>' : ''}
       <div class="ch-card-header${ended ? '' : ' ch-toggle'}">
         <div class="ch-title">${escapeHtml(challenge.title || '')}</div>
-        ${periodStr ? `<div class="ch-period">📅 ${escapeHtml(periodStr)}</div>` : ''}
+        ${periodStr ? `<div class="ch-period">${_chIc('calendar', '📅')} ${escapeHtml(periodStr)}</div>` : ''}
         ${rankInline}
         ${ended ? '' : '<span class="ch-chevron" aria-hidden="true"></span>'}
       </div>
@@ -379,7 +387,7 @@ function renderChallengeCard(challenge) {
           <div class="ch-groups">
             ${(challenge.groups || []).map(g => renderGroup(g, completed, challenge)).join('')}
           </div>
-          ${hasUploadTask ? `<button class="ch-submit-btn" data-challenge-id="${challenge.id}">📷 送出新紀錄(點圖示快速帶入)</button>` : ''}
+          ${hasUploadTask ? `<button class="ch-submit-btn" data-challenge-id="${challenge.id}">${_chIc('camera', '📷')} 送出新紀錄(點圖示快速帶入)</button>` : ''}
         </div>
       </div>
     </div>
@@ -544,7 +552,7 @@ function openChSubmitModal(challengeId, task) {
   _chCurrentShop      = null;
   _chCurrentTask      = task || null;
 
-  document.getElementById('chSubmitTitle').textContent = `📷 送出紀錄 — ${challenge.title || ''}`;
+  _chIcSet(document.getElementById('chSubmitTitle'), 'camera', '📷', ` 送出紀錄 — ${challenge.title || ''}`);
   document.getElementById('chShopInput').value          = '';
   document.getElementById('chShopInput').dataset.shopId = '';
   document.getElementById('chShopAc').style.display     = 'none';
@@ -567,7 +575,7 @@ function openChSubmitModal(challengeId, task) {
         _chCurrentShop     = shop;
       }
     }
-    document.getElementById('chSubmitTitle').textContent = `📷 ${task.title || challenge.title || ''}`;
+    _chIcSet(document.getElementById('chSubmitTitle'), 'camera', '📷', ` ${task.title || challenge.title || ''}`);
   }
 
   resetChUploadArea();
@@ -585,7 +593,7 @@ function closeChSubmitModal() {
 function resetChUploadArea() {
   const area = document.getElementById('chUploadArea');
   if (!area) return;
-  area.innerHTML = `<input type="file" id="chFileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">📷 點擊上傳照片`;
+  area.innerHTML = `<input type="file" id="chFileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">${_chIc('camera', '📷')} 點擊上傳照片`;
   area.querySelector('#chFileInput').addEventListener('change', onChFileChange);
 }
 
@@ -615,7 +623,7 @@ async function onChFileChange(e) {
   preview.innerHTML = `
     <div class="rv-preview-item">
       <img src="${url}" alt="">
-      <button class="rv-preview-remove" id="chPreviewRemove">✕</button>
+      <button class="rv-preview-remove" id="chPreviewRemove" aria-label="移除">${_chIc('x', '✕')}</button>
     </div>`;
   preview.querySelector('#chPreviewRemove').addEventListener('click', () => {
     _chCurrentFile = null;

@@ -10,6 +10,14 @@
 //   showMemberLoadToast（可選；auth.js、shop.html 有）
 // 提供給 menus.js、photos.js：myPublicIdentity、nameHtml、getUserDisplay、updateDisplayNames、_userDisplayCache
 
+// 圖示（2026-11-18）：finder.html 有 icHtml（PulsoIcon 圖示表）就畫線條圖示；
+// 沒有（shop.html、快取裡的舊版 finder.html）就照舊用 emoji／字元
+function _rvIc(name, ch, cls) { return typeof icHtml === 'function' ? icHtml(name, cls) : ch; }
+function _rvIcSet(el, name, ch, text, after) {   // text 一律 text node
+  if (typeof icSet === 'function') icSet(el, name, text, after);
+  else el.textContent = after ? text + ch : ch + text;
+}
+
 // ── URL 白名單（XSS 第二層防護）──────────────────────────────────────────────
 // escapeHtml 擋屬性逃逸；safeUrl 再限制 URL 只能指向已知圖片來源，
 // 防止惡意 avatarUrl / 照片 URL 指向外部網址（追蹤像素洩漏瀏覽者 IP 等）。
@@ -138,7 +146,7 @@ async function loadReviews(shopId, panel, append = false) {
         ${canView('reviews') ? `<button class="write-review-btn${canWrite ? '' : ' locked'}"
           id="writeReviewBtn_${shopId}"
           ${canWrite ? '' : 'disabled title="需登入才能評論"'}>
-          ✍ 寫評論
+          ${_rvIc('square-pen', '✍')} 寫評論
         </button>` : ''}
         <span class="review-count-label">共 ${total} 則評論</span>`;
       panel.insertBefore(headerRow, panel.firstChild);
@@ -159,7 +167,7 @@ async function loadReviews(shopId, panel, append = false) {
       const d  = doc.data();
       const ts = d.createdAt?.toDate?.();
       const dateStr = ts ? ts.toLocaleDateString('zh-TW', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
-      const stars = '★'.repeat(d.rating || 0) + '☆'.repeat(5 - (d.rating || 0));
+      const stars = _rvIc('star-solid', '★').repeat(d.rating || 0) + _rvIc('star', '☆').repeat(5 - (d.rating || 0));
       const canDel = uid === d.uid || isAdmin;
       const photosHtml = (d.photos || []).map(p =>
         `<img class="review-photo-thumb" src="${escapeHtml(safeUrl(p.thumb))}" data-original="${escapeHtml(safeUrl(p.original))}" alt="">`
@@ -178,7 +186,7 @@ async function loadReviews(shopId, panel, append = false) {
           </div>
           <div>
             <span class="review-stars">${stars}</span>
-            ${canDel ? `<button class="review-del-btn" data-docid="${doc.id}" data-shopid="${shopId}">🗑 刪除</button>` : ''}
+            ${canDel ? `<button class="review-del-btn" data-docid="${doc.id}" data-shopid="${shopId}">${_rvIc('trash', '🗑')} 刪除</button>` : ''}
           </div>
         </div>
         ${d.text ? `<div class="review-text">${escapeHtml(d.text)}</div>` : ''}
@@ -369,7 +377,7 @@ function openReviewModal(shopId, shopName) {
   _rvShopName = shopName;
   _rvRating   = 0;
   _rvFiles    = [];
-  document.getElementById('rvTitle').textContent = `✍ 寫評論 — ${shopName}`;
+  _rvIcSet(document.getElementById('rvTitle'), 'square-pen', '✍', ` 寫評論 — ${shopName}`);
   document.getElementById('rvText').value = '';
   document.getElementById('rvPhotoDate').value = '';
   document.getElementById('rvPhotoDate').max = new Date().toISOString().split('T')[0];
@@ -435,7 +443,7 @@ function addRvFiles(newFiles) {
     _rvFiles.push({ file: f, previewUrl });
     const item = document.createElement('div');
     item.className = 'rv-preview-item';
-    item.innerHTML = `<img src="${previewUrl}" alt=""><button class="rv-preview-remove">✕</button>`;
+    item.innerHTML = `<img src="${previewUrl}" alt=""><button class="rv-preview-remove" aria-label="移除">${_rvIc('x', '✕')}</button>`;
     item.querySelector('.rv-preview-remove').addEventListener('click', () => {
       URL.revokeObjectURL(previewUrl);
       _rvFiles = _rvFiles.filter(x => x.previewUrl !== previewUrl);
@@ -630,7 +638,7 @@ async function loadReviewsFeedPage(page = 1, opts) {
       const dateStr = ts
         ? ts.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })
         : '';
-      const stars = '★'.repeat(d.rating || 0) + '☆'.repeat(5 - (d.rating || 0));
+      const stars = _rvIc('star-solid', '★').repeat(d.rating || 0) + _rvIc('star', '☆').repeat(5 - (d.rating || 0));
       const photosHtml = (d.photos || []).slice(0, 5).map(p =>
         `<img class="rf-thumb" src="${escapeHtml(safeUrl(p.thumb))}" data-original="${escapeHtml(safeUrl(p.original))}" alt="" loading="lazy">`
       ).join('');
@@ -646,7 +654,7 @@ async function loadReviewsFeedPage(page = 1, opts) {
             : `<div class="rf-avatar-ph" data-uid="${d.uid}">👤</div>`}
           <div class="rf-user-info">
             <span class="rf-username" data-uid="${d.uid}">${nameHtml(d.uid, d.displayName)}</span>
-            <span class="rf-shopname">📍 ${escapeHtml(d.shopName || '')}</span>
+            <span class="rf-shopname">${_rvIc('map-pin', '📍')} ${escapeHtml(d.shopName || '')}</span>
           </div>
           <div class="rf-right">
             <span class="rf-stars">${stars}</span>
@@ -721,9 +729,9 @@ function renderRfPagination() {
   if (!el) return;
   const pages = Array.from({ length: _rfMaxPage }, (_, i) => i + 1);
   el.innerHTML =
-    `<button class="rf-page-btn rf-page-prev" ${_rfCurrentPage <= 1 ? 'disabled' : ''}>◄</button>` +
+    `<button class="rf-page-btn rf-page-prev" ${_rfCurrentPage <= 1 ? 'disabled' : ''} aria-label="上一頁">${_rvIc('chevron-left', '◄')}</button>` +
     pages.map(p => `<button class="rf-page-btn${p === _rfCurrentPage ? ' active' : ''}" data-page="${p}">${p}</button>`).join('') +
-    `<button class="rf-page-btn rf-page-next" ${_rfCurrentPage >= _rfMaxPage ? 'disabled' : ''}>►</button>`;
+    `<button class="rf-page-btn rf-page-next" ${_rfCurrentPage >= _rfMaxPage ? 'disabled' : ''} aria-label="下一頁">${_rvIc('chevron-right', '►')}</button>`;
   el.querySelector('.rf-page-prev').addEventListener('click', () => {
     if (_rfCurrentPage > 1) loadReviewsFeedPage(_rfCurrentPage - 1);
   });
@@ -738,8 +746,8 @@ function renderRfPagination() {
 document.getElementById('rfTabToggleBtn').addEventListener('click', () => {
   _rfTab = _rfTab === 'reviews' ? 'menus' : 'reviews';
   const isMenus = _rfTab === 'menus';
-  document.getElementById('rfTabToggleBtn').textContent  = isMenus ? '📝 評論' : '🍜 菜單';
-  document.getElementById('rfFeedTitle').textContent     = isMenus ? '🍜 菜單' : '📝 貼文';
+  _rvIcSet(document.getElementById('rfTabToggleBtn'), isMenus ? 'message-square-text' : 'utensils', isMenus ? '📝' : '🍜', isMenus ? ' 評論' : ' 菜單');
+  _rvIcSet(document.getElementById('rfFeedTitle'), isMenus ? 'utensils' : 'message-square-text', isMenus ? '🍜' : '📝', isMenus ? ' 菜單' : ' 貼文');
   document.getElementById('rfList').style.display        = isMenus ? 'none' : '';
   document.getElementById('rfPagination').style.display  = isMenus ? 'none' : '';
   document.getElementById('rfToolbar').style.display     = isMenus ? 'none' : '';

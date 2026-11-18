@@ -9,6 +9,10 @@
 // 依賴全域函式：
 //   render, showStampToast, getFiltered, formatDayStr, isValidUrl
 
+// 圖示（2026-11-18）：finder.html 有 icHtml（PulsoIcon 圖示表）就畫線條圖示；
+// 沒有（快取裡的舊版 finder.html）就照舊用 emoji／字元
+function _mpIc(name, ch, cls) { return typeof icHtml === 'function' ? icHtml(name, cls) : ch; }
+
 // ── Geolocation helpers ───────────────────────────────────────────────────────
 
 function haversine(lat1, lng1, lat2, lng2) {
@@ -181,7 +185,7 @@ function initMap() {
     onAdd() {
       const btn = L.DomUtil.create('button', 'map-ctrl-btn map-ctrl-locate');
       btn.title = '縮放到我的位置（約 1 公里範圍）';
-      btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>`;
+      btn.innerHTML = _mpIc('locate-fixed', `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>`);
       L.DomEvent.on(btn, 'click', L.DomEvent.stop);
       L.DomEvent.on(btn, 'click', () => {
         if (!navigator.geolocation) { showStampToast('此瀏覽器不支援 GPS 定位'); return; }
@@ -293,8 +297,8 @@ function renderMap() {
     const popup = `
       <div>
         <div class="map-popup-name">${shop['店名']}</div>
-        ${dayStr ? `<div class="map-popup-meta">📅 ${dayStr}${hours ? '　' + hours : ''}</div>` : ''}
-        ${shop['地址'] ? `<div class="map-popup-meta">📍 ${shop['地址']}</div>` : ''}
+        ${dayStr ? `<div class="map-popup-meta">${_mpIc('calendar', '📅')} ${dayStr}${hours ? '　' + hours : ''}</div>` : ''}
+        ${shop['地址'] ? `<div class="map-popup-meta">${_mpIc('map-pin', '📍')} ${shop['地址']}</div>` : ''}
         ${shop['營業備註'] ? `<div class="map-popup-note">${shop['營業備註']}</div>` : ''}
         <a href="${escapeHtml(mapUrl)}" target="_blank" class="map-popup-link">開啟 Google 地圖 →</a>
       </div>`;

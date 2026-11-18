@@ -11,6 +11,10 @@
 // 提供全域函式：
 //   badgesSetUser, badgesRefresh, badgesOpenPanel, badgesClosePanel, badgesOnAction
 
+// 圖示（2026-11-18）：finder.html 有 icHtml（PulsoIcon 圖示表）就畫線條圖示；
+// 沒有（快取裡的舊版 finder.html）就照舊用 emoji／字元
+function _bdgIc(name, ch, cls) { return typeof icHtml === 'function' ? icHtml(name, cls) : ch; }
+
 // ── 狀態 ────────────────────────────────────────────────────────────────────
 let _bdgConfig     = null;    // 合併後的設定（meta/achievementConfig＋預設值）
 let _bdgConfigLoad = null;    // 設定讀取中的 Promise（整個 session 只讀一次）
@@ -505,7 +509,7 @@ function _bdgRenderStrip() {
   }
   strip.innerHTML = `<span class="bdg-strip-coins">${coins}</span>` +
     `<span class="bdg-strip-text"><span class="bdg-strip-title">${title}</span>` +
-    `<span class="bdg-strip-sub">${escapeHtml(sub)}</span></span><span class="bdg-strip-arrow">›</span>`;
+    `<span class="bdg-strip-sub">${escapeHtml(sub)}</span></span><span class="bdg-strip-arrow">${_bdgIc('chevron-right', '›')}</span>`;
   strip.classList.toggle('ff-locked', !!_bdgUid && !canUse('badges'));
   strip.style.display = '';
 }
@@ -530,7 +534,7 @@ function _bdgEnsurePanel() {
   el.innerHTML = `
     <div class="bdg-panel-inner">
       <div class="bdg-head">
-        <button type="button" class="bdg-back" data-act="close" aria-label="返回">‹</button>
+        <button type="button" class="bdg-back" data-act="close" aria-label="返回">${_bdgIc('chevron-left', '‹')}</button>
         <span class="bdg-head-title">🎖️ 我的獎章</span>
       </div>
       <div id="badgePanelBody"></div>
@@ -604,7 +608,7 @@ function _bdgRenderPanel() {
     ${sec('🏅 活動獎章', endedEv.concat(actFixed))}
     ${sec('🍜 累積獎章', passive)}
     ${sec('👨‍🍳 職人', craft)}
-    ${missed.length ? `<button type="button" class="bdg-missed" data-act="missed">${_bdgMissedOpen ? '▾' : '▸'} 錯過的活動（${missed.length}）</button>${_bdgMissedOpen ? grid(missed) : ''}` : ''}
+    ${missed.length ? `<button type="button" class="bdg-missed" data-act="missed">${_bdgMissedOpen ? _bdgIc('chevron-down', '▾') : _bdgIc('chevron-right', '▸')} 錯過的活動（${missed.length}）</button>${_bdgMissedOpen ? grid(missed) : ''}` : ''}
     <div class="bdg-foot">Lv＝所有獎章點數加總（${cfg.tiers.map(t => escapeHtml(t.name) + ' ' + t.points).join('・')}；活動獎章 ×${cfg.activityMultiplier}）<br><a href="terms.html#badge-art" target="_blank" rel="noopener" style="color:inherit">獎章圖示說明</a></div>`;
   // 「獎章圖示說明」＝使用條款 2.4（台北 101 的出處聲明；2026-11-16 加）
 }
@@ -652,7 +656,7 @@ function _bdgDetailHtml(b) {
   const ladder = maxTier > 1 ? `<div class="bdg-ladder">${b.thresholds.map((th, i) => {
     const t = i + 1, name = (b.tierNames || [])[i], got = b.tier >= t, on = t === titleTier;
     const cells = `<span>${_bdgTierTag(t)}</span>` +
-      `<span>${th}${escapeHtml(u)}${name ? `｜「${escapeHtml(name)}」` : ''}</span><span>${on ? '使用中' : got ? '✓' : ''}</span>`;
+      `<span>${th}${escapeHtml(u)}${name ? `｜「${escapeHtml(name)}」` : ''}</span><span>${on ? '使用中' : got ? _bdgIc('check', '✓') : ''}</span>`;
     return got
       ? `<button type="button" class="bdg-ladder-row got${on ? ' on' : ''}" data-act="title-tier" data-tier="${t}">${cells}</button>`
       : `<div class="bdg-ladder-row">${cells}</div>`;
@@ -668,7 +672,7 @@ function _bdgDetailHtml(b) {
       `<button type="button" class="bdg-btn${inFeat ? ' on' : ''}" data-act="feat">${inFeat ? '移出精選' : '加入精選'}</button></div>`;
   }
 
-  return `<button type="button" class="bdg-sheet-close" data-act="sheet-close" aria-label="關閉">✕</button>` +
+  return `<button type="button" class="bdg-sheet-close" data-act="sheet-close" aria-label="關閉">${_bdgIc('x', '✕')}</button>` +
     _bdgCoin(b, 96) +
     `<div class="bdg-sheet-name">${escapeHtml(b.name)}</div>` +
     `<div class="bdg-sheet-tier">${head}</div>` +
@@ -731,7 +735,7 @@ function _bdgEnsureShare() {
   el.className = 'bdg-share';
   el.innerHTML = `
     <div class="bdg-share-card" role="dialog" aria-modal="true" aria-labelledby="badgeShareTitle">
-      <button type="button" class="bdg-sheet-close" data-act="share-close" aria-label="關閉">✕</button>
+      <button type="button" class="bdg-sheet-close" data-act="share-close" aria-label="關閉">${_bdgIc('x', '✕')}</button>
       <div class="bdg-share-title" id="badgeShareTitle">分享圖卡</div>
       <div class="bdg-share-pv" id="badgeSharePv"><img id="badgeShareImg" alt="獎章圖卡預覽" hidden><span class="bdg-share-msg" id="badgeShareMsg"></span></div>
       <div class="bdg-share-sws" role="group" aria-label="圖卡配色">${sws}</div>
