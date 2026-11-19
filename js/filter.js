@@ -103,7 +103,7 @@ function getFiltered() {
 
     if (query) {
       const newOpenQuery  = query === 'new open'    || query === '新開幕';
-      const memberQuery   = query === 'member shop' || query === '會員';
+      const memberQuery   = query === 'member shop' || query === '會員' || query === '協會會員';   // 協會會員＝卡片上的稱號（2026-11-19）
       const birthdayQuery = query === '本月壽星';
       if (nonActiveQuery) {
         if (shop['營業狀態'] === '營業中' && !isUpcoming(shop)) return false;

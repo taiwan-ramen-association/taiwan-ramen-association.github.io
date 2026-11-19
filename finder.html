@@ -728,6 +728,84 @@
   }
   .tag-gray { background: #f0ece6; color: var(--stone); }
 
+  /* ── 店家卡片改版（2026-11-19，js/card.js renderCard）──────────────────────
+     上面 .card-header／.card-name／.name-label／.card-meta／.now-pill／.tags、下面 .map-btn、
+     .dist-badge 等舊卡片樣式先留著：新版 finder.html 配到快取裡的舊 card.js 時，舊卡片才不會壞；下次整理再刪。 */
+  .card-top { display: flex; align-items: flex-start; padding: 12px 13px 0; }
+  .card-shopname {
+    flex: 1; min-width: 0;
+    font-family: 'Noto Serif TC', serif; font-size: 17px; font-weight: 700;
+    color: var(--ink); line-height: 23px; overflow-wrap: anywhere;
+  }
+  /* 第一排的圖示（店家主頁｜導航｜收藏｜踩點）：每顆都放進一樣大的透明方框（28×28），圖示 18px 置中；
+     a 和 button 的預設樣式（內距、外框、字級、行高）全部歸零，兩種元素才會一模一樣。
+     方框排在高度＝店名一行（23px，同上面 line-height）的列裡、上下置中 → 不管店名幾行，圖示都對齊店名第一行，
+     方框緊貼著排 → 圖示中心距固定 28px（圖示之間空 10px）。外側 -5px：最左、最右的圖示貼齊卡片內容的邊線（多出來的 5px 伸進卡片內距，按得到的範圍比較大）。
+     顏色、透明度、鎖住的樣式照舊（.fav-btn、.stamp-btn、.shop-link-btn）。
+     padding-top 2px＝圖示往下 1px：中文字（Noto Serif TC）的字面中心比行高中線低約 1px，對齊字面中心看起來才平（本機實測）。 */
+  .card-ic-row { flex: none; display: flex; align-items: center; height: 23px; padding-top: 2px; }
+  .card-lead { margin: 0 1px 0 -5px; }
+  .card-acts { margin: 0 -5px 0 6px; }
+  .card-top .card-ic {
+    flex: none; box-sizing: border-box; width: 28px; height: 28px;
+    display: grid; place-items: center;
+    margin: 0; padding: 0; border: 0; border-radius: 0; background: none;
+    font: inherit; line-height: 0; text-decoration: none;
+    -webkit-appearance: none; appearance: none;
+  }
+  .card-top .card-ic .ic { display: block; width: 18px; height: 18px; }
+  .card-top .nav-btn { color: var(--stone); transition: color 0.15s; }   /* 同 .shop-link-btn */
+  .card-top .nav-btn:hover { color: var(--red); }
+  .card-acts .queue-badge-header { margin: 0 4px 0 0; }
+  /* 第二排：稱號（沒有就整排不出現）。徽章沿用下面 .member-badge 等的大小、顏色（含深色），只拿掉英文用的字距；
+     新開幕補一條同色的框，三種高度才一樣 */
+  .card-titles { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 13px 0; }
+  .card-titles .card-title { margin-top: 0; letter-spacing: 0; }
+  .card-titles .new-open-badge { border: 1px solid var(--red); }
+  /* 第三排：狀態句＋距離。營業狀態不是「營業中」的店直接寫營業狀態（顏色同上面 .nl-* 小標籤） */
+  .card-status {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    padding: 6px 13px 0; font-size: 13.5px; line-height: 1.45; color: var(--ink);
+  }
+  .card-st { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+  .card-st::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+  .card-st b { font-weight: 700; }
+  .card-st-rest { color: var(--ink); }
+  .st-open  { color: var(--open-txt); }
+  .st-break { color: var(--pause-txt); }
+  .st-off, .st-off .card-st-rest { color: var(--stone); }
+  .st-na-closed { color: #888; }
+  .st-na-moved  { color: #b86c00; }
+  .st-na-pause  { color: var(--pause-txt); }
+  .st-na-prep   { color: var(--prep-txt); }
+  .card-dist { flex: none; font-size: 12.5px; color: var(--stone); }
+  /* 第四排：標籤只排一行，放不下的收成「+N」（js/card.js _fitCardTags）；展開後全部顯示 */
+  .card-bottom { display: flex; align-items: flex-start; gap: 10px; padding: 9px 13px 12px; }
+  .card-tags { flex: 1; min-width: 0; display: flex; gap: 5px; flex-wrap: nowrap; overflow: hidden; }
+  .card-tags .tag { flex: none; white-space: nowrap; }
+  .card.expanded .card-tags { flex-wrap: wrap; }
+  .card.expanded .card-tags .tag[hidden] { display: block; }
+  .card.expanded .card-tags .tag-more { display: none; }
+  /* 展開後「資訊」：整週營業時間（同時段的連續日子併一行、今天標紅）→ 資訊表 */
+  .card-week-label { font-size: 11px; color: var(--stone); margin: 2px 0 6px; }
+  .card-week {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 14px;
+    font-size: 13px; color: var(--ink); margin-bottom: 12px;
+  }
+  .card-week .wd, .card-week .off { color: var(--stone); }
+  .card-week .today { color: var(--red); font-weight: 700; }
+  /* 地址本身可點（開地圖），後面「複製」（樣式同「回報問題」鈕，見 .ir-btn-card）；按鈕上下 -5px：列高跟其他列一樣 */
+  .addr-cell { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .addr-link {
+    color: #1a73e8; text-decoration: underline; text-decoration-color: rgba(26, 115, 232, 0.35);
+    text-underline-offset: 3px; overflow-wrap: anywhere;
+  }
+  body.dark .addr-link { color: #8ab4f8; text-decoration-color: rgba(138, 180, 248, 0.4); }
+  .addr-cell .addr-copy-btn { flex: none; margin: -5px 0; }
+  /* 分享：跟 Instagram／Facebook 同一顆按鈕（.link-btn），只換顏色（同 .tag-gray）；button 的預設外框、行高拿掉 */
+  .link-share { background: #f0ece6; color: var(--ink); border: none; cursor: pointer; line-height: inherit; }
+  body.dark .link-share { background: #28221c; }
+
   /* ── EXPANDED DETAIL ── */
   .card-detail {
     display: grid; grid-template-rows: 0fr;
@@ -915,17 +993,18 @@
   }
   .ir-textarea:focus { outline: 2px solid #5b8ef0; border-color: transparent; }
   .ir-footer { display: flex; gap: 10px; margin-top: 16px; }
-  .ir-btn-card {
+  /* 2026-11-19：卡片地址後面的「複製」（.addr-copy-btn）跟「回報問題」同一種按鈕 */
+  .ir-btn-card, .addr-copy-btn {
     display: inline-flex; align-items: center; gap: 4px;
     margin-top: 8px; padding: 5px 12px;
     background: none; border: 1px solid var(--line); border-radius: 20px;
     font-size: 12px; color: var(--stone); cursor: pointer; font-family: inherit; transition: all 0.15s;
   }
-  .ir-btn-card:hover { border-color: #5b8ef0; color: #3358c4; background: #f0f4ff; }
+  .ir-btn-card:hover, .addr-copy-btn:hover { border-color: #5b8ef0; color: #3358c4; background: #f0f4ff; }
   .ir-btn-card.ff-locked { opacity: 0.5; cursor: not-allowed; }
   body.dark .ir-select, body.dark .ir-textarea { background: #22253a; border-color: #334; color: #e8e8e8; }
-  body.dark .ir-btn-card { border-color: #334; color: #888; }
-  body.dark .ir-btn-card:hover:not(.ff-locked) { border-color: #5b8ef0; color: #7ba4f8; background: #1e2848; }
+  body.dark .ir-btn-card, body.dark .addr-copy-btn { border-color: #334; color: #888; }
+  body.dark .ir-btn-card:hover:not(.ff-locked), body.dark .addr-copy-btn:hover { border-color: #5b8ef0; color: #7ba4f8; background: #1e2848; }
 
   /* RANKINGS MODAL */
   .rk-backdrop {
@@ -1696,9 +1775,10 @@
   .fav-btn.locked { opacity: 0.3; cursor: not-allowed; }
 
   /* ── STAMP BUTTON ── */
+  /* color：2026-11-19 補上。原本沒設，吃到瀏覽器按鈕預設的黑色，深色模式幾乎看不到 */
   .stamp-btn {
     border: none; background: none; cursor: pointer;
-    font-size: 17px; padding: 0 2px; line-height: 1;
+    font-size: 17px; padding: 0 2px; line-height: 1; color: var(--ink);
     flex-shrink: 0; opacity: 0.25; transition: opacity 0.15s;
   }
   .stamp-btn.can-stamp { opacity: 0.45; }
@@ -2381,7 +2461,8 @@
   </style>
 </head>
 <body class="reviews-hidden challenges-hidden">
-<!-- PulsoIcon 圖示表（2026-11-18，只放 finder 用到的 50 個；ISC，多數形狀來自 Lucide、實心版來自 Tabler Icons，授權全文 assets/icons/PulsoIcon-LICENSE.txt） -->
+<!-- PulsoIcon 圖示表（2026-11-18，只放 finder 用到的；ISC，多數形狀來自 Lucide、實心版來自 Tabler Icons，授權全文 assets/icons/PulsoIcon-LICENSE.txt）
+     2026-11-19：加 copy、share-2（店家卡片的複製地址、分享，共 52 個）；heart-solid 改成 heart 同一條線填滿（原本 Tabler 的實心愛心比空心窄，按收藏會縮一下） -->
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
 <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
 <symbol id="i-book-open" viewBox="0 0 24 24"><path d="M12 5v16"/><path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"/></symbol>
@@ -2402,12 +2483,13 @@
 <symbol id="i-circle-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></symbol>
 <symbol id="i-clipboard-list" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></symbol>
 <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
 <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
 <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/></symbol>
 <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/></symbol>
 <symbol id="i-footprints" viewBox="0 0 24 24"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/></symbol>
 <symbol id="i-heart" viewBox="0 0 24 24"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/></symbol>
-<symbol id="i-heart-solid" viewBox="0 0 24 24"><path d="M6.979 3.074a6 6 0 0 1 4.988 1.425l.037 .033l.034 -.03a6 6 0 0 1 4.733 -1.44l.246 .036a6 6 0 0 1 3.364 10.008l-.18 .185l-.048 .041l-7.45 7.379a1 1 0 0 1 -1.313 .082l-.094 -.082l-7.493 -7.422a6 6 0 0 1 3.176 -10.215z" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-heart-solid" viewBox="0 0 24 24"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" fill="currentColor"/></symbol>
 <symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
 <symbol id="i-loader-circle" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
 <symbol id="i-locate-fixed" viewBox="0 0 24 24"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></symbol>
@@ -2424,6 +2506,7 @@
 <symbol id="i-scan-qr-code" viewBox="0 0 24 24"><path d="M17 12v4a1 1 0 0 1-1 1h-4"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M17 8V7"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M7 17h.01"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="5" height="5" rx="1"/></symbol>
 <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
 <symbol id="i-settings" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-share-2" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></symbol>
 <symbol id="i-square-pen" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></symbol>
 <symbol id="i-star" viewBox="0 0 24 24"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></symbol>
 <symbol id="i-star-solid" viewBox="0 0 24 24"><path d="M8.243 7.34l-6.38 .925l-.113 .023a1 1 0 0 0 -.44 1.684l4.622 4.499l-1.09 6.355l-.013 .11a1 1 0 0 0 1.464 .944l5.706 -3l5.693 3l.1 .046a1 1 0 0 0 1.352 -1.1l-1.091 -6.355l4.624 -4.5l.078 -.085a1 1 0 0 0 -.633 -1.62l-6.38 -.926l-2.852 -5.78a1 1 0 0 0 -1.794 0l-2.853 5.78z" fill="currentColor" stroke="none"/></symbol>
@@ -5161,7 +5244,7 @@ function renderHomeFeature() {
   const textCards = bds.map(bd => `<div class="home-feature hf-bd" data-shop-id="${escapeAttr(bd['ID'] || '')}">
     <div class="hf-label">🎂 本日壽星</div><div class="hf-main">${escapeHtml(bd['店名'] || '')}</div></div>`);
   if (newCount) textCards.push(`<div class="home-feature hf-new" data-newopen="1">
-    <div class="hf-label">NEW OPEN</div><div class="hf-main">近 3 個月 ${newCount} 間新店</div></div>`);
+    <div class="hf-label">新開幕</div><div class="hf-main">近 3 個月 ${newCount} 間新店</div></div>`);
   // 3 張起改固定寬橫捲（樣式見 .home-feature-row.home-hscroll），2 張以內維持均分滿版
   if (textCards.length) parts.push(
     `<div class="home-feature-row${textCards.length >= 3 ? ' home-hscroll' : ''}">${textCards.join('')}</div>`);
