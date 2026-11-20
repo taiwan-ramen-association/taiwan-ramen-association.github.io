@@ -264,7 +264,7 @@ function _bdgWaitIdle() {
   if (_bdgSeenWait) return;
   _bdgSeenWait = true;
   const done = () => { _bdgSeenWait = false; _bdgSeenReady = true; _bdgCheckNew(); };
-  const afterOnboarding = () => setTimeout(() => {   // 新手導覽是同一輪 callback 才開的，先讓它開
+  const waitClose = () => {
     const ob = document.getElementById('onboardingModal');
     if (!ob || !ob.classList.contains('open')) { done(); return; }
     const mo = new MutationObserver(() => {
@@ -273,7 +273,16 @@ function _bdgWaitIdle() {
       done();
     });
     mo.observe(ob, { attributes: true, attributeFilter: ['class'] });
-  }, 300);
+  };
+  // 新手導覽要先讀 meta/onboarding 才知道開不開（js/onboarding.js）：等它的結果，最多 5 秒。
+  // 快取裡的舊版 finder.html 沒有 onboardingDecided → 照舊等 300ms（導覽是同一輪 callback 才開的，先讓它開）
+  const afterOnboarding = () => {
+    if (typeof onboardingDecided !== 'function') { setTimeout(waitClose, 300); return; }
+    let fired = false;
+    const go = () => { if (fired) return; fired = true; waitClose(); };
+    onboardingDecided().then(go, go);
+    setTimeout(go, 5000);
+  };
   if (typeof _onDataLoaded === 'function' && typeof _onBdAnimDone === 'function') _onDataLoaded(() => _onBdAnimDone(afterOnboarding));
   else afterOnboarding();
 }

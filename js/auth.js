@@ -6,7 +6,9 @@
 //   favSet, stampMap, reviewMap（stamps.js）
 // 依賴全域（主 inline script）：
 //   render, _currentPage, switchPage, checkUnreadBadge,
-//   _onDataLoaded, _onBdAnimDone, openOnboardingModal
+//   _onDataLoaded, _onBdAnimDone
+// 依賴全域（js/onboarding.js；快取裡的舊版 finder.html 沒有 → 退回 openOnboardingModal）：
+//   onboardingAutoOpen
 // 提供全域：
 //   auth, db, storage, provider, firebase (透過 initializeApp)
 //   currentUserRole, currentDisplayName, currentAvatarUrl, isWarned
@@ -489,7 +491,12 @@ auth.onAuthStateChanged(async user => {
         });
       }
 
-      _onDataLoaded(() => _onBdAnimDone(() => { if (canView('onboardingTour') && !localStorage.getItem('onboarding_done_' + user.uid)) openOnboardingModal(); }));
+      // 新手導覽：跳不跳交給 js/onboarding.js（看過的版本比 meta/onboarding 舊才跳）；
+      // 快取裡的舊版 finder.html 沒有 onboardingAutoOpen → 照舊寫法
+      _onDataLoaded(() => _onBdAnimDone(() => {
+        if (typeof onboardingAutoOpen === 'function') onboardingAutoOpen(user.uid);
+        else if (canView('onboardingTour') && !localStorage.getItem('onboarding_done_' + user.uid)) openOnboardingModal();
+      }));
     } else {
       loginBtn.style.display   = 'flex';
       userAvatar.style.display = 'none';
